@@ -1,0 +1,82 @@
+From f3e897be665f5bb36baf0b7d6323ee82bf2dfe93 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 8 Mar 2022 23:50:18 +0100
+Subject: [PATCH] Disable Recovery Patch via BOARD_NO_RECOVERY_PATCH
+
+Add BOARD_NO_RECOVERY_PATCH := true in your BoardConfig.mk to
+disable the creation of a recovery patch in
+/system|vendor/etc/recovery.img.
+
+Change-Id: Ibf7c2d695b35aad22cd97e8c67e3aa3b9629b986
+---
+ core/Makefile                             |  3 +++
+ tools/releasetools/make_recovery_patch.py | 12 ++++++++----
+ tools/releasetools/non_ab_ota.py          | 11 +++++++----
+ 3 files changed, 18 insertions(+), 8 deletions(-)
+
+diff --git a/core/Makefile b/core/Makefile
+index c19b075..5cc1ce4 100644
+--- a/core/Makefile
++++ b/core/Makefile
+@@ -5289,6 +5289,9 @@ endif
+ ifdef BOARD_USES_VENDORIMAGE
+ 	$(hide) echo "board_uses_vendorimage=true" >> $@
+ endif
++ifdef BOARD_NO_RECOVERY_PATCH
++	$(hide) echo "board_no_recovery_patch=true" >> $@
++endif
+ ifeq ($(BOARD_AVB_ENABLE),true)
+ ifeq ($(BUILDING_VBMETA_IMAGE),true)
+ 	$(hide) echo "avb_building_vbmeta_image=true" >> $@
+diff --git a/tools/releasetools/make_recovery_patch.py b/tools/releasetools/make_recovery_patch.py
+index b52289b..98929c7 100644
+--- a/tools/releasetools/make_recovery_patch.py
++++ b/tools/releasetools/make_recovery_patch.py
+@@ -51,12 +51,16 @@ def main(argv):
+       "board_uses_vendorimage") == "true"
+   board_builds_vendorimage =  OPTIONS.info_dict.get(
+       "board_builds_vendorimage") == "true"
++  board_no_recovery_patch =  OPTIONS.info_dict.get(
++      "board_no_recovery_patch") == "true"
++
+   target_files_dir = None
+ 
+-  if board_builds_vendorimage:
+-    target_files_dir = "VENDOR"
+-  elif not board_uses_vendorimage:
+-    target_files_dir = "SYSTEM/vendor"
++  if not board_no_recovery_patch:
++    if board_builds_vendorimage:
++      target_files_dir = "VENDOR"
++    elif not board_uses_vendorimage:
++      target_files_dir = "SYSTEM/vendor"
+ 
+   def output_sink(fn, data):
+     if target_files_dir is None:
+diff --git a/tools/releasetools/non_ab_ota.py b/tools/releasetools/non_ab_ota.py
+index ad9cbcc..8ba38c8 100644
+--- a/tools/releasetools/non_ab_ota.py
++++ b/tools/releasetools/non_ab_ota.py
+@@ -702,12 +702,15 @@ def _WriteRecoveryImageToBoot(script, output_zip):
+ def HasRecoveryPatch(target_files_zip, info_dict):
+   board_uses_vendorimage = info_dict.get("board_uses_vendorimage") == "true"
+   board_builds_vendorimage = info_dict.get("board_builds_vendorimage") == "true"
++  board_no_recovery_patch = info_dict.get("board_no_recovery_patch") == "true"
++
+   target_files_dir = None
+ 
+-  if board_builds_vendorimage:
+-    target_files_dir = "VENDOR"
+-  elif not board_uses_vendorimage:
+-    target_files_dir = "SYSTEM/vendor"
++  if not board_no_recovery_patch:
++    if board_builds_vendorimage:
++      target_files_dir = "VENDOR"
++    elif not board_uses_vendorimage:
++      target_files_dir = "SYSTEM/vendor"
+ 
+   if target_files_dir is None:
+     return True
+-- 
+2.7.4
+

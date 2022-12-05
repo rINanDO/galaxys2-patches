@@ -1,0 +1,28 @@
+From 919eb09ff4a782ea4f7a2f24393ba2a22ff2689e Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 26 Sep 2022 18:50:17 +0200
+Subject: [PATCH 2/3] ProcessState: Only log "thread pool shrunk" message
+
+Change-Id: I782a79d5476a18059c2822addb43dd0efe9b04d6
+---
+ libs/binder/ProcessState.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libs/binder/ProcessState.cpp b/libs/binder/ProcessState.cpp
+index 4a01d81..d326d11 100644
+--- a/libs/binder/ProcessState.cpp
++++ b/libs/binder/ProcessState.cpp
+@@ -390,8 +390,8 @@ void ProcessState::spawnPooledThread(bool isMain)
+ }
+ 
+ status_t ProcessState::setThreadPoolMaxThreadCount(size_t maxThreads) {
+-    LOG_ALWAYS_FATAL_IF(mThreadPoolStarted && maxThreads < mMaxThreads,
+-           "Binder threadpool cannot be shrunk after starting");
++    ALOGE("Binder threadpool cannot be shrunk after starting. maxThreads:%zu mMaxThreads:%zu", maxThreads, mMaxThreads);
++
+     status_t result = NO_ERROR;
+     if (ioctl(mDriverFD, BINDER_SET_MAX_THREADS, &maxThreads) != -1) {
+         mMaxThreads = maxThreads;
+-- 
+2.7.4
+

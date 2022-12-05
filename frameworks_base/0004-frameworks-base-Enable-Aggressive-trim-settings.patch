@@ -1,0 +1,109 @@
+From b6784ba754ce0032e6f001b189bddc6d432f017d Mon Sep 17 00:00:00 2001
+From: Kishore Srivenkata Ganesh Bolisetty <bsrivenk@codeaurora.org>
+Date: Mon, 5 Jan 2015 17:40:39 +0530
+Subject: [PATCH 04/10] frameworks/base : Enable Aggressive trim settings
+
+This change will enable aggressive trim settings for targets
+up to 1gb. The change can be turned on/off from system properties.
+By default, the properties are set for targets up to 1GB.
+
+Change-Id: I233dddbff07e7ec1fe2ee96402fe1d411903beb5
+CRs-Fixed: 783020
+---
+ .../server/am/ActivityManagerConstants.java        | 47 ++++++++++++++++++++--
+ 1 file changed, 43 insertions(+), 4 deletions(-)
+
+diff --git a/services/core/java/com/android/server/am/ActivityManagerConstants.java b/services/core/java/com/android/server/am/ActivityManagerConstants.java
+index c372096..fe628f1 100644
+--- a/services/core/java/com/android/server/am/ActivityManagerConstants.java
++++ b/services/core/java/com/android/server/am/ActivityManagerConstants.java
+@@ -35,6 +35,8 @@ import android.os.Handler;
+ import android.os.Message;
+ import android.os.PowerExemptionManager;
+ import android.os.SystemClock;
++import android.os.Process;
++import android.os.SystemProperties;
+ import android.provider.DeviceConfig;
+ import android.provider.DeviceConfig.OnPropertiesChangedListener;
+ import android.provider.DeviceConfig.Properties;
+@@ -145,7 +147,8 @@ final class ActivityManagerConstants extends ContentObserver {
+      */
+     static final String KEY_NETWORK_ACCESS_TIMEOUT_MS = "network_access_timeout_ms";
+ 
+-    private static final int DEFAULT_MAX_CACHED_PROCESSES = 32;
++    private static final int DEFAULT_MAX_CACHED_PROCESSES =
++            SystemProperties.getInt("ro.vendor.qti.sys.fw.bg_apps_limit", 32);
+     private static final long DEFAULT_FGSERVICE_MIN_SHOWN_TIME = 2*1000;
+     private static final long DEFAULT_FGSERVICE_MIN_REPORT_TIME = 3*1000;
+     private static final long DEFAULT_FGSERVICE_SCREEN_ON_BEFORE_TIME = 1*1000;
+@@ -705,6 +708,17 @@ final class ActivityManagerConstants extends ContentObserver {
+     // process limit. This will be initialized in the constructor.
+     public int CUR_MAX_CACHED_PROCESSES;
+ 
++    static final boolean USE_TRIM_SETTINGS =
++            SystemProperties.getBoolean("ro.vendor.qti.sys.fw.use_trim_settings", true);
++    static final int EMPTY_APP_PERCENT =
++            SystemProperties.getInt("ro.vendor.qti.sys.fw.empty_app_percent", 50);
++    static final int TRIM_EMPTY_PERCENT =
++            SystemProperties.getInt("ro.vendor.qti.sys.fw.trim_empty_percent", 100);
++    static final int TRIM_CACHE_PERCENT =
++            SystemProperties.getInt("ro.vendor.qti.sys.fw.trim_cache_percent", 100);
++    static final long TRIM_ENABLE_MEMORY =
++            SystemProperties.getLong("ro.vendor.qti.sys.fw.trim_enable_memory",1073741824);
++
+     // The maximum number of empty app processes we will let sit around.  This will be
+     // initialized in the constructor.
+     public int CUR_MAX_EMPTY_PROCESSES;
+@@ -1111,7 +1125,11 @@ final class ActivityManagerConstants extends ContentObserver {
+     }
+ 
+     public static int computeEmptyProcessLimit(int totalProcessLimit) {
+-        return totalProcessLimit/2;
++        if (USE_TRIM_SETTINGS && allowTrim()) {
++            return totalProcessLimit * EMPTY_APP_PERCENT / 100;
++        } else {
++            return totalProcessLimit / 2;
++        }
+     }
+ 
+     @Override
+@@ -1588,8 +1606,9 @@ final class ActivityManagerConstants extends ContentObserver {
+         // to consider the same level the point where we do trimming regardless of any
+         // additional enforced limit.
+         final int rawMaxEmptyProcesses = computeEmptyProcessLimit(MAX_CACHED_PROCESSES);
+-        CUR_TRIM_EMPTY_PROCESSES = rawMaxEmptyProcesses/2;
+-        CUR_TRIM_CACHED_PROCESSES = (MAX_CACHED_PROCESSES-rawMaxEmptyProcesses)/3;
++        CUR_TRIM_EMPTY_PROCESSES = computeTrimEmptyApps(rawMaxEmptyProcesses);
++        CUR_TRIM_CACHED_PROCESSES = computeTrimCachedApps(
++                rawMaxEmptyProcesses, MAX_CACHED_PROCESSES);
+     }
+ 
+     private void updateMinAssocLogDuration() {
+@@ -1791,4 +1810,24 @@ final class ActivityManagerConstants extends ContentObserver {
+         pw.print("  CUR_TRIM_CACHED_PROCESSES="); pw.println(CUR_TRIM_CACHED_PROCESSES);
+         pw.print("  OOMADJ_UPDATE_QUICK="); pw.println(OOMADJ_UPDATE_QUICK);
+     }
++
++    private static boolean allowTrim() {
++        return Process.getTotalMemory() < TRIM_ENABLE_MEMORY;
++    }
++
++    private static int computeTrimEmptyApps(int rawMaxEmptyProcesses) {
++        if (USE_TRIM_SETTINGS && allowTrim()) {
++            return rawMaxEmptyProcesses * TRIM_EMPTY_PERCENT / 100;
++        } else {
++            return rawMaxEmptyProcesses / 2;
++        }
++    }
++
++    private static int computeTrimCachedApps(int rawMaxEmptyProcesses, int totalProcessLimit) {
++        if (USE_TRIM_SETTINGS && allowTrim()) {
++            return totalProcessLimit * TRIM_CACHE_PERCENT / 100;
++        } else {
++            return (totalProcessLimit - rawMaxEmptyProcesses) / 3;
++        }
++    }
+ }
+-- 
+2.7.4
+

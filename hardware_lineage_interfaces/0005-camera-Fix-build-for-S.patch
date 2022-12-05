@@ -1,0 +1,25 @@
+From 98b9d959fe61cd9769147285f123042c93b65c7a Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 2 Nov 2021 08:36:19 +0100
+Subject: [PATCH 5/8] camera: Fix build for S
+
+Change-Id: I893c0871dfbb711b762878490ca8919b57bccea7
+---
+ camera/device/1.0-legacy/CameraDevice.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/camera/device/1.0-legacy/CameraDevice.cpp b/camera/device/1.0-legacy/CameraDevice.cpp
+index f324e45..69ba2fa 100644
+--- a/camera/device/1.0-legacy/CameraDevice.cpp
++++ b/camera/device/1.0-legacy/CameraDevice.cpp
+@@ -15,6 +15,7 @@
+  */
+ 
+ #define LOG_TAG "CamDev@1.0-impl.legacy"
++#include <fcntl.h>
+ #include <hardware/camera.h>
+ #include <hardware/gralloc1.h>
+ #include <hidlmemory/mapping.h>
+-- 
+2.7.4
+

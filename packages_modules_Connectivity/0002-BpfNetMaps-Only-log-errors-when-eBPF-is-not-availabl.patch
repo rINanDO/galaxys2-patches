@@ -1,0 +1,46 @@
+From 8f226aedb39e95c6592317db2a70f09c75d35149 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 12 Oct 2022 15:40:51 +0200
+Subject: [PATCH 2/3] BpfNetMaps: Only log errors when eBPF is not available
+
+Change-Id: I9b09cd392f4a7d8adadb04419320e788fc0d2eca
+---
+ service/src/com/android/server/BpfNetMaps.java | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/service/src/com/android/server/BpfNetMaps.java b/service/src/com/android/server/BpfNetMaps.java
+index c006bc6..bc00cbb 100644
+--- a/service/src/com/android/server/BpfNetMaps.java
++++ b/service/src/com/android/server/BpfNetMaps.java
+@@ -21,6 +21,7 @@ import static android.system.OsConstants.EOPNOTSUPP;
+ import android.net.INetd;
+ import android.os.RemoteException;
+ import android.os.ServiceSpecificException;
++import android.os.SystemProperties;
+ import android.system.Os;
+ import android.util.Log;
+ 
+@@ -39,6 +40,7 @@ public class BpfNetMaps {
+     private final INetd mNetd;
+     // Use legacy netd for releases before T.
+     private static final boolean USE_NETD = !SdkLevel.isAtLeastT();
++    private static final boolean USE_EBPF = SystemProperties.getBoolean("ro.kernel.ebpf.supported", true);
+     private static boolean sInitialized = false;
+ 
+     /**
+@@ -68,7 +70,11 @@ public class BpfNetMaps {
+ 
+     private void maybeThrow(final int err, final String msg) {
+         if (err != 0) {
+-            throw new ServiceSpecificException(err, msg + ": " + Os.strerror(err));
++            if (USE_EBPF) {
++                throw new ServiceSpecificException(err, msg + ": " + Os.strerror(err));
++            } else {
++                Log.e(TAG, msg + ": " + Os.strerror(-err));
++            }
+         }
+     }
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,52 @@
+From 2b31638081e92c006ec8e05739949af0afcef53d Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 5 Nov 2022 20:58:54 +0100
+Subject: [PATCH 5/6] config: Add Process SDK version override support
+
+Change-Id: I1337ad51f2dfbe4fdc956df844f83e084a32475e
+Change-Id: If517cb136425a9302b5a69ea713a71acc5bd92bc
+---
+ build/soong/Android.bp     | 18 ++++++++++++++++++
+ config/BoardConfigSoong.mk |  3 +++
+ 2 files changed, 21 insertions(+)
+
+diff --git a/build/soong/Android.bp b/build/soong/Android.bp
+index 471d547..a5d88c4 100644
+--- a/build/soong/Android.bp
++++ b/build/soong/Android.bp
+@@ -378,3 +378,21 @@ needs_netd_direct_connect_rule {
+         },
+     },
+ }
++
++// Bionic SDK version override
++soong_config_module_type {
++    name: "target_process_sdk_version_overrides",
++    module_type: "cc_defaults",
++    config_namespace: "lineageGlobalVars",
++    value_variables: ["target_process_sdk_version_override"],
++    properties: ["cppflags"],
++}
++
++target_process_sdk_version_overrides {
++    name: "process_sdk_version_overrides_defaults",
++    soong_config_variables: {
++        target_process_sdk_version_override: {
++            cppflags: ["-DSDK_VERSION_OVERRIDES=\"%s\""],
++        },
++    },
++}
+diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
+index 8d4ec3a..dcc4c14 100644
+--- a/config/BoardConfigSoong.mk
++++ b/config/BoardConfigSoong.mk
+@@ -105,3 +105,6 @@ endif
+ # Soong legacy value variables
+ SOONG_CONFIG_lineageGlobalVars += needs_netd_direct_connect_rule
+ SOONG_CONFIG_lineageGlobalVars_needs_netd_direct_connect_rule := $(TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE)
++
++SOONG_CONFIG_lineageGlobalVars += target_process_sdk_version_override
++SOONG_CONFIG_lineageGlobalVars_target_process_sdk_version_override := $(TARGET_PROCESS_SDK_VERSION_OVERRIDE)
+-- 
+2.7.4
+

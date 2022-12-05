@@ -1,0 +1,61 @@
+From 7c83dbf222e70322038c0d5296e95dc77727a9b6 Mon Sep 17 00:00:00 2001
+From: Pawit Pornkitprasan <p.pawit@gmail.com>
+Date: Tue, 18 Nov 2014 22:36:32 +0700
+Subject: [PATCH 3/3] healthd: charger: allow home button to wake
+
+A squashed commit of the following:
+
+commit 6ce21d726a967b2cc942476758b9ab3851ff39f1
+Author: Pawit Pornkitprasan <p.pawit@gmail.com>
+Date:   Sun Feb 3 22:21:32 2013 +0700
+
+    charger: do not suspend when handling home
+
+    When using Google's suspend implementation, home press should also wake
+    the device from suspend
+
+    Change-Id: I51f3e45c5cb418b0b3718e7223a1336876379043
+
+commit 75a7cf84df719d8cf5cd77093b3f9fee3c09017e
+Author: Pawit Pornkitprasan <p.pawit@gmail.com>
+Date:   Sat Jul 21 22:09:37 2012 +0700
+
+    charger: allow home button to wake
+
+    On certain devices (e.g. galaxysmtd), the user expects the physical
+    home button to be able to wake the device as well as the power button.
+
+    Change-Id: If764f36aba3810dfa5233af8baf0a740b04889e0
+
+Change-Id: I362b227e26bc864a2cad471df799bce2d682ecee
+---
+ healthd/healthd_mode_charger.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/healthd/healthd_mode_charger.cpp b/healthd/healthd_mode_charger.cpp
+index 9fe85d4..a6a680c 100644
+--- a/healthd/healthd_mode_charger.cpp
++++ b/healthd/healthd_mode_charger.cpp
+@@ -534,6 +534,11 @@ void Charger::ProcessKey(int code, int64_t now) {
+                 RequestDisableSuspend();
+             }
+         }
++    } else {
++        if (key->pending) {
++            kick_animation(&batt_anim_);
++            RequestDisableSuspend();
++        }
+     }
+ 
+     key->pending = false;
+@@ -555,6 +560,7 @@ void Charger::ProcessHallSensor(int code) {
+ 
+ void Charger::HandleInputState(int64_t now) {
+     ProcessKey(KEY_POWER, now);
++    ProcessKey(KEY_HOME, now);
+ 
+     if (next_key_check_ != -1 && now > next_key_check_) next_key_check_ = -1;
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,34 @@
+From 8e171ef5a9db83e9ffc4af8c8e860d39a6ac9212 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 15 Nov 2022 21:03:21 +0100
+Subject: [PATCH 2/2] Revert "Utils: add FAKE_PACKAGE_SIGNATURE to platform
+ permissions"
+
+This reverts commit 051961435b191fe5524de17f149e7f9c5670c3a5.
+---
+ .../src/com/android/permissioncontroller/permission/utils/Utils.java    | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/PermissionController/src/com/android/permissioncontroller/permission/utils/Utils.java b/PermissionController/src/com/android/permissioncontroller/permission/utils/Utils.java
+index 97293d9..48793ab 100644
+--- a/PermissionController/src/com/android/permissioncontroller/permission/utils/Utils.java
++++ b/PermissionController/src/com/android/permissioncontroller/permission/utils/Utils.java
+@@ -21,7 +21,6 @@ import static android.Manifest.permission_group.CALENDAR;
+ import static android.Manifest.permission_group.CALL_LOG;
+ import static android.Manifest.permission_group.CAMERA;
+ import static android.Manifest.permission_group.CONTACTS;
+-import static android.Manifest.permission_group.FAKE_PACKAGE;
+ import static android.Manifest.permission_group.LOCATION;
+ import static android.Manifest.permission_group.MICROPHONE;
+ import static android.Manifest.permission_group.NEARBY_DEVICES;
+@@ -341,7 +340,6 @@ public final class Utils {
+             PLATFORM_PERMISSIONS.put(Manifest.permission.POST_NOTIFICATIONS, NOTIFICATIONS);
+             PLATFORM_PERMISSIONS.put(Manifest.permission.BODY_SENSORS_BACKGROUND, SENSORS);
+         }
+-        PLATFORM_PERMISSIONS.put(Manifest.permission.FAKE_PACKAGE_SIGNATURE, FAKE_PACKAGE);
+ 
+         PLATFORM_PERMISSION_GROUPS = new ArrayMap<>();
+         int numPlatformPermissions = PLATFORM_PERMISSIONS.size();
+-- 
+2.7.4
+

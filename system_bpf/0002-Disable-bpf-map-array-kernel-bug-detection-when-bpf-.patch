@@ -1,0 +1,43 @@
+From 05d394ae9d37bbafd70399983c60286fc8c9421a Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 23 Oct 2022 22:46:16 +0200
+Subject: [PATCH 2/2] Disable bpf map array kernel bug detection when bpf is
+ not supported by kernel
+
+---
+ bpfloader/BpfLoader.cpp | 17 ++++++++---------
+ 1 file changed, 8 insertions(+), 9 deletions(-)
+
+diff --git a/bpfloader/BpfLoader.cpp b/bpfloader/BpfLoader.cpp
+index 30a4d95..76e4d0e 100644
+--- a/bpfloader/BpfLoader.cpp
++++ b/bpfloader/BpfLoader.cpp
+@@ -200,17 +200,16 @@ int main(int argc, char** argv) {
+                 return 2;
+             }
+         }
+-    }
+ 
+-    int key = 1;
+-    int value = 123;
+-    android::base::unique_fd map(
+-            android::bpf::createMap(BPF_MAP_TYPE_ARRAY, sizeof(key), sizeof(value), 2, 0));
+-    if (android::bpf::writeToMapEntry(map, &key, &value, BPF_ANY)) {
+-        ALOGE("Critical kernel bug - failure to write into index 1 of 2 element bpf map array.");
+-        return 1;
++        int key = 1;
++        int value = 123;
++        android::base::unique_fd map(
++                android::bpf::createMap(BPF_MAP_TYPE_ARRAY, sizeof(key), sizeof(value), 2, 0));
++        if (android::bpf::writeToMapEntry(map, &key, &value, BPF_ANY)) {
++            ALOGE("Critical kernel bug - failure to write into index 1 of 2 element bpf map array.");
++            return 1;
++        }
+     }
+-
+     if (android::base::SetProperty("bpf.progs_loaded", "1") == false) {
+         ALOGE("Failed to set bpf.progs_loaded property");
+         return 1;
+-- 
+2.7.4
+

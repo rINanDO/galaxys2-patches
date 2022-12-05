@@ -1,0 +1,44 @@
+From 411674b6a016a6ee0af5e4ee66a75a38aec2e2c8 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 5 Nov 2022 19:46:11 +0100
+Subject: [PATCH] IpClientLinkObserver: Disable Netlink event parsing when eBPF
+ is not supported
+
+Change-Id: I23129cff05b460a73ec66a26f74ca926a9d8b1b2
+---
+ src/android/net/ip/IpClientLinkObserver.java | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/android/net/ip/IpClientLinkObserver.java b/src/android/net/ip/IpClientLinkObserver.java
+index bebe7c9..c16837d 100644
+--- a/src/android/net/ip/IpClientLinkObserver.java
++++ b/src/android/net/ip/IpClientLinkObserver.java
+@@ -39,6 +39,7 @@ import android.net.LinkProperties;
+ import android.net.RouteInfo;
+ import android.net.util.SharedLog;
+ import android.os.Handler;
++import android.os.SystemProperties;
+ import android.system.OsConstants;
+ import android.util.Log;
+ 
+@@ -103,6 +104,8 @@ import java.util.concurrent.TimeUnit;
+  */
+ public class IpClientLinkObserver implements NetworkObserver {
+     private final String mTag;
++    private static final boolean USE_EBPF = SystemProperties.getBoolean("ro.kernel.ebpf.supported", true);
++
+ 
+     /**
+      * Callback used by {@link IpClientLinkObserver} to send update notifications.
+@@ -216,7 +219,7 @@ public class IpClientLinkObserver implements NetworkObserver {
+ 
+     private boolean isNetlinkEventParsingEnabled() {
+         return mDependencies.isFeatureEnabled(mContext, IPCLIENT_PARSE_NETLINK_EVENTS_VERSION,
+-                isAtLeastT() /* default value */);
++                isAtLeastT() && USE_EBPF /* default value */);
+     }
+ 
+     private int getSocketReceiveBufferSize() {
+-- 
+2.7.4
+

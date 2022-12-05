@@ -1,0 +1,50 @@
+From f5b85cc02bad79ea114b98decca5a7b6f65cff53 Mon Sep 17 00:00:00 2001
+From: maxwen <max.weninger@gmail.com>
+Date: Tue, 9 Oct 2018 13:52:55 +0200
+Subject: [PATCH 03/23] camera: Allow to use boottime as timestamp reference
+
+* Some /mad/ HALs use boottime clock without reporting
+  timestamp source as realtime
+  -> Add a flag to force boottime offset calculation
+
+[SebaUbuntu] Edit for Soong conditional
+
+Change-Id: I56b623a1c2b58ca8a6287783d938fb665de201df
+---
+ services/camera/libcameraservice/Android.bp                | 3 +++
+ services/camera/libcameraservice/device3/Camera3Device.cpp | 5 +++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/services/camera/libcameraservice/Android.bp b/services/camera/libcameraservice/Android.bp
+index 999e6e6..ffeb3ec 100644
+--- a/services/camera/libcameraservice/Android.bp
++++ b/services/camera/libcameraservice/Android.bp
+@@ -37,6 +37,9 @@ license {
+ 
+ cc_library_shared {
+     name: "libcameraservice",
++    defaults: [
++        "needs_camera_boottime_defaults",
++    ],
+ 
+     // Camera service source
+ 
+diff --git a/services/camera/libcameraservice/device3/Camera3Device.cpp b/services/camera/libcameraservice/device3/Camera3Device.cpp
+index 1d47ef2..654baee 100644
+--- a/services/camera/libcameraservice/device3/Camera3Device.cpp
++++ b/services/camera/libcameraservice/device3/Camera3Device.cpp
+@@ -352,6 +352,11 @@ status_t Camera3Device::initializeCommonLocked() {
+         mTimestampOffset = getMonoToBoottimeOffset();
+     }
+ 
++#ifdef TARGET_CAMERA_BOOTTIME_TIMESTAMP
++    // Always calculate the offset if requested
++    mTimestampOffset = getMonoToBoottimeOffset();
++#endif
++
+     // Will the HAL be sending in early partial result metadata?
+     camera_metadata_entry partialResultsCount =
+             mDeviceInfo.find(ANDROID_REQUEST_PARTIAL_RESULT_COUNT);
+-- 
+2.7.4
+

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+<remote  name="rinando"
+           fetch="https://github.com"
+           revision="lineage-20.0" />
+
+<!-- Galaxy S2 -->
+  <project name="rinando/android_device_samsung_i9100" path="device/samsung/i9100" remote="rinando" />
+  <project name="rinando/android_device_samsung_galaxys2-common" path="device/samsung/galaxys2-common" remote="rinando" />
+<!-- Shared Galaxy S2 and Galaxy S3 -->
+  <project name="rinando/android_kernel_samsung_smdk4412" path="kernel/samsung/smdk4412" remote="rinando" />
+  <remove-project name="LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9" />
+  <project name="rinando/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9" path="prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9" remote="rinando" />
+
+<!-- Shared Samsung -->
+  <project name="rinando/android_hardware_samsung" path="hardware/samsung" remote="rinando" />
+  <project name="rinando/proprietary_vendor_samsung" path="vendor/samsung" remote="rinando" />
+</manifest>
+
