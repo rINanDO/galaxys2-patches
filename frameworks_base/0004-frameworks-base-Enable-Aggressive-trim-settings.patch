@@ -1,4 +1,4 @@
-From b6784ba754ce0032e6f001b189bddc6d432f017d Mon Sep 17 00:00:00 2001
+From 5ed033c0aacbdfe7ba67a010f52f330ff3562aaa Mon Sep 17 00:00:00 2001
 From: Kishore Srivenkata Ganesh Bolisetty <bsrivenk@codeaurora.org>
 Date: Mon, 5 Jan 2015 17:40:39 +0530
 Subject: [PATCH 04/10] frameworks/base : Enable Aggressive trim settings
@@ -9,6 +9,8 @@ By default, the properties are set for targets up to 1GB.
 
 Change-Id: I233dddbff07e7ec1fe2ee96402fe1d411903beb5
 CRs-Fixed: 783020
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../server/am/ActivityManagerConstants.java        | 47 ++++++++++++++++++++--
  1 file changed, 43 insertions(+), 4 deletions(-)

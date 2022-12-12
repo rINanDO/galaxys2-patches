@@ -1,4 +1,4 @@
-From e22a898c48a45bc68afaedf947ceb602a20b8441 Mon Sep 17 00:00:00 2001
+From 7831c160b0f63c7c8d9410aaf9878741911dcbe3 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Sun, 28 Nov 2021 17:28:48 +0100
 Subject: [PATCH 03/10] StorageManagerService: Storage.xml: Bring back
@@ -9,12 +9,14 @@ storage.xml file. But in Android S this is changed to
 TypedXML(Serializer).
 
 Change-Id: Ic097fb234f707279e575e4c001fc8376f47cf72b
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../com/android/server/StorageManagerService.java  | 50 ++++++++++++----------
  1 file changed, 28 insertions(+), 22 deletions(-)
 
 diff --git a/services/core/java/com/android/server/StorageManagerService.java b/services/core/java/com/android/server/StorageManagerService.java
-index fc4da0b..ae98588 100644
+index 7f3676d..94fb8ae 100644
 --- a/services/core/java/com/android/server/StorageManagerService.java
 +++ b/services/core/java/com/android/server/StorageManagerService.java
 @@ -41,7 +41,11 @@ import static android.os.storage.OnObbStateChangeListener.ERROR_PERMISSION_DENIE
@@ -64,7 +66,7 @@ index fc4da0b..ae98588 100644
  import java.util.ArrayList;
  import java.util.Arrays;
  import java.util.HashMap;
-@@ -2194,14 +2200,15 @@ class StorageManagerService extends IStorageManager.Stub
+@@ -2200,14 +2206,15 @@ class StorageManagerService extends IStorageManager.Stub
          FileInputStream fis = null;
          try {
              fis = mSettingsFile.openRead();
@@ -82,7 +84,7 @@ index fc4da0b..ae98588 100644
                          final boolean primaryPhysical = SystemProperties.getBoolean(
                                  StorageManager.PROP_PRIMARY_PHYSICAL, false);
                          final boolean validAttr = (version >= VERSION_FIX_PRIMARY)
-@@ -2233,10 +2240,11 @@ class StorageManagerService extends IStorageManager.Stub
+@@ -2239,10 +2246,11 @@ class StorageManagerService extends IStorageManager.Stub
          try {
              fos = mSettingsFile.startWrite();
  
@@ -96,7 +98,7 @@ index fc4da0b..ae98588 100644
              writeStringAttribute(out, ATTR_PRIMARY_STORAGE_UUID, mPrimaryStorageUuid);
              final int size = mRecords.size();
              for (int i = 0; i < size; i++) {
-@@ -2254,33 +2262,31 @@ class StorageManagerService extends IStorageManager.Stub
+@@ -2260,33 +2268,31 @@ class StorageManagerService extends IStorageManager.Stub
          }
      }
  

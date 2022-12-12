@@ -1,7 +1,7 @@
-From a741dec1e12557ceba1ecf75405085eef1ec9ea4 Mon Sep 17 00:00:00 2001
+From e9ff3536a6bfd01b658574e89e703eb05a28c726 Mon Sep 17 00:00:00 2001
 From: Pig <pig.priv@gmail.com>
 Date: Thu, 15 Oct 2020 08:44:20 +0800
-Subject: [PATCH 05/23] camera: Allow devices to load custom CameraParameter
+Subject: [PATCH 09/26] camera: Allow devices to load custom CameraParameter
  code
 
 * Some devices need additional code to load their cameras. Add a hook

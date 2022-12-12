@@ -1,7 +1,7 @@
-From 72a9f5afa716e3572f9e93e947b101c2306b1fe1 Mon Sep 17 00:00:00 2001
+From 9ee32c931ee0f103b6ec63f8cc9779249fa02a21 Mon Sep 17 00:00:00 2001
 From: Steve Kondik <steve@cyngn.com>
 Date: Tue, 15 Dec 2015 05:44:18 -0500
-Subject: [PATCH 09/23] nuplayer: Avoid crash when codec fails to load
+Subject: [PATCH 13/26] nuplayer: Avoid crash when codec fails to load
 
  * Remove unnecessary check condition.
 

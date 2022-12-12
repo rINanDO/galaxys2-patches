@@ -1,7 +1,7 @@
-From 4106f3b1af55f2622567b8fe7b91d0fa7a17e9b0 Mon Sep 17 00:00:00 2001
+From fd6fa1efc7522247bd06d198311fe188693fbaf4 Mon Sep 17 00:00:00 2001
 From: Bruno Martins <bgcngm@gmail.com>
 Date: Sat, 23 Sep 2017 18:29:21 +0100
-Subject: [PATCH 16/23] camera: include: Don't override possible overlayed
+Subject: [PATCH 20/26] camera: include: Don't override possible overlayed
  header
 
  * If targets define a specific header path, then let it be the case

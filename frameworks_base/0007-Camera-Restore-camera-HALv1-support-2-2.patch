@@ -1,4 +1,4 @@
-From 6f1db53fb9492b4ba571eedecbab465dd833f427 Mon Sep 17 00:00:00 2001
+From 833376130bb657f78e9e4e45b8c332f1c2a04691 Mon Sep 17 00:00:00 2001
 From: Kyle Harrison <khwebmail@gmail.com>
 Date: Thu, 28 Oct 2021 12:29:04 +0100
 Subject: [PATCH 07/10] Camera: Restore camera HALv1 support [2/2]
@@ -75,10 +75,10 @@ Change-Id: I765d2912f024f58ba369b72453817ddf8ebe2b2a
  create mode 100644 media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/unit/CameraOpenTest.java
 
 diff --git a/config/boot-image-profile.txt b/config/boot-image-profile.txt
-index e0b659c..97503e7 100644
+index 1e18e96..5e44541 100644
 --- a/config/boot-image-profile.txt
 +++ b/config/boot-image-profile.txt
-@@ -34643,6 +34643,10 @@ Landroid/hardware/camera2/impl/CameraMetadataNative$Key;
+@@ -34656,6 +34656,10 @@ Landroid/hardware/camera2/impl/CameraMetadataNative$Key;
  Landroid/hardware/camera2/impl/CameraMetadataNative;
  Landroid/hardware/camera2/impl/GetCommand;
  Landroid/hardware/camera2/impl/SetCommand;
@@ -90,10 +90,10 @@ index e0b659c..97503e7 100644
  Landroid/hardware/camera2/marshal/MarshalQueryable;
  Landroid/hardware/camera2/marshal/MarshalRegistry$MarshalToken;
 diff --git a/config/preloaded-classes b/config/preloaded-classes
-index f253051..70f09be 100644
+index c4ccc16..63f3719 100644
 --- a/config/preloaded-classes
 +++ b/config/preloaded-classes
-@@ -2337,6 +2337,10 @@ android.hardware.camera2.impl.CameraMetadataNative$Key
+@@ -2339,6 +2339,10 @@ android.hardware.camera2.impl.CameraMetadataNative$Key
  android.hardware.camera2.impl.CameraMetadataNative
  android.hardware.camera2.impl.GetCommand
  android.hardware.camera2.impl.SetCommand
@@ -241,7 +241,7 @@ index 7193b93..a9523e4 100644
      private native final void native_release();
  
 diff --git a/core/java/android/hardware/camera2/CameraManager.java b/core/java/android/hardware/camera2/CameraManager.java
-index 640af497..517a5fe 100644
+index 42ed2d9..4b574d6 100644
 --- a/core/java/android/hardware/camera2/CameraManager.java
 +++ b/core/java/android/hardware/camera2/CameraManager.java
 @@ -27,12 +27,15 @@ import android.content.Context;
@@ -371,7 +371,7 @@ index 640af497..517a5fe 100644
              } catch (ServiceSpecificException e) {
                  if (e.errorCode == ICameraService.ERROR_DEPRECATED_HAL) {
                      throw new AssertionError("Should've gone down the shim path");
-@@ -1398,6 +1437,44 @@ public final class CameraManager {
+@@ -1425,6 +1464,44 @@ public final class CameraManager {
      }
  
      /**
@@ -11477,7 +11477,7 @@ index 6c83057..c730259 100644
 -    private static native long nativeGetSurfaceId(Surface surface);
  }
 diff --git a/core/jni/Android.bp b/core/jni/Android.bp
-index a1be884..5addf8d 100644
+index aa66171..18658bb 100644
 --- a/core/jni/Android.bp
 +++ b/core/jni/Android.bp
 @@ -179,9 +179,10 @@ cc_library_shared {

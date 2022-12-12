@@ -1,4 +1,4 @@
-From f4c43d69e5b8eced0b4dc9cf40b5c888800282b5 Mon Sep 17 00:00:00 2001
+From 42f5058f96e072039c743b9bd6e32aa3d5a4de7f Mon Sep 17 00:00:00 2001
 From: Danny Baumann <dannybaumann@web.de>
 Date: Fri, 31 Aug 2018 13:29:12 +0200
 Subject: [PATCH 05/10] CameraServiceProxy: Loosen UID check conditionally
@@ -6,6 +6,8 @@ Subject: [PATCH 05/10] CameraServiceProxy: Loosen UID check conditionally
 Also allow media UID for camera-in-mediaserver devices.
 
 Change-Id: I34e9ddb49adc78ba0589e3d64918eca7d675ec98
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  core/res/res/values/lineage_config.xml               | 20 ++++++++++++++++++++
  core/res/res/values/lineage_symbols.xml              | 20 ++++++++++++++++++++
@@ -67,7 +69,7 @@ index 0000000..fde3c82
 +    <java-symbol type="bool" name="config_allowMediaUidForCameraServiceProxy" />
 +</resources>
 diff --git a/services/core/java/com/android/server/camera/CameraServiceProxy.java b/services/core/java/com/android/server/camera/CameraServiceProxy.java
-index b425420..15bf74b 100644
+index aec60de..0242224 100644
 --- a/services/core/java/com/android/server/camera/CameraServiceProxy.java
 +++ b/services/core/java/com/android/server/camera/CameraServiceProxy.java
 @@ -217,6 +217,7 @@ public class CameraServiceProxy extends SystemService
@@ -98,7 +100,7 @@ index b425420..15bf74b 100644
                  Slog.e(TAG, "Calling UID: " + Binder.getCallingUid() + " doesn't match expected " +
                          " camera service UID!");
                  return;
-@@ -603,6 +606,8 @@ public class CameraServiceProxy extends SystemService
+@@ -608,6 +611,8 @@ public class CameraServiceProxy extends SystemService
  
          mNotifyNfc = SystemProperties.getInt(NFC_NOTIFICATION_PROP, 0) > 0;
          if (DEBUG) Slog.v(TAG, "Notify NFC behavior is " + (mNotifyNfc ? "active" : "disabled"));

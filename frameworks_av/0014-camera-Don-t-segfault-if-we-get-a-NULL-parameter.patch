@@ -1,7 +1,7 @@
-From d90e7b160c346e2181723e58552177a83e141c5f Mon Sep 17 00:00:00 2001
+From c16b653fe656db6fb9302c7fbe91c4cc6ef5575c Mon Sep 17 00:00:00 2001
 From: Steve Kondik <shade@chemlab.org>
 Date: Wed, 1 May 2013 02:58:11 -0700
-Subject: [PATCH 10/23] camera: Don't segfault if we get a NULL parameter
+Subject: [PATCH 14/26] camera: Don't segfault if we get a NULL parameter
 
  * Values end up NULL on some drivers, don't crash.
 

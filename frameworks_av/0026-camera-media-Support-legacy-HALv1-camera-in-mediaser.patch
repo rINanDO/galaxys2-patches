@@ -1,7 +1,7 @@
-From 18fdf8ef8cee980d06f4e40b0bb6e49e1802842c Mon Sep 17 00:00:00 2001
+From 94b22ad5c225d5e0d1d326d720ec2aa5338ddeb4 Mon Sep 17 00:00:00 2001
 From: Simon Shields <keepcalm444@gmail.com>
 Date: Thu, 6 Oct 2016 20:25:32 +1100
-Subject: [PATCH 22/23] camera/media: Support legacy HALv1 camera in
+Subject: [PATCH 26/26] camera/media: Support legacy HALv1 camera in
  mediaserver
 
 Pre 7.0 camera HALv1 can not share its video buffers
@@ -110,7 +110,7 @@ index 831e8bb..3d79d79 100644
  
      // Camera service source
 diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
-index 954fd7e..ca2cfdc 100644
+index e566e33..ce0b0ce 100644
 --- a/services/camera/libcameraservice/CameraService.cpp
 +++ b/services/camera/libcameraservice/CameraService.cpp
 @@ -1024,7 +1024,11 @@ int32_t CameraService::mapToInterface(StatusInternal status) {

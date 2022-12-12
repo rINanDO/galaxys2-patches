@@ -1,4 +1,4 @@
-From 9257d9f0e71eadafcf50ff298b3e7dbe57414c3b Mon Sep 17 00:00:00 2001
+From c64e22f151a050921087ddd461dcfdace362c4d3 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Thu, 20 Oct 2022 22:24:53 +0200
 Subject: [PATCH 09/10] Revert "Camera: Add support for readout timestamp"
@@ -304,10 +304,10 @@ index 8bf9498..5d9da73 100644
 -    }
  }
 diff --git a/core/java/android/hardware/camera2/params/OutputConfiguration.java b/core/java/android/hardware/camera2/params/OutputConfiguration.java
-index 9e87037..4a25177 100644
+index 90e92db..bd92846 100644
 --- a/core/java/android/hardware/camera2/params/OutputConfiguration.java
 +++ b/core/java/android/hardware/camera2/params/OutputConfiguration.java
-@@ -245,26 +245,6 @@ public final class OutputConfiguration implements Parcelable {
+@@ -247,26 +247,6 @@ public final class OutputConfiguration implements Parcelable {
       */
      public static final int TIMESTAMP_BASE_CHOREOGRAPHER_SYNCED = 4;
  
@@ -334,7 +334,7 @@ index 9e87037..4a25177 100644
      /** @hide */
      @Retention(RetentionPolicy.SOURCE)
      @IntDef(prefix = {"TIMESTAMP_BASE_"}, value =
-@@ -272,8 +252,7 @@ public final class OutputConfiguration implements Parcelable {
+@@ -274,8 +254,7 @@ public final class OutputConfiguration implements Parcelable {
           TIMESTAMP_BASE_SENSOR,
           TIMESTAMP_BASE_MONOTONIC,
           TIMESTAMP_BASE_REALTIME,
@@ -344,7 +344,7 @@ index 9e87037..4a25177 100644
      public @interface TimestampBase {};
  
      /** @hide */
-@@ -995,7 +974,7 @@ public final class OutputConfiguration implements Parcelable {
+@@ -997,7 +976,7 @@ public final class OutputConfiguration implements Parcelable {
      public void setTimestampBase(@TimestampBase int timestampBase) {
          // Verify that the value is in range
          if (timestampBase < TIMESTAMP_BASE_DEFAULT ||

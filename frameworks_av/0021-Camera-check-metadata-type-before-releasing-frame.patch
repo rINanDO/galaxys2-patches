@@ -1,7 +1,7 @@
-From cb3d78f14b07539a55f1f84bf26984d78118cb0c Mon Sep 17 00:00:00 2001
+From 1867de1ff74239dbe34cedac5faa41f606406328 Mon Sep 17 00:00:00 2001
 From: Milos Ratkovic <milosr@gmail.com>
 Date: Tue, 17 Apr 2018 01:17:09 +0200
-Subject: [PATCH 17/23] Camera: check metadata type before releasing frame
+Subject: [PATCH 21/26] Camera: check metadata type before releasing frame
 
 Hidl method releaseRecordingFrameHandle fails for metadata
 type other than kMetadataBufferTypeNativeHandleSource which

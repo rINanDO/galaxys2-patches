@@ -1,7 +1,7 @@
-From f5b85cc02bad79ea114b98decca5a7b6f65cff53 Mon Sep 17 00:00:00 2001
+From 7545bf313af6069d56b1e749ae5828cf47c27aa9 Mon Sep 17 00:00:00 2001
 From: maxwen <max.weninger@gmail.com>
 Date: Tue, 9 Oct 2018 13:52:55 +0200
-Subject: [PATCH 03/23] camera: Allow to use boottime as timestamp reference
+Subject: [PATCH 07/26] camera: Allow to use boottime as timestamp reference
 
 * Some /mad/ HALs use boottime clock without reporting
   timestamp source as realtime

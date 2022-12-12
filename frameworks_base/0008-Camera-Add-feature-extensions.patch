@@ -1,4 +1,4 @@
-From 0cd2a76c4b7d364ed8eeb2e599f35e8c7fa6ec26 Mon Sep 17 00:00:00 2001
+From 4cd471e1ebe57230d323020930b907972dd3362b Mon Sep 17 00:00:00 2001
 From: Sauhard Pande <sauhardp@codeaurora.org>
 Date: Thu, 9 Jul 2015 14:47:34 -0700
 Subject: [PATCH 08/10] Camera: Add feature extensions

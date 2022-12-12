@@ -1,10 +1,11 @@
-From 6ca9b994d0e701b5ff090062467d840654345a3c Mon Sep 17 00:00:00 2001
+From c93a8c0b37e235233e874b58b65c1dc3a6e1e4b1 Mon Sep 17 00:00:00 2001
 From: SagarMakhar <sagarmakhar@gmail.com>
 Date: Tue, 5 Oct 2021 04:53:35 +0000
 Subject: [PATCH 1/2] Ignore netd errors for < 4.9 kernels
 
 Change-Id: I5f1296bf6e677dda05eceb6a480d7d669ef556b6
 Signed-off-by: SagarMakhar <sagarmakhar@gmail.com>
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  server/Controllers.cpp | 5 +++++
  1 file changed, 5 insertions(+)

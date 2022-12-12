@@ -1,4 +1,4 @@
-From 24e44fe4197cdc35a96cd4148e212f0462be8106 Mon Sep 17 00:00:00 2001
+From 19dc833afa090722d8ebc3731ce90b33c73ccb2b Mon Sep 17 00:00:00 2001
 From: Lukas0610 <mail@lukasberger.at>
 Date: Sat, 1 Sep 2018 12:16:45 +0200
 Subject: [PATCH 2/2] netd: Allow devices to force-add directly-connected
@@ -35,10 +35,10 @@ index 06ea0ba..f16b2d8 100644
      include_dirs: [
          "system/netd/include",
 diff --git a/server/RouteController.cpp b/server/RouteController.cpp
-index d2af9a3..4440b30 100644
+index 86b23b6..e42fa48 100644
 --- a/server/RouteController.cpp
 +++ b/server/RouteController.cpp
-@@ -773,6 +773,24 @@ int RouteController::configureDummyNetwork() {
+@@ -786,6 +786,24 @@ int RouteController::configureDummyNetwork() {
      return 0;
  }
  
@@ -63,7 +63,7 @@ index d2af9a3..4440b30 100644
  // Add an explicit unreachable rule close to the end of the prioriy list to make it clear that
  // relying on the kernel-default "from all lookup main" rule at priority 32766 is not intended
  // behaviour. We do flush the kernel-default rules at startup, but having an explicit unreachable
-@@ -1259,6 +1277,11 @@ int RouteController::Init(unsigned localNetId) {
+@@ -1272,6 +1290,11 @@ int RouteController::Init(unsigned localNetId) {
      if (int ret = addLocalNetworkRules(localNetId)) {
          return ret;
      }
@@ -76,7 +76,7 @@ index d2af9a3..4440b30 100644
          return ret;
      }
 diff --git a/server/RouteController.h b/server/RouteController.h
-index ff41678..b89c7dc 100644
+index 1b3a093..6acd168 100644
 --- a/server/RouteController.h
 +++ b/server/RouteController.h
 @@ -83,6 +83,9 @@ constexpr int32_t RULE_PRIORITY_UID_DEFAULT_NETWORK               = 29000;
@@ -88,7 +88,7 @@ index ff41678..b89c7dc 100644
 +#endif
  // clang-format on
  
- class UidRanges;
+ static const char* V4_FIXED_LOCAL_PREFIXES[] = {
 -- 
 2.7.4
 

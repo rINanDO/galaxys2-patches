@@ -1,9 +1,11 @@
-From 4ed346bcb8fb23d38f3b51a868e5eec9bec367dd Mon Sep 17 00:00:00 2001
+From e13e48cd6dcf3c1e4070c2e14f22761d5b844ba3 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Thu, 1 Dec 2016 23:07:57 +0100
 Subject: [PATCH 01/10] ColorFade: fix EGL crash on exynos4 mali blobs
 
 Change-Id: Ic14a3208486cf61a054cb9532d74c5a46d7f784d
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  services/core/java/com/android/server/display/ColorFade.java | 10 +++++++++-
  1 file changed, 9 insertions(+), 1 deletion(-)

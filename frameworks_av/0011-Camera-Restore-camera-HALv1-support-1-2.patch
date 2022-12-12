@@ -1,7 +1,7 @@
-From d6c70e6fdb35cce2c84458449130c217b714a9ed Mon Sep 17 00:00:00 2001
+From 9f9fc51b4a0db6a0f834ba0bac957efc37159a89 Mon Sep 17 00:00:00 2001
 From: Kyle Harrison <khwebmail@gmail.com>
 Date: Thu, 28 Oct 2021 13:54:35 +0100
-Subject: [PATCH 07/23] Camera: Restore camera HALv1 support [1/2]
+Subject: [PATCH 11/26] Camera: Restore camera HALv1 support [1/2]
 
 Revert "Camera: remove the camera device version check during statusCallback"
 This reverts commit b8259798dc04226eb09114527cb124060fbf335b.
@@ -15,6 +15,10 @@ This reverts commit a976df84a463b83f5093ee34e00a726779f34308.
 Adapt to changes in camera2 api since the removal of HALv1 support.
 
 Change-Id: I4f1f505be8aaf97f5c68856806823c529a5d5ec9
+
+ Conflicts:
+	services/camera/libcameraservice/CameraService.cpp
+	services/camera/libcameraservice/CameraService.h
 ---
  camera/Camera.cpp                                  |   57 +
  camera/aidl/android/hardware/ICameraService.aidl   |   16 +-
@@ -543,7 +547,7 @@ index b97fa5f..1baaba2 100644
  
  #endif
 diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
-index 71262ce..954fd7e 100644
+index 2b6a6b6..e566e33 100644
 --- a/services/camera/libcameraservice/CameraService.cpp
 +++ b/services/camera/libcameraservice/CameraService.cpp
 @@ -71,6 +71,7 @@
@@ -703,7 +707,7 @@ index 71262ce..954fd7e 100644
      }
  
      // (1) Cameraserver trying to connect, accept.
-@@ -1655,8 +1707,9 @@ Status CameraService::connectDevice(
+@@ -1661,8 +1713,9 @@ Status CameraService::connectDevice(
      }
  
      ret = connectHelper<hardware::camera2::ICameraDeviceCallbacks,CameraDeviceClient>(cameraCb, id,
@@ -715,27 +719,27 @@ index 71262ce..954fd7e 100644
              targetSdkVersion, /*out*/client);
  
      if(!ret.isOk()) {
-@@ -1686,7 +1739,7 @@ Status CameraService::connectDevice(
+@@ -1722,7 +1775,7 @@ String16 CameraService::getPackageNameFromUid(int clientUid) {
  
  template<class CALLBACK, class CLIENT>
  Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String8& cameraId,
--        int api1CameraId, const String16& clientPackageName,
-+        int api1CameraId, int halVersion, const String16& clientPackageName,
+-        int api1CameraId, const String16& clientPackageNameMaybe,
++        int api1CameraId, int halVersion, const String16& clientPackageNameMaybe,
          const std::optional<String16>& clientFeatureId, int clientUid, int clientPid,
          apiLevel effectiveApiLevel, bool shimUpdateOnly, int oomScoreOffset, int targetSdkVersion,
          /*out*/sp<CLIENT>& device) {
-@@ -1696,8 +1749,9 @@ Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String8&
+@@ -1750,8 +1803,9 @@ Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String8&
  
-     int originalClientPid = 0;
- 
+     int packagePid = (clientPid == USE_CALLING_PID) ?
+         CameraThreadState::getCallingPid() : clientPid;
 -    ALOGI("CameraService::connect call (PID %d \"%s\", camera ID %s) and "
 +    ALOGI("CameraService::connect call (PID %d \"%s\", camera ID %s) for HAL version %s and "
-             "Camera API version %d", clientPid, clientName8.string(), cameraId.string(),
+             "Camera API version %d", packagePid, clientName8.string(), cameraId.string(),
 +            (halVersion == -1) ? "default" : std::to_string(halVersion).c_str(),
              static_cast<int>(effectiveApiLevel));
  
      nsecs_t openTimeNs = systemTime();
-@@ -1783,7 +1837,7 @@ Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String8&
+@@ -1837,7 +1891,7 @@ Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String8&
          if(!(ret = makeClient(this, cameraCb, clientPackageName, clientFeatureId,
                  cameraId, api1CameraId, facing, orientation,
                  clientPid, clientUid, getpid(),
@@ -744,7 +748,7 @@ index 71262ce..954fd7e 100644
                  /*out*/&tmp)).isOk()) {
              return ret;
          }
-@@ -4192,13 +4246,25 @@ void CameraService::updateStatus(StatusInternal status, const String8& cameraId,
+@@ -4227,13 +4281,25 @@ void CameraService::updateStatus(StatusInternal status, const String8& cameraId,
          ALOGE("%s: Invalid camera id %s, skipping", __FUNCTION__, cameraId.string());
          return;
      }
@@ -771,7 +775,7 @@ index 71262ce..954fd7e 100644
                          &logicalCameraIds]
              (const String8& cameraId, StatusInternal status) {
  
-@@ -4226,8 +4292,8 @@ void CameraService::updateStatus(StatusInternal status, const String8& cameraId,
+@@ -4261,8 +4327,8 @@ void CameraService::updateStatus(StatusInternal status, const String8& cameraId,
                  bool isVendorListener = listener->isVendorListener();
                  if (shouldSkipStatusUpdates(deviceKind, isVendorListener,
                          listener->getListenerPid(), listener->getListenerUid()) ||
@@ -783,7 +787,7 @@ index 71262ce..954fd7e 100644
                      continue;
                  }
 diff --git a/services/camera/libcameraservice/CameraService.h b/services/camera/libcameraservice/CameraService.h
-index 4914164..8e05412 100644
+index 5a2bdeb..20bd7f2 100644
 --- a/services/camera/libcameraservice/CameraService.h
 +++ b/services/camera/libcameraservice/CameraService.h
 @@ -70,6 +70,7 @@ class CameraService :
@@ -807,16 +811,16 @@ index 4914164..8e05412 100644
      virtual binder::Status     connectDevice(
              const sp<hardware::camera2::ICameraDeviceCallbacks>& cameraCb, const String16& cameraId,
              const String16& clientPackageName, const std::optional<String16>& clientFeatureId,
-@@ -787,7 +794,7 @@ private:
+@@ -796,7 +803,7 @@ private:
      // Single implementation shared between the various connect calls
      template<class CALLBACK, class CLIENT>
      binder::Status connectHelper(const sp<CALLBACK>& cameraCb, const String8& cameraId,
--            int api1CameraId, const String16& clientPackageName,
-+            int api1CameraId, int halVersion, const String16& clientPackageName,
+-            int api1CameraId, const String16& clientPackageNameMaybe,
++            int api1CameraId, int halVersion, const String16& clientPackageNameMaybe,
              const std::optional<String16>& clientFeatureId, int clientUid, int clientPid,
              apiLevel effectiveApiLevel, bool shimUpdateOnly, int scoreOffset, int targetSdkVersion,
              /*out*/sp<CLIENT>& device);
-@@ -1200,7 +1207,7 @@ private:
+@@ -1209,7 +1216,7 @@ private:
              const sp<IInterface>& cameraCb, const String16& packageName,
              const std::optional<String16>& featureId, const String8& cameraId, int api1CameraId,
              int facing, int sensorOrientation, int clientPid, uid_t clientUid, int servicePid,

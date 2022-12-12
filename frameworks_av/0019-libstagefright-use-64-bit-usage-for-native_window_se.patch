@@ -1,7 +1,7 @@
-From ba3fc4815d86189fbe08ce6f4b4f5553d5f8f190 Mon Sep 17 00:00:00 2001
+From f010f2755c207cef8183abe686782069c25eb0d1 Mon Sep 17 00:00:00 2001
 From: Milos Ratkovic <milosr@gmail.com>
 Date: Mon, 8 Jan 2018 00:23:58 +0100
-Subject: [PATCH 15/23] libstagefright: use 64-bit usage for
+Subject: [PATCH 19/26] libstagefright: use 64-bit usage for
  native_window_set_usage
 
 Since Android 8.1 native_window_set_usage has changed to use 64-bit int

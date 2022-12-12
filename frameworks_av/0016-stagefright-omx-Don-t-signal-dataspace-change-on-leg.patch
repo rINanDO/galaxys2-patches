@@ -1,7 +1,7 @@
-From ddf7ef261af2e247da5d1055a55d13d93313d3e1 Mon Sep 17 00:00:00 2001
+From a1187411f147a264e3f2623f792bcbee6353ec40 Mon Sep 17 00:00:00 2001
 From: Arne Coucheron <arco68@gmail.com>
 Date: Sun, 9 Oct 2016 06:18:47 +0200
-Subject: [PATCH 12/23] stagefright: omx: Don't signal dataspace change on
+Subject: [PATCH 16/26] stagefright: omx: Don't signal dataspace change on
  legacy QCOM
 
 This isn't supported in legacy media HAL, and causes things like

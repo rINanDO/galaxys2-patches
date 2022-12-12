@@ -1,16 +1,19 @@
-From dc60f05fe80e54e2f4c7d37add7b5e7249ee1045 Mon Sep 17 00:00:00 2001
+From 2e00704e3a8cb6d49ee8f6baa9f72fec57cb43c3 Mon Sep 17 00:00:00 2001
 From: Yaroslav Zviezda <acroreiser@gmail.com>
 Date: Thu, 20 Oct 2022 23:25:13 +0300
-Subject: [PATCH 01/23] [1/2] libcameraservice: reset to
+Subject: [PATCH 05/26] [1/2] libcameraservice: reset to
  a0a10c95a363a0df93da678b1eb84f0aa5c137f7
 
 Change-Id: Idde9fd3385deff5f4917636f336cb87b8d310227
+
+ Conflicts:
+	services/camera/libcameraservice/common/Camera2ClientBase.cpp
 ---
  camera/CaptureResult.cpp                           |  9 +-
  camera/include/camera/CaptureResult.h              | 15 +---
  .../include/camera/camera2/OutputConfiguration.h   |  4 +-
  .../libcameraservice/CameraServiceWatchdog.h       |  7 +-
- .../libcameraservice/common/Camera2ClientBase.cpp  | 23 +-----
+ .../libcameraservice/common/Camera2ClientBase.cpp  | 26 +-----
  .../libcameraservice/common/Camera2ClientBase.h    |  7 --
  .../common/CameraProviderManager.cpp               | 21 -----
  .../common/CameraProviderManager.h                 |  1 -
@@ -26,7 +29,7 @@ Change-Id: Idde9fd3385deff5f4917636f336cb87b8d310227
  .../utils/SessionConfigurationUtilsHidl.cpp        |  2 +-
  .../camera/libcameraservice/utils/TagMonitor.cpp   | 96 ++++++++++------------
  .../camera/libcameraservice/utils/TagMonitor.h     | 15 ++--
- 20 files changed, 71 insertions(+), 182 deletions(-)
+ 20 files changed, 71 insertions(+), 185 deletions(-)
 
 diff --git a/camera/CaptureResult.cpp b/camera/CaptureResult.cpp
 index bb880d1..be47898 100644
@@ -138,20 +141,10 @@ index 29ddab1..f4955e2 100644
  
          return res;
 diff --git a/services/camera/libcameraservice/common/Camera2ClientBase.cpp b/services/camera/libcameraservice/common/Camera2ClientBase.cpp
-index a3d24ff..dc5002b 100644
+index 7d98a0b..b4daa69 100644
 --- a/services/camera/libcameraservice/common/Camera2ClientBase.cpp
 +++ b/services/camera/libcameraservice/common/Camera2ClientBase.cpp
-@@ -40,9 +40,6 @@
- #include "utils/CameraServiceProxyWrapper.h"
- 
- namespace android {
--
--const static size_t kDisconnectTimeoutMs = 2500;
--
- using namespace camera2;
- 
- // Interface used by CameraService
-@@ -147,10 +144,6 @@ status_t Camera2ClientBase<TClientBase>::initializeImpl(TProviderPtr providerPtr
+@@ -145,10 +145,6 @@ status_t Camera2ClientBase<TClientBase>::initializeImpl(TProviderPtr providerPtr
      wp<NotificationListener> weakThis(this);
      res = mDevice->setNotifyCallback(weakThis);
  
@@ -162,7 +155,7 @@ index a3d24ff..dc5002b 100644
      return OK;
  }
  
-@@ -162,11 +155,6 @@ Camera2ClientBase<TClientBase>::~Camera2ClientBase() {
+@@ -160,11 +156,6 @@ Camera2ClientBase<TClientBase>::~Camera2ClientBase() {
  
      disconnect();
  
@@ -174,16 +167,22 @@ index a3d24ff..dc5002b 100644
      ALOGI("Closed Camera %s. Client was: %s (PID %d, UID %u)",
              TClientBase::mCameraIdStr.string(),
              String8(TClientBase::mClientPackageName).string(),
-@@ -250,18 +238,9 @@ status_t Camera2ClientBase<TClientBase>::dumpDevice(
+@@ -248,24 +239,9 @@ status_t Camera2ClientBase<TClientBase>::dumpDevice(
  
  // ICameraClient2BaseUser interface
  
 -template <typename TClientBase>
 -binder::Status Camera2ClientBase<TClientBase>::disconnect() {
--    if (mCameraServiceWatchdog != nullptr) {
+-    if (mCameraServiceWatchdog != nullptr && mDevice != nullptr) {
+-        // Timer for the disconnect call should be greater than getExpectedInFlightDuration
+-        // since this duration is used to error handle methods in the disconnect sequence
+-        // thus allowing existing error handling methods to execute first
+-        uint64_t maxExpectedDuration =
+-                ns2ms(mDevice->getExpectedInFlightDuration() + kBufferTimeDisconnectNs);
+-
 -        // Initialization from hal succeeded, time disconnect.
 -        return mCameraServiceWatchdog->WATCH_CUSTOM_TIMER(disconnectImpl(),
--                kDisconnectTimeoutMs / kCycleLengthMs, kCycleLengthMs);
+-                maxExpectedDuration / kCycleLengthMs, kCycleLengthMs);
 -    }
 -    return disconnectImpl();
 -}
@@ -195,7 +194,7 @@ index a3d24ff..dc5002b 100644
      ALOGD("Camera %s: start to disconnect", TClientBase::mCameraIdStr.string());
      Mutex::Autolock icl(mBinderSerializationLock);
 diff --git a/services/camera/libcameraservice/common/Camera2ClientBase.h b/services/camera/libcameraservice/common/Camera2ClientBase.h
-index 3af781b..b0d1c3f 100644
+index e51d25d..e0e431e 100644
 --- a/services/camera/libcameraservice/common/Camera2ClientBase.h
 +++ b/services/camera/libcameraservice/common/Camera2ClientBase.h
 @@ -19,7 +19,6 @@
@@ -206,7 +205,7 @@ index 3af781b..b0d1c3f 100644
  
  namespace android {
  
-@@ -174,12 +173,6 @@ protected:
+@@ -177,12 +176,6 @@ protected:
  private:
      template<typename TProviderPtr>
      status_t              initializeImpl(TProviderPtr providerPtr, const String8& monitorTags);

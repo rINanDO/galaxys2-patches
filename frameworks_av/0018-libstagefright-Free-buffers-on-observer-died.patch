@@ -1,7 +1,7 @@
-From 4cbd6b03bcb5ed1cc24eb68929666b6733e73ee8 Mon Sep 17 00:00:00 2001
+From f08726affc158862be156048840feae417356707 Mon Sep 17 00:00:00 2001
 From: Manikanta Kanamarlapudi <kmanikan@codeaurora.org>
 Date: Wed, 30 Aug 2017 12:33:59 +0530
-Subject: [PATCH 14/23] libstagefright: Free buffers on observer died
+Subject: [PATCH 18/26] libstagefright: Free buffers on observer died
 
 If observer died while allocating buffers, component remains
 in loaded state. In cleanup, it checks for idle state to

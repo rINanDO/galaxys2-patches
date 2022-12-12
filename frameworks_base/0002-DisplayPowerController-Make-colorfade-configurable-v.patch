@@ -1,4 +1,4 @@
-From 179cfa26954f1a112ebb2e95450235b4cd2f67ee Mon Sep 17 00:00:00 2001
+From d4015e3ade738d16cedb9e75c01228cbc21c480e Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Thu, 15 Jul 2021 08:46:58 +0200
 Subject: [PATCH 02/10] DisplayPowerController: Make colorfade configurable via
@@ -7,12 +7,14 @@ Subject: [PATCH 02/10] DisplayPowerController: Make colorfade configurable via
 Set ro.displaypower.colorfade=false to disable colorfade.
 
 Change-Id: I63316b55cba2a6360b83999eefc9d3613aa1a7f0
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../core/java/com/android/server/display/DisplayPowerController.java  | 4 +++-
  1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/services/core/java/com/android/server/display/DisplayPowerController.java b/services/core/java/com/android/server/display/DisplayPowerController.java
-index 9c673ca..0d36060 100644
+index 9b7cd18..115f66e 100644
 --- a/services/core/java/com/android/server/display/DisplayPowerController.java
 +++ b/services/core/java/com/android/server/display/DisplayPowerController.java
 @@ -108,6 +108,8 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call

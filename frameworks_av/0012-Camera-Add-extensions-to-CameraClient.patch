@@ -1,7 +1,7 @@
-From 28a54dee585b853d069d6dcbfc31183a43596fa0 Mon Sep 17 00:00:00 2001
+From 09583a4e7a4bc6fcb38e207ac26803f35d5f4396 Mon Sep 17 00:00:00 2001
 From: Shuzhen Wang <shuzhenw@codeaurora.org>
 Date: Wed, 8 Jul 2015 15:47:46 -0700
-Subject: [PATCH 08/23] Camera: Add extensions to CameraClient
+Subject: [PATCH 12/26] Camera: Add extensions to CameraClient
 
 This change includes the following gerrits:
 

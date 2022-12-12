@@ -1,7 +1,7 @@
-From eeef6ace994b56946b5a1ceb2fd3a0a65b0dda49 Mon Sep 17 00:00:00 2001
+From 6f5966d5cd94146c35fae6265614f1655caa2554 Mon Sep 17 00:00:00 2001
 From: Adrian DC <radian.dc@gmail.com>
 Date: Sun, 31 Dec 2017 13:12:05 +0100
-Subject: [PATCH 13/23] stagefright: ACodec: Resolve empty vendor parameters
+Subject: [PATCH 17/26] stagefright: ACodec: Resolve empty vendor parameters
  usage
 
  * On devices where vendorKeys is empty, the status was left

@@ -1,7 +1,7 @@
-From 56e208db946e3025a0600ff49a22dfb8b9441076 Mon Sep 17 00:00:00 2001
+From b89a8318f210fd983cb968521425234dd6b7045d Mon Sep 17 00:00:00 2001
 From: Susmitha Gummalla <vgummall@codeaurora.org>
 Date: Tue, 29 Apr 2014 12:18:30 -0700
-Subject: [PATCH 19/23] Camera: Add support for preview frame fd
+Subject: [PATCH 23/26] Camera: Add support for preview frame fd
 
 -Add support for receiving dataCallback with fd/buffer as frame buffer
 

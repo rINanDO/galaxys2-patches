@@ -48,6 +48,13 @@ git add -A
 git reset --hard
 git checkout $LOSBRANCH
 
+echo "======= hardware/interfaces =========="
+cd "$ANDROIDDIR/hardware/interfaces"
+git am --abort
+git add -A
+git reset --hard
+git checkout $LOSBRANCH
+
 echo "======= frameworks/base =========="
 cd "$ANDROIDDIR/frameworks/base"
 git am --abort

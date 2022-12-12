@@ -1,7 +1,7 @@
-From 1530df045e294c53688f1810030c981dd70a219f Mon Sep 17 00:00:00 2001
+From 9f616653568b0e1ebc62f0be7d45c9aae0f17c02 Mon Sep 17 00:00:00 2001
 From: Paras Nagda <pnagda@codeaurora.org>
 Date: Fri, 4 May 2018 16:13:15 +0530
-Subject: [PATCH 18/23] stagefright: add changes related to high-framerates in
+Subject: [PATCH 22/26] stagefright: add changes related to high-framerates in
  CameraSource
 
 Below changes are squashed with this change.
@@ -38,7 +38,7 @@ Signed-off-by: Volodymyr Zhdanov <wight554@gmail.com>
  3 files changed, 23 insertions(+), 3 deletions(-)
 
 diff --git a/media/libmediaplayerservice/StagefrightRecorder.cpp b/media/libmediaplayerservice/StagefrightRecorder.cpp
-index ea1fdf4..6ff62bb 100644
+index a0bc8ca..7a66982 100644
 --- a/media/libmediaplayerservice/StagefrightRecorder.cpp
 +++ b/media/libmediaplayerservice/StagefrightRecorder.cpp
 @@ -1889,7 +1889,7 @@ status_t StagefrightRecorder::setupCameraSource(
@@ -50,7 +50,7 @@ index ea1fdf4..6ff62bb 100644
          if (!(mCaptureFps > 0.)) {
              ALOGE("Invalid mCaptureFps value: %lf", mCaptureFps);
              return BAD_VALUE;
-@@ -2044,6 +2044,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
+@@ -2048,6 +2048,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
              preferBFrames = false;
              tsLayers = 2; // use at least two layers as resulting video will likely be sped up
          } else if (mCaptureFps > maxPlaybackFps) { // slow-mo
