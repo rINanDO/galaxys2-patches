@@ -1,7 +1,7 @@
 From 7186265eb072d937f7aa931d8fbb594b312ab5ca Mon Sep 17 00:00:00 2001
 From: Kyle Harrison <khwebmail@gmail.com>
 Date: Thu, 28 Oct 2021 12:29:04 +0100
-Subject: [PATCH 07/11] Camera: Restore camera HALv1 support [2/2]
+Subject: [PATCH 7/9] Camera: Restore camera HALv1 support [2/2]
 
 Revert "Camera: Remove all camera HALv1 code"
 This reverts commit 7208d0af87dda3b6484e7a549d51751ae57d9a30.

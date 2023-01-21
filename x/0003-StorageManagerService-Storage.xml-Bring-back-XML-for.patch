@@ -1,8 +1,8 @@
 From c02c208481327047683e572d4e1177571e43739e Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Sun, 28 Nov 2021 17:28:48 +0100
-Subject: [PATCH 03/11] StorageManagerService: Storage.xml: Bring back
- XML-format UTF-8
+Subject: [PATCH 3/9] StorageManagerService: Storage.xml: Bring back XML-format
+ UTF-8
 
 This fixes TWRP boot issues because it expectes an XML UTF-8 formatted
 storage.xml file. But in Android S this is changed to

@@ -1,7 +1,7 @@
 From b33a117920e4f26698a4d1991f6932db154bb036 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Thu, 15 Jul 2021 08:46:58 +0200
-Subject: [PATCH 02/11] DisplayPowerController: Make colorfade configurable via
+Subject: [PATCH 2/9] DisplayPowerController: Make colorfade configurable via
  systemprop
 
 Set ro.displaypower.colorfade=false to disable colorfade.

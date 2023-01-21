@@ -1,0 +1,33 @@
+From 868aa3ce9cbb542a312968f6f1eaaedaca05f9fd Mon Sep 17 00:00:00 2001
+From: Khalvat-M <mmba313@gmail.com>
+Date: Wed, 11 Jan 2023 06:49:29 +0330
+Subject: [PATCH 01/34] Revert "Camera: Avoid roundBufferDimensionsNearest also
+ for HAL_PIXEL_FORMAT_BLOB"
+
+This reverts commit 893516da239eb44b90a2654ab53ed6d27d74d86c.
+---
+ .../camera/libcameraservice/utils/SessionConfigurationUtils.cpp    | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp b/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
+index eb45fbe..b49f86c 100644
+--- a/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
++++ b/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
+@@ -213,11 +213,10 @@ bool roundBufferDimensionNearest(int32_t width, int32_t height,
+     // Avoid roundBufferDimensionsNearest for privileged client YUV streams to meet the AIDE2
+     // requirement. AIDE2 is vendor enhanced feature which requires special resolutions and
+     // those are not populated in static capabilities.
+-    if (isPriviledgedClient == true &&
+-        (format == HAL_PIXEL_FORMAT_YCbCr_420_888 || format == HAL_PIXEL_FORMAT_BLOB)) {
++    if (isPriviledgedClient == true && format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+         ALOGI("Bypass roundBufferDimensionNearest for privilegedClient YUV streams "
+-              "width %d height %d for format %d",
+-              width, height, format);
++              "width %d height %d",
++              width, height);
+ 
+         bestWidth  = width;
+         bestHeight = height;
+-- 
+2.7.4
+

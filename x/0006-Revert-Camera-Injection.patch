@@ -1,7 +1,7 @@
 From 6c9716bbd28924500057a2fc178f29008b64a22c Mon Sep 17 00:00:00 2001
 From: Yaroslav Zviezda <acroreiser@gmail.com>
 Date: Sun, 18 Sep 2022 04:53:18 +0300
-Subject: [PATCH 06/11] Revert Camera Injection
+Subject: [PATCH 6/9] Revert Camera Injection
 
 This code breaks camera HAL1 restoration and pointless for HAL1 devices.
 

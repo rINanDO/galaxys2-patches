@@ -1,7 +1,7 @@
 From 8a5e663837ef4c465064f0b93659f6be492d2df0 Mon Sep 17 00:00:00 2001
 From: Sauhard Pande <sauhardp@codeaurora.org>
 Date: Thu, 9 Jul 2015 14:47:34 -0700
-Subject: [PATCH 08/11] Camera: Add feature extensions
+Subject: [PATCH 8/9] Camera: Add feature extensions
 
 This change includes below gerrits:
 

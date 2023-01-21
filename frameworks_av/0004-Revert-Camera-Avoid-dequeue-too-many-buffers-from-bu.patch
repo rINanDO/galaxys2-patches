@@ -1,0 +1,305 @@
+From 975cd4b7e76dbfcf2dd20fde7392059e180748ae Mon Sep 17 00:00:00 2001
+From: z3DD3r <z3dd3r@gmail.com>
+Date: Fri, 9 Dec 2022 22:52:15 +0300
+Subject: [PATCH 04/34] Revert "Camera: Avoid dequeue too many buffers from
+ buffer queue"
+
+This reverts commit c235270ed552cbbe1df31cf3862f913872fab38a.
+---
+ .../device3/Camera3IOStreamBase.cpp                | 14 +-----
+ .../libcameraservice/device3/Camera3IOStreamBase.h | 10 -----
+ .../device3/Camera3OutputStream.cpp                | 21 +--------
+ .../libcameraservice/device3/Camera3OutputStream.h |  1 -
+ .../libcameraservice/device3/Camera3Stream.cpp     | 50 ++++++----------------
+ .../libcameraservice/device3/Camera3Stream.h       |  7 +--
+ .../device3/PreviewFrameSpacer.cpp                 |  1 -
+ 7 files changed, 17 insertions(+), 87 deletions(-)
+
+diff --git a/services/camera/libcameraservice/device3/Camera3IOStreamBase.cpp b/services/camera/libcameraservice/device3/Camera3IOStreamBase.cpp
+index f594f84..add1483 100644
+--- a/services/camera/libcameraservice/device3/Camera3IOStreamBase.cpp
++++ b/services/camera/libcameraservice/device3/Camera3IOStreamBase.cpp
+@@ -41,10 +41,8 @@ Camera3IOStreamBase::Camera3IOStreamBase(int id, camera_stream_type_t type,
+                 physicalCameraId, sensorPixelModesUsed, setId, isMultiResolution,
+                 dynamicRangeProfile, streamUseCase, deviceTimeBaseIsRealtime, timestampBase),
+         mTotalBufferCount(0),
+-        mMaxCachedBufferCount(0),
+         mHandoutTotalBufferCount(0),
+         mHandoutOutputBufferCount(0),
+-        mCachedOutputBufferCount(0),
+         mFrameCount(0),
+         mLastTimestamp(0) {
+ 
+@@ -97,8 +95,8 @@ void Camera3IOStreamBase::dump(int fd, const Vector<String16> &args) const {
+     lines.appendFormat("      Timestamp base: %d\n", getTimestampBase());
+     lines.appendFormat("      Frames produced: %d, last timestamp: %" PRId64 " ns\n",
+             mFrameCount, mLastTimestamp);
+-    lines.appendFormat("      Total buffers: %zu, currently dequeued: %zu, currently cached: %zu\n",
+-            mTotalBufferCount, mHandoutTotalBufferCount, mCachedOutputBufferCount);
++    lines.appendFormat("      Total buffers: %zu, currently dequeued: %zu\n",
++            mTotalBufferCount, mHandoutTotalBufferCount);
+     write(fd, lines.string(), lines.size());
+ 
+     Camera3Stream::dump(fd, args);
+@@ -137,14 +135,6 @@ size_t Camera3IOStreamBase::getHandoutInputBufferCountLocked() {
+     return (mHandoutTotalBufferCount - mHandoutOutputBufferCount);
+ }
+ 
+-size_t Camera3IOStreamBase::getCachedOutputBufferCountLocked() const {
+-    return mCachedOutputBufferCount;
+-}
+-
+-size_t Camera3IOStreamBase::getMaxCachedOutputBuffersLocked() const {
+-    return mMaxCachedBufferCount;
+-}
+-
+ status_t Camera3IOStreamBase::disconnectLocked() {
+     switch (mState) {
+         case STATE_IN_RECONFIG:
+diff --git a/services/camera/libcameraservice/device3/Camera3IOStreamBase.h b/services/camera/libcameraservice/device3/Camera3IOStreamBase.h
+index ca1f238..f389d53 100644
+--- a/services/camera/libcameraservice/device3/Camera3IOStreamBase.h
++++ b/services/camera/libcameraservice/device3/Camera3IOStreamBase.h
+@@ -56,18 +56,11 @@ class Camera3IOStreamBase :
+     int              getMaxTotalBuffers() const { return mTotalBufferCount; }
+   protected:
+     size_t            mTotalBufferCount;
+-    // The maximum number of cached buffers allowed for this stream
+-    size_t            mMaxCachedBufferCount;
+-
+     // sum of input and output buffers that are currently acquired by HAL
+     size_t            mHandoutTotalBufferCount;
+     // number of output buffers that are currently acquired by HAL. This will be
+     // Redundant when camera3 streams are no longer bidirectional streams.
+     size_t            mHandoutOutputBufferCount;
+-    // number of cached output buffers that are currently queued in the camera
+-    // server but not yet queued to the buffer queue.
+-    size_t            mCachedOutputBufferCount;
+-
+     uint32_t          mFrameCount;
+     // Last received output buffer's timestamp
+     nsecs_t           mLastTimestamp;
+@@ -104,9 +97,6 @@ class Camera3IOStreamBase :
+ 
+     virtual size_t   getHandoutInputBufferCountLocked();
+ 
+-    virtual size_t   getCachedOutputBufferCountLocked() const;
+-    virtual size_t   getMaxCachedOutputBuffersLocked() const;
+-
+     virtual status_t getEndpointUsage(uint64_t *usage) const = 0;
+ 
+     status_t getBufferPreconditionCheckLocked() const;
+diff --git a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
+index 8b3cf44..50314cc 100644
+--- a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
++++ b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
+@@ -419,7 +419,6 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
+     mLock.unlock();
+ 
+     ANativeWindowBuffer *anwBuffer = container_of(buffer.buffer, ANativeWindowBuffer, handle);
+-    bool bufferDeferred = false;
+     /**
+      * Return buffer back to ANativeWindow
+      */
+@@ -479,7 +478,6 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
+                         __FUNCTION__, mId, strerror(-res), res);
+                 return res;
+             }
+-            bufferDeferred = true;
+         } else {
+             nsecs_t presentTime = mSyncToDisplay ?
+                     syncTimestampToDisplayLocked(captureTime) : captureTime;
+@@ -503,10 +501,6 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
+     }
+     mLock.lock();
+ 
+-    if (bufferDeferred) {
+-        mCachedOutputBufferCount++;
+-    }
+-
+     // Once a valid buffer has been returned to the queue, can no longer
+     // dequeue all buffers for preallocation.
+     if (buffer.status != CAMERA_BUFFER_STATUS_ERROR) {
+@@ -702,15 +696,10 @@ status_t Camera3OutputStream::configureConsumerQueueLocked(bool allowPreviewResp
+                 !isVideoStream());
+         if (forceChoreographer || defaultToChoreographer) {
+             mSyncToDisplay = true;
+-            // For choreographer synced stream, extra buffers aren't kept by
+-            // camera service. So no need to update mMaxCachedBufferCount.
+             mTotalBufferCount += kDisplaySyncExtraBuffer;
+         } else if (defaultToSpacer) {
+             mPreviewFrameSpacer = new PreviewFrameSpacer(this, mConsumer);
+-            // For preview frame spacer, the extra buffer is kept by camera
+-            // service. So update mMaxCachedBufferCount.
+-            mMaxCachedBufferCount = 1;
+-            mTotalBufferCount += mMaxCachedBufferCount;
++            mTotalBufferCount ++;
+             res = mPreviewFrameSpacer->run(String8::format("PreviewSpacer-%d", mId).string());
+             if (res != OK) {
+                 ALOGE("%s: Unable to start preview spacer", __FUNCTION__);
+@@ -979,14 +968,6 @@ bool Camera3OutputStream::shouldLogError(status_t res, StreamState state) {
+     return true;
+ }
+ 
+-void Camera3OutputStream::onCachedBufferQueued() {
+-    Mutex::Autolock l(mLock);
+-    mCachedOutputBufferCount--;
+-    // Signal whoever is waiting for the buffer to be returned to the buffer
+-    // queue.
+-    mOutputBufferReturnedSignal.signal();
+-}
+-
+ status_t Camera3OutputStream::disconnectLocked() {
+     status_t res;
+ 
+diff --git a/services/camera/libcameraservice/device3/Camera3OutputStream.h b/services/camera/libcameraservice/device3/Camera3OutputStream.h
+index 741bca2..1b4739c 100644
+--- a/services/camera/libcameraservice/device3/Camera3OutputStream.h
++++ b/services/camera/libcameraservice/device3/Camera3OutputStream.h
+@@ -259,7 +259,6 @@ class Camera3OutputStream :
+ 
+     void setImageDumpMask(int mask) { mImageDumpMask = mask; }
+     bool shouldLogError(status_t res);
+-    void onCachedBufferQueued();
+ 
+   protected:
+     Camera3OutputStream(int id, camera_stream_type_t type,
+diff --git a/services/camera/libcameraservice/device3/Camera3Stream.cpp b/services/camera/libcameraservice/device3/Camera3Stream.cpp
+index 88be9ff..7ad6649 100644
+--- a/services/camera/libcameraservice/device3/Camera3Stream.cpp
++++ b/services/camera/libcameraservice/device3/Camera3Stream.cpp
+@@ -665,19 +665,11 @@ status_t Camera3Stream::getBuffer(camera_stream_buffer *buffer,
+         }
+     }
+ 
+-    // Wait for new buffer returned back if we are running into the limit. There
+-    // are 2 limits:
+-    // 1. The number of HAL buffers is greater than max_buffers
+-    // 2. The number of HAL buffers + cached buffers is greater than max_buffers
+-    //    + maxCachedBuffers
++    // Wait for new buffer returned back if we are running into the limit.
+     size_t numOutstandingBuffers = getHandoutOutputBufferCountLocked();
+-    size_t numCachedBuffers = getCachedOutputBufferCountLocked();
+-    size_t maxNumCachedBuffers = getMaxCachedOutputBuffersLocked();
+-    while (numOutstandingBuffers == camera_stream::max_buffers ||
+-            numOutstandingBuffers + numCachedBuffers ==
+-            camera_stream::max_buffers + maxNumCachedBuffers) {
+-        ALOGV("%s: Already dequeued max output buffers (%d(+%zu)), wait for next returned one.",
+-                        __FUNCTION__, camera_stream::max_buffers, maxNumCachedBuffers);
++    if (numOutstandingBuffers == camera_stream::max_buffers) {
++        ALOGV("%s: Already dequeued max output buffers (%d), wait for next returned one.",
++                        __FUNCTION__, camera_stream::max_buffers);
+         nsecs_t waitStart = systemTime(SYSTEM_TIME_MONOTONIC);
+         if (waitBufferTimeout < kWaitForBufferDuration) {
+             waitBufferTimeout = kWaitForBufferDuration;
+@@ -695,16 +687,12 @@ status_t Camera3Stream::getBuffer(camera_stream_buffer *buffer,
+         }
+ 
+         size_t updatedNumOutstandingBuffers = getHandoutOutputBufferCountLocked();
+-        size_t updatedNumCachedBuffers = getCachedOutputBufferCountLocked();
+-        if (updatedNumOutstandingBuffers >= numOutstandingBuffers &&
+-                updatedNumCachedBuffers == numCachedBuffers) {
+-            ALOGE("%s: outstanding buffer count goes from %zu to %zu, "
++        if (updatedNumOutstandingBuffers >= numOutstandingBuffers) {
++            ALOGE("%s: outsanding buffer count goes from %zu to %zu, "
+                     "getBuffer(s) call must not run in parallel!", __FUNCTION__,
+                     numOutstandingBuffers, updatedNumOutstandingBuffers);
+             return INVALID_OPERATION;
+         }
+-        numOutstandingBuffers = updatedNumOutstandingBuffers;
+-        numCachedBuffers = updatedNumCachedBuffers;
+     }
+ 
+     res = getBufferLocked(buffer, surface_ids);
+@@ -1069,20 +1057,11 @@ status_t Camera3Stream::getBuffers(std::vector<OutstandingBuffer>* buffers,
+     }
+ 
+     size_t numOutstandingBuffers = getHandoutOutputBufferCountLocked();
+-    size_t numCachedBuffers = getCachedOutputBufferCountLocked();
+-    size_t maxNumCachedBuffers = getMaxCachedOutputBuffersLocked();
+-    // Wait for new buffer returned back if we are running into the limit. There
+-    // are 2 limits:
+-    // 1. The number of HAL buffers is greater than max_buffers
+-    // 2. The number of HAL buffers + cached buffers is greater than max_buffers
+-    //    + maxCachedBuffers
+-    while (numOutstandingBuffers + numBuffersRequested > camera_stream::max_buffers ||
+-            numOutstandingBuffers + numCachedBuffers + numBuffersRequested >
+-            camera_stream::max_buffers + maxNumCachedBuffers) {
+-        ALOGV("%s: Already dequeued %zu(+%zu) output buffers and requesting %zu "
+-                "(max is %d(+%zu)), waiting.", __FUNCTION__, numOutstandingBuffers,
+-                numCachedBuffers, numBuffersRequested, camera_stream::max_buffers,
+-                maxNumCachedBuffers);
++    // Wait for new buffer returned back if we are running into the limit.
++    while (numOutstandingBuffers + numBuffersRequested > camera_stream::max_buffers) {
++        ALOGV("%s: Already dequeued %zu output buffers and requesting %zu (max is %d), waiting.",
++                __FUNCTION__, numOutstandingBuffers, numBuffersRequested,
++                camera_stream::max_buffers);
+         nsecs_t waitStart = systemTime(SYSTEM_TIME_MONOTONIC);
+         if (waitBufferTimeout < kWaitForBufferDuration) {
+             waitBufferTimeout = kWaitForBufferDuration;
+@@ -1099,16 +1078,13 @@ status_t Camera3Stream::getBuffers(std::vector<OutstandingBuffer>* buffers,
+             return res;
+         }
+         size_t updatedNumOutstandingBuffers = getHandoutOutputBufferCountLocked();
+-        size_t updatedNumCachedBuffers = getCachedOutputBufferCountLocked();
+-        if (updatedNumOutstandingBuffers >= numOutstandingBuffers &&
+-                updatedNumCachedBuffers == numCachedBuffers) {
+-            ALOGE("%s: outstanding buffer count goes from %zu to %zu, "
++        if (updatedNumOutstandingBuffers >= numOutstandingBuffers) {
++            ALOGE("%s: outsanding buffer count goes from %zu to %zu, "
+                     "getBuffer(s) call must not run in parallel!", __FUNCTION__,
+                     numOutstandingBuffers, updatedNumOutstandingBuffers);
+             return INVALID_OPERATION;
+         }
+         numOutstandingBuffers = updatedNumOutstandingBuffers;
+-        numCachedBuffers = updatedNumCachedBuffers;
+     }
+ 
+     res = getBuffersLocked(buffers);
+diff --git a/services/camera/libcameraservice/device3/Camera3Stream.h b/services/camera/libcameraservice/device3/Camera3Stream.h
+index 214618a..d429e6c 100644
+--- a/services/camera/libcameraservice/device3/Camera3Stream.h
++++ b/services/camera/libcameraservice/device3/Camera3Stream.h
+@@ -558,10 +558,6 @@ class Camera3Stream :
+     // Get handout input buffer count.
+     virtual size_t   getHandoutInputBufferCountLocked() = 0;
+ 
+-    // Get cached output buffer count.
+-    virtual size_t   getCachedOutputBufferCountLocked() const = 0;
+-    virtual size_t   getMaxCachedOutputBuffersLocked() const = 0;
+-
+     // Get the usage flags for the other endpoint, or return
+     // INVALID_OPERATION if they cannot be obtained.
+     virtual status_t getEndpointUsage(uint64_t *usage) const = 0;
+@@ -580,8 +576,6 @@ class Camera3Stream :
+ 
+     uint64_t mUsage;
+ 
+-    Condition mOutputBufferReturnedSignal;
+-
+   private:
+     // Previously configured stream properties (post HAL override)
+     uint64_t mOldUsage;
+@@ -589,6 +583,7 @@ class Camera3Stream :
+     int mOldFormat;
+     android_dataspace mOldDataSpace;
+ 
++    Condition mOutputBufferReturnedSignal;
+     Condition mInputBufferReturnedSignal;
+     static const nsecs_t kWaitForBufferDuration = 3000000000LL; // 3000 ms
+ 
+diff --git a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
+index 67f42b4..0439501 100644
+--- a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
++++ b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
+@@ -122,7 +122,6 @@ void PreviewFrameSpacer::queueBufferToClientLocked(
+         }
+     }
+ 
+-    parent->onCachedBufferQueued();
+     mLastCameraPresentTime = currentTime;
+     mLastCameraReadoutTime = bufferHolder.readoutTimestamp;
+ }
+-- 
+2.7.4
+

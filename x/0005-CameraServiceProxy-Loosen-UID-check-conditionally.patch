@@ -1,7 +1,7 @@
 From 8c9d38186c401e0f97423bf0a9dbc99d5f452381 Mon Sep 17 00:00:00 2001
 From: Danny Baumann <dannybaumann@web.de>
 Date: Fri, 31 Aug 2018 13:29:12 +0200
-Subject: [PATCH 05/11] CameraServiceProxy: Loosen UID check conditionally
+Subject: [PATCH 5/9] CameraServiceProxy: Loosen UID check conditionally
 
 Also allow media UID for camera-in-mediaserver devices.
 

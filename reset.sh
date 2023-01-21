@@ -3,7 +3,7 @@
 PATCHESDIR="$PWD"
 ANDROIDDIR="$PWD/.."
 
-AOSPBRANCH="refs/tags/android-13.0.0_r13"
+AOSPBRANCH="refs/tags/android-13.0.0_r20"
 LOSBRANCH="github/lineage-20.0"
 
 echo "======= packages/modules/Permission =========="

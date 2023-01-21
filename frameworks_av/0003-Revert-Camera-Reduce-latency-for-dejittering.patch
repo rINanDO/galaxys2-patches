@@ -1,0 +1,97 @@
+From e3680253c3d397af15531c9b622474a1ddf95283 Mon Sep 17 00:00:00 2001
+From: z3DD3r <z3dd3r@gmail.com>
+Date: Fri, 9 Dec 2022 22:52:04 +0300
+Subject: [PATCH 03/34] Revert "Camera: Reduce latency for dejittering"
+
+This reverts commit 35bd3553b06468c8d77adecca498ff0a0d194d41.
+---
+ .../libcameraservice/device3/Camera3OutputStream.cpp       | 14 ++++----------
+ .../camera/libcameraservice/device3/Camera3OutputStream.h  |  2 +-
+ .../camera/libcameraservice/device3/PreviewFrameSpacer.cpp |  2 +-
+ .../camera/libcameraservice/device3/PreviewFrameSpacer.h   |  2 +-
+ 4 files changed, 7 insertions(+), 13 deletions(-)
+
+diff --git a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
+index 84b5aa4..8b3cf44 100644
+--- a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
++++ b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
+@@ -1410,24 +1410,18 @@ void Camera3OutputStream::returnPrefetchedBuffersLocked() {
+ }
+ 
+ nsecs_t Camera3OutputStream::syncTimestampToDisplayLocked(nsecs_t t) {
+-    nsecs_t currentTime = systemTime();
+-    if (!mFixedFps) {
+-        mLastCaptureTime = t;
+-        mLastPresentTime = currentTime;
+-        return t;
+-    }
+-
+     ParcelableVsyncEventData parcelableVsyncEventData;
+     auto res = mDisplayEventReceiver.getLatestVsyncEventData(&parcelableVsyncEventData);
+     if (res != OK) {
+         ALOGE("%s: Stream %d: Error getting latest vsync event data: %s (%d)",
+                 __FUNCTION__, mId, strerror(-res), res);
+         mLastCaptureTime = t;
+-        mLastPresentTime = currentTime;
++        mLastPresentTime = t;
+         return t;
+     }
+ 
+     const VsyncEventData& vsyncEventData = parcelableVsyncEventData.vsync;
++    nsecs_t currentTime = systemTime();
+     nsecs_t minPresentT = mLastPresentTime + vsyncEventData.frameInterval / 2;
+ 
+     // Find the best presentation time without worrying about previous frame's
+@@ -1532,8 +1526,8 @@ nsecs_t Camera3OutputStream::syncTimestampToDisplayLocked(nsecs_t t) {
+         }
+     }
+ 
+-    if (expectedPresentT == mLastPresentTime && expectedPresentT <
+-            vsyncEventData.frameTimelines[maxTimelines-1].expectedPresentationTime) {
++    if (expectedPresentT == mLastPresentTime && expectedPresentT <=
++            vsyncEventData.frameTimelines[maxTimelines].expectedPresentationTime) {
+         // Couldn't find a reasonable presentation time. Using last frame's
+         // presentation time would cause a frame drop. The best option now
+         // is to use the next VSync as long as the last presentation time
+diff --git a/services/camera/libcameraservice/device3/Camera3OutputStream.h b/services/camera/libcameraservice/device3/Camera3OutputStream.h
+index db988a0..741bca2 100644
+--- a/services/camera/libcameraservice/device3/Camera3OutputStream.h
++++ b/services/camera/libcameraservice/device3/Camera3OutputStream.h
+@@ -432,7 +432,7 @@ class Camera3OutputStream :
+     static constexpr nsecs_t kSpacingResetIntervalNs = 50000000LL; // 50 millisecond
+     static constexpr nsecs_t kTimelineThresholdNs = 1000000LL; // 1 millisecond
+     static constexpr float kMaxIntervalRatioDeviation = 0.05f;
+-    static constexpr int kMaxTimelines = 2;
++    static constexpr int kMaxTimelines = 3;
+     nsecs_t syncTimestampToDisplayLocked(nsecs_t t);
+ 
+     // Re-space frames by delaying queueBuffer so that frame delivery has
+diff --git a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
+index b3cb178..67f42b4 100644
+--- a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
++++ b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
+@@ -68,7 +68,7 @@ bool PreviewFrameSpacer::threadLoop() {
+         return true;
+     }
+ 
+-    // Cache the frame to match readout time interval, for up to kMaxFrameWaitTime
++    // Cache the frame to match readout time interval, for up to 33ms
+     nsecs_t expectedQueueTime = mLastCameraPresentTime + readoutInterval;
+     nsecs_t frameWaitTime = std::min(kMaxFrameWaitTime, expectedQueueTime - currentTime);
+     if (frameWaitTime > 0 && mPendingBuffers.size() < 2) {
+diff --git a/services/camera/libcameraservice/device3/PreviewFrameSpacer.h b/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
+index cb9690c..e165768 100644
+--- a/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
++++ b/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
+@@ -85,7 +85,7 @@ class PreviewFrameSpacer : public Thread {
+     nsecs_t mLastCameraPresentTime = 0;
+     static constexpr nsecs_t kWaitDuration = 5000000LL; // 50ms
+     static constexpr nsecs_t kFrameIntervalThreshold = 80000000LL; // 80ms
+-    static constexpr nsecs_t kMaxFrameWaitTime = 10000000LL; // 10ms
++    static constexpr nsecs_t kMaxFrameWaitTime = 33333333LL; // 33ms
+ };
+ 
+ }; //namespace camera3
+-- 
+2.7.4
+

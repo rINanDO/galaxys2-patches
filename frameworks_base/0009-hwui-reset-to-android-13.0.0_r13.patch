@@ -1,0 +1,372 @@
+From 1e212425def5b48c66bf62adae0c4775e24a4eab Mon Sep 17 00:00:00 2001
+From: Yaroslav Zviezda <acroreiser@gmail.com>
+Date: Thu, 22 Dec 2022 13:28:58 +0300
+Subject: [PATCH 09/11] hwui: reset to android-13.0.0_r13
+
+* fixes GPU page faults on legacy Adreno 3xx
+
+Change-Id: I54cc1b6a2cf355a465351f7344f2d24247cc187d
+---
+ libs/hwui/FrameInfoVisualizer.cpp              |  2 +-
+ libs/hwui/JankTracker.cpp                      |  5 +-
+ libs/hwui/Readback.cpp                         | 35 ++------------
+ libs/hwui/jni/android_graphics_Canvas.cpp      | 28 +++--------
+ libs/hwui/pipeline/skia/SkiaOpenGLPipeline.cpp | 14 ++----
+ libs/hwui/pipeline/skia/SkiaOpenGLPipeline.h   |  3 +-
+ libs/hwui/pipeline/skia/SkiaVulkanPipeline.cpp | 13 +-----
+ libs/hwui/pipeline/skia/SkiaVulkanPipeline.h   |  1 -
+ libs/hwui/renderthread/CanvasContext.cpp       | 18 ++-----
+ libs/hwui/tests/unit/JankTrackerTests.cpp      | 65 --------------------------
+ libs/hwui/tests/unit/SkiaPipelineTests.cpp     |  4 +-
+ 11 files changed, 26 insertions(+), 162 deletions(-)
+
+diff --git a/libs/hwui/FrameInfoVisualizer.cpp b/libs/hwui/FrameInfoVisualizer.cpp
+index 687e4dd..3a8e559 100644
+--- a/libs/hwui/FrameInfoVisualizer.cpp
++++ b/libs/hwui/FrameInfoVisualizer.cpp
+@@ -179,7 +179,7 @@ void FrameInfoVisualizer::initializeRects(const int baseline, const int width) {
+ void FrameInfoVisualizer::nextBarSegment(FrameInfoIndex start, FrameInfoIndex end) {
+     int fast_i = (mNumFastRects - 1) * 4;
+     int janky_i = (mNumJankyRects - 1) * 4;
+-
++    ;
+     for (size_t fi = 0; fi < mFrameSource.size(); fi++) {
+         if (mFrameSource[fi][FrameInfoIndex::Flags] & FrameInfoFlags::SkippedFrame) {
+             continue;
+diff --git a/libs/hwui/JankTracker.cpp b/libs/hwui/JankTracker.cpp
+index 4b0ddd2..1e5be6c 100644
+--- a/libs/hwui/JankTracker.cpp
++++ b/libs/hwui/JankTracker.cpp
+@@ -201,9 +201,8 @@ void JankTracker::finishFrame(FrameInfo& frame, std::unique_ptr<FrameMetricsRepo
+     // If we are in triple buffering, we have enough buffers in queue to sustain a single frame
+     // drop without jank, so adjust the frame interval to the deadline.
+     if (isTripleBuffered) {
+-        int64_t originalDeadlineDuration = deadline - frame[FrameInfoIndex::IntendedVsync];
+-        deadline = mNextFrameStartUnstuffed + originalDeadlineDuration;
+-        frame.set(FrameInfoIndex::FrameDeadline) = deadline;
++        deadline += frameInterval;
++        frame.set(FrameInfoIndex::FrameDeadline) += frameInterval;
+     }
+ 
+     // If we hit the deadline, cool!
+diff --git a/libs/hwui/Readback.cpp b/libs/hwui/Readback.cpp
+index a3ba88e..4cce87a 100644
+--- a/libs/hwui/Readback.cpp
++++ b/libs/hwui/Readback.cpp
+@@ -90,36 +90,11 @@ CopyResult Readback::copySurfaceInto(ANativeWindow* window, const Rect& inSrcRec
+ 
+     SkRect srcRect = inSrcRect.toSkRect();
+ 
+-    SkRect imageSrcRect = SkRect::MakeIWH(description.width, description.height);
+-    SkISize imageWH = SkISize::Make(description.width, description.height);
+-    if (cropRect.left < cropRect.right && cropRect.top < cropRect.bottom) {
+-        imageSrcRect =
+-                SkRect::MakeLTRB(cropRect.left, cropRect.top, cropRect.right, cropRect.bottom);
+-        imageWH = SkISize::Make(cropRect.right - cropRect.left, cropRect.bottom - cropRect.top);
+-
+-        // Chroma channels of YUV420 images are subsampled we may need to shrink the crop region by
+-        // a whole texel on each side. Since skia still adds its own 0.5 inset, we apply an
+-        // additional 0.5 inset. See GLConsumer::computeTransformMatrix for details.
+-        float shrinkAmount = 0.0f;
+-        switch (description.format) {
+-            // Use HAL formats since some AHB formats are only available in vndk
+-            case HAL_PIXEL_FORMAT_YCBCR_420_888:
+-            case HAL_PIXEL_FORMAT_YV12:
+-            case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
+-                shrinkAmount = 0.5f;
+-                break;
+-            default:
+-                break;
+-        }
+-
+-        // Shrink the crop if it has more than 1-px and differs from the buffer size.
+-        if (imageWH.width() > 1 && imageWH.width() < (int32_t)description.width)
+-            imageSrcRect = imageSrcRect.makeInset(shrinkAmount, 0);
+-
+-        if (imageWH.height() > 1 && imageWH.height() < (int32_t)description.height)
+-            imageSrcRect = imageSrcRect.makeInset(0, shrinkAmount);
++    SkRect imageSrcRect =
++            SkRect::MakeLTRB(cropRect.left, cropRect.top, cropRect.right, cropRect.bottom);
++    if (imageSrcRect.isEmpty()) {
++        imageSrcRect = SkRect::MakeIWH(description.width, description.height);
+     }
+-
+     ALOGV("imageSrcRect = " RECT_STRING, SK_RECT_ARGS(imageSrcRect));
+ 
+     // Represents the "logical" width/height of the texture. That is, the dimensions of the buffer
+@@ -178,7 +153,7 @@ CopyResult Readback::copySurfaceInto(ANativeWindow* window, const Rect& inSrcRec
+      */
+ 
+     SkMatrix m;
+-    const SkRect imageDstRect = SkRect::Make(imageWH);
++    const SkRect imageDstRect = SkRect::MakeIWH(imageSrcRect.width(), imageSrcRect.height());
+     const float px = imageDstRect.centerX();
+     const float py = imageDstRect.centerY();
+     if (windowTransform & NATIVE_WINDOW_TRANSFORM_FLIP_H) {
+diff --git a/libs/hwui/jni/android_graphics_Canvas.cpp b/libs/hwui/jni/android_graphics_Canvas.cpp
+index 132234b..0ef80ee 100644
+--- a/libs/hwui/jni/android_graphics_Canvas.cpp
++++ b/libs/hwui/jni/android_graphics_Canvas.cpp
+@@ -407,28 +407,14 @@ static void drawVertices(JNIEnv* env, jobject, jlong canvasHandle,
+         indices = (const uint16_t*)(indexA.ptr() + indexIndex);
+     }
+ 
+-    SkVertices::VertexMode vertexMode = static_cast<SkVertices::VertexMode>(modeHandle);
++    SkVertices::VertexMode mode = static_cast<SkVertices::VertexMode>(modeHandle);
+     const Paint* paint = reinterpret_cast<Paint*>(paintHandle);
+-
+-    // Preserve legacy Skia behavior: ignore the shader if there are no texs set.
+-    Paint noShaderPaint;
+-    if (jtexs == NULL) {
+-        noShaderPaint = Paint(*paint);
+-        noShaderPaint.setShader(nullptr);
+-        paint = &noShaderPaint;
+-    }
+-    // Since https://skia-review.googlesource.com/c/skia/+/473676, Skia will blend paint and vertex
+-    // colors when no shader is provided. This ternary uses kDst to mimic the old behavior of
+-    // ignoring the paint and using the vertex colors directly when no shader is provided.
+-    SkBlendMode blendMode = paint->getShader() ? SkBlendMode::kModulate : SkBlendMode::kDst;
+-
+-    get_canvas(canvasHandle)
+-            ->drawVertices(SkVertices::MakeCopy(
+-                                   vertexMode, vertexCount, reinterpret_cast<const SkPoint*>(verts),
+-                                   reinterpret_cast<const SkPoint*>(texs),
+-                                   reinterpret_cast<const SkColor*>(colors), indexCount, indices)
+-                                   .get(),
+-                           blendMode, *paint);
++    get_canvas(canvasHandle)->drawVertices(SkVertices::MakeCopy(mode, vertexCount,
++                                           reinterpret_cast<const SkPoint*>(verts),
++                                           reinterpret_cast<const SkPoint*>(texs),
++                                           reinterpret_cast<const SkColor*>(colors),
++                                           indexCount, indices).get(),
++                                           SkBlendMode::kModulate, *paint);
+ }
+ 
+ static void drawNinePatch(JNIEnv* env, jobject, jlong canvasHandle, jlong bitmapHandle,
+diff --git a/libs/hwui/pipeline/skia/SkiaOpenGLPipeline.cpp b/libs/hwui/pipeline/skia/SkiaOpenGLPipeline.cpp
+index 8e350d5..2aca41e 100644
+--- a/libs/hwui/pipeline/skia/SkiaOpenGLPipeline.cpp
++++ b/libs/hwui/pipeline/skia/SkiaOpenGLPipeline.cpp
+@@ -53,12 +53,8 @@ SkiaOpenGLPipeline::~SkiaOpenGLPipeline() {
+ }
+ 
+ MakeCurrentResult SkiaOpenGLPipeline::makeCurrent() {
+-    // In case the surface was destroyed (e.g. a previous trimMemory call) we
+-    // need to recreate it here.
+-    if (!isSurfaceReady() && mNativeWindow) {
+-        setSurface(mNativeWindow.get(), mSwapBehavior);
+-    }
+-
++    // TODO: Figure out why this workaround is needed, see b/13913604
++    // In the meantime this matches the behavior of GLRenderer, so it is not a regression
+     EGLint error = 0;
+     if (!mEglManager.makeCurrent(mEglSurface, &error)) {
+         return MakeCurrentResult::AlreadyCurrent;
+@@ -170,9 +166,6 @@ void SkiaOpenGLPipeline::onStop() {
+ }
+ 
+ bool SkiaOpenGLPipeline::setSurface(ANativeWindow* surface, SwapBehavior swapBehavior) {
+-    mNativeWindow = surface;
+-    mSwapBehavior = swapBehavior;
+-
+     if (mEglSurface != EGL_NO_SURFACE) {
+         mEglManager.destroySurface(mEglSurface);
+         mEglSurface = EGL_NO_SURFACE;
+@@ -189,8 +182,7 @@ bool SkiaOpenGLPipeline::setSurface(ANativeWindow* surface, SwapBehavior swapBeh
+ 
+     if (mEglSurface != EGL_NO_SURFACE) {
+         const bool preserveBuffer = (swapBehavior != SwapBehavior::kSwap_discardBuffer);
+-        const bool isPreserved = mEglManager.setPreserveBuffer(mEglSurface, preserveBuffer);
+-        ALOGE_IF(preserveBuffer != isPreserved, "Unable to match the desired swap behavior.");
++        mBufferPreserved = mEglManager.setPreserveBuffer(mEglSurface, preserveBuffer);
+         return true;
+     }
+ 
+diff --git a/libs/hwui/pipeline/skia/SkiaOpenGLPipeline.h b/libs/hwui/pipeline/skia/SkiaOpenGLPipeline.h
+index a80c613..186998a 100644
+--- a/libs/hwui/pipeline/skia/SkiaOpenGLPipeline.h
++++ b/libs/hwui/pipeline/skia/SkiaOpenGLPipeline.h
+@@ -61,8 +61,7 @@ protected:
+ private:
+     renderthread::EglManager& mEglManager;
+     EGLSurface mEglSurface = EGL_NO_SURFACE;
+-    sp<ANativeWindow> mNativeWindow;
+-    renderthread::SwapBehavior mSwapBehavior = renderthread::SwapBehavior::kSwap_discardBuffer;
++    bool mBufferPreserved = false;
+ };
+ 
+ } /* namespace skiapipeline */
+diff --git a/libs/hwui/pipeline/skia/SkiaVulkanPipeline.cpp b/libs/hwui/pipeline/skia/SkiaVulkanPipeline.cpp
+index cc2565d..905d46e 100644
+--- a/libs/hwui/pipeline/skia/SkiaVulkanPipeline.cpp
++++ b/libs/hwui/pipeline/skia/SkiaVulkanPipeline.cpp
+@@ -55,12 +55,7 @@ VulkanManager& SkiaVulkanPipeline::vulkanManager() {
+ }
+ 
+ MakeCurrentResult SkiaVulkanPipeline::makeCurrent() {
+-    // In case the surface was destroyed (e.g. a previous trimMemory call) we
+-    // need to recreate it here.
+-    if (!isSurfaceReady() && mNativeWindow) {
+-        setSurface(mNativeWindow.get(), SwapBehavior::kSwap_default);
+-    }
+-    return isContextReady() ? MakeCurrentResult::AlreadyCurrent : MakeCurrentResult::Failed;
++    return MakeCurrentResult::AlreadyCurrent;
+ }
+ 
+ Frame SkiaVulkanPipeline::getFrame() {
+@@ -135,11 +130,7 @@ DeferredLayerUpdater* SkiaVulkanPipeline::createTextureLayer() {
+ 
+ void SkiaVulkanPipeline::onStop() {}
+ 
+-// We can safely ignore the swap behavior because VkManager will always operate
+-// in a mode equivalent to EGLManager::SwapBehavior::kBufferAge
+-bool SkiaVulkanPipeline::setSurface(ANativeWindow* surface, SwapBehavior /*swapBehavior*/) {
+-    mNativeWindow = surface;
+-
++bool SkiaVulkanPipeline::setSurface(ANativeWindow* surface, SwapBehavior swapBehavior) {
+     if (mVkSurface) {
+         vulkanManager().destroySurface(mVkSurface);
+         mVkSurface = nullptr;
+diff --git a/libs/hwui/pipeline/skia/SkiaVulkanPipeline.h b/libs/hwui/pipeline/skia/SkiaVulkanPipeline.h
+index a6e685d..ada6af6 100644
+--- a/libs/hwui/pipeline/skia/SkiaVulkanPipeline.h
++++ b/libs/hwui/pipeline/skia/SkiaVulkanPipeline.h
+@@ -61,7 +61,6 @@ private:
+     renderthread::VulkanManager& vulkanManager();
+ 
+     renderthread::VulkanSurface* mVkSurface = nullptr;
+-    sp<ANativeWindow> mNativeWindow;
+ };
+ 
+ } /* namespace skiapipeline */
+diff --git a/libs/hwui/renderthread/CanvasContext.cpp b/libs/hwui/renderthread/CanvasContext.cpp
+index 75d3ff7..976117b 100644
+--- a/libs/hwui/renderthread/CanvasContext.cpp
++++ b/libs/hwui/renderthread/CanvasContext.cpp
+@@ -512,19 +512,9 @@ nsecs_t CanvasContext::draw() {
+ 
+     ATRACE_FORMAT("Drawing " RECT_STRING, SK_RECT_ARGS(dirty));
+ 
+-    IRenderPipeline::DrawResult drawResult;
+-    {
+-        // FrameInfoVisualizer accesses the frame events, which cannot be mutated mid-draw
+-        // or it can lead to memory corruption.
+-        // This lock is overly broad, but it's the quickest fix since this mutex is otherwise
+-        // not visible to IRenderPipeline much less FrameInfoVisualizer. And since this is
+-        // the thread we're primarily concerned about being responsive, this being too broad
+-        // shouldn't pose a performance issue.
+-        std::scoped_lock lock(mFrameMetricsReporterMutex);
+-        drawResult = mRenderPipeline->draw(frame, windowDirty, dirty, mLightGeometry,
+-                                           &mLayerUpdateQueue, mContentDrawBounds, mOpaque,
+-                                           mLightInfo, mRenderNodes, &(profiler()));
+-    }
++    const auto drawResult = mRenderPipeline->draw(frame, windowDirty, dirty, mLightGeometry,
++                                                  &mLayerUpdateQueue, mContentDrawBounds, mOpaque,
++                                                  mLightInfo, mRenderNodes, &(profiler()));
+ 
+     uint64_t frameCompleteNr = getFrameNumber();
+ 
+@@ -764,11 +754,11 @@ void CanvasContext::onSurfaceStatsAvailable(void* context, int32_t surfaceContro
+     FrameInfo* frameInfo = instance->getFrameInfoFromLast4(frameNumber, surfaceControlId);
+ 
+     if (frameInfo != nullptr) {
+-        std::scoped_lock lock(instance->mFrameMetricsReporterMutex);
+         frameInfo->set(FrameInfoIndex::FrameCompleted) = std::max(gpuCompleteTime,
+                 frameInfo->get(FrameInfoIndex::SwapBuffersCompleted));
+         frameInfo->set(FrameInfoIndex::GpuCompleted) = std::max(
+                 gpuCompleteTime, frameInfo->get(FrameInfoIndex::CommandSubmissionCompleted));
++        std::scoped_lock lock(instance->mFrameMetricsReporterMutex);
+         instance->mJankTracker.finishFrame(*frameInfo, instance->mFrameMetricsReporter, frameNumber,
+                                            surfaceControlId);
+     }
+diff --git a/libs/hwui/tests/unit/JankTrackerTests.cpp b/libs/hwui/tests/unit/JankTrackerTests.cpp
+index b67e419..5b397de 100644
+--- a/libs/hwui/tests/unit/JankTrackerTests.cpp
++++ b/libs/hwui/tests/unit/JankTrackerTests.cpp
+@@ -195,68 +195,3 @@ TEST(JankTracker, doubleStuffedThenPauseThenJank) {
+     ASSERT_EQ(3, container.get()->totalFrameCount());
+     ASSERT_EQ(2, container.get()->jankFrameCount());
+ }
+-
+-TEST(JankTracker, doubleStuffedTwoIntervalBehind) {
+-    std::mutex mutex;
+-    ProfileDataContainer container(mutex);
+-    JankTracker jankTracker(&container);
+-    std::unique_ptr<FrameMetricsReporter> reporter = std::make_unique<FrameMetricsReporter>();
+-
+-    uint64_t frameNumber = 0;
+-    uint32_t surfaceId = 0;
+-
+-    // First frame janks
+-    FrameInfo* info = jankTracker.startFrame();
+-    info->set(FrameInfoIndex::IntendedVsync) = 100_ms;
+-    info->set(FrameInfoIndex::Vsync) = 101_ms;
+-    info->set(FrameInfoIndex::SwapBuffersCompleted) = 107_ms;
+-    info->set(FrameInfoIndex::GpuCompleted) = 117_ms;
+-    info->set(FrameInfoIndex::FrameCompleted) = 117_ms;
+-    info->set(FrameInfoIndex::FrameInterval) = 16_ms;
+-    info->set(FrameInfoIndex::FrameDeadline) = 116_ms;
+-    jankTracker.finishFrame(*info, reporter, frameNumber, surfaceId);
+-
+-    ASSERT_EQ(1, container.get()->jankFrameCount());
+-
+-    // Second frame is long, but doesn't jank because double-stuffed.
+-    // Second frame duration is between 1*interval ~ 2*interval
+-    info = jankTracker.startFrame();
+-    info->set(FrameInfoIndex::IntendedVsync) = 116_ms;
+-    info->set(FrameInfoIndex::Vsync) = 116_ms;
+-    info->set(FrameInfoIndex::SwapBuffersCompleted) = 129_ms;
+-    info->set(FrameInfoIndex::GpuCompleted) = 133_ms;
+-    info->set(FrameInfoIndex::FrameCompleted) = 133_ms;
+-    info->set(FrameInfoIndex::FrameInterval) = 16_ms;
+-    info->set(FrameInfoIndex::FrameDeadline) = 132_ms;
+-    jankTracker.finishFrame(*info, reporter, frameNumber, surfaceId);
+-
+-    ASSERT_EQ(1, container.get()->jankFrameCount());
+-
+-    // Third frame is even longer, cause a jank
+-    // Third frame duration is between 2*interval ~ 3*interval
+-    info = jankTracker.startFrame();
+-    info->set(FrameInfoIndex::IntendedVsync) = 132_ms;
+-    info->set(FrameInfoIndex::Vsync) = 132_ms;
+-    info->set(FrameInfoIndex::SwapBuffersCompleted) = 160_ms;
+-    info->set(FrameInfoIndex::GpuCompleted) = 165_ms;
+-    info->set(FrameInfoIndex::FrameCompleted) = 165_ms;
+-    info->set(FrameInfoIndex::FrameInterval) = 16_ms;
+-    info->set(FrameInfoIndex::FrameDeadline) = 148_ms;
+-    jankTracker.finishFrame(*info, reporter, frameNumber, surfaceId);
+-
+-    ASSERT_EQ(2, container.get()->jankFrameCount());
+-
+-    // 4th frame is double-stuffed with a 2 * interval latency
+-    // 4th frame duration is between 2*interval ~ 3*interval
+-    info = jankTracker.startFrame();
+-    info->set(FrameInfoIndex::IntendedVsync) = 148_ms;
+-    info->set(FrameInfoIndex::Vsync) = 148_ms;
+-    info->set(FrameInfoIndex::SwapBuffersCompleted) = 170_ms;
+-    info->set(FrameInfoIndex::GpuCompleted) = 181_ms;
+-    info->set(FrameInfoIndex::FrameCompleted) = 181_ms;
+-    info->set(FrameInfoIndex::FrameInterval) = 16_ms;
+-    info->set(FrameInfoIndex::FrameDeadline) = 164_ms;
+-    jankTracker.finishFrame(*info, reporter, frameNumber, surfaceId);
+-
+-    ASSERT_EQ(2, container.get()->jankFrameCount());
+-}
+diff --git a/libs/hwui/tests/unit/SkiaPipelineTests.cpp b/libs/hwui/tests/unit/SkiaPipelineTests.cpp
+index 7419f8f..60ae604 100644
+--- a/libs/hwui/tests/unit/SkiaPipelineTests.cpp
++++ b/libs/hwui/tests/unit/SkiaPipelineTests.cpp
+@@ -404,9 +404,7 @@ RENDERTHREAD_SKIA_PIPELINE_TEST(SkiaPipeline, context_lost) {
+     EXPECT_TRUE(pipeline->isSurfaceReady());
+     renderThread.destroyRenderingContext();
+     EXPECT_FALSE(pipeline->isSurfaceReady());
+-
+-    pipeline->makeCurrent();
+-    EXPECT_TRUE(pipeline->isSurfaceReady());
++    LOG_ALWAYS_FATAL_IF(pipeline->isSurfaceReady());
+ }
+ 
+ RENDERTHREAD_SKIA_PIPELINE_TEST(SkiaPipeline, pictureCallback) {
+-- 
+2.7.4
+
