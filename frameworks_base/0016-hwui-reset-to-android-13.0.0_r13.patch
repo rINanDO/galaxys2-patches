@@ -1,7 +1,7 @@
-From 1e212425def5b48c66bf62adae0c4775e24a4eab Mon Sep 17 00:00:00 2001
+From c2234b62081a5002acf68f8a23efdaf5c516e360 Mon Sep 17 00:00:00 2001
 From: Yaroslav Zviezda <acroreiser@gmail.com>
 Date: Thu, 22 Dec 2022 13:28:58 +0300
-Subject: [PATCH 09/11] hwui: reset to android-13.0.0_r13
+Subject: [PATCH 16/21] hwui: reset to android-13.0.0_r13
 
 * fixes GPU page faults on legacy Adreno 3xx
 

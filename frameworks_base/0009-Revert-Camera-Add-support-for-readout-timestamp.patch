@@ -1,7 +1,7 @@
-From d3b97ce82b5111d56d3a3f53e018ecf1f1cd9498 Mon Sep 17 00:00:00 2001
+From 376c6a3e01b0c8e78694d72af0b0674bc3fa935e Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Thu, 20 Oct 2022 22:24:53 +0200
-Subject: [PATCH 10/11] Revert "Camera: Add support for readout timestamp"
+Subject: [PATCH 09/21] Revert "Camera: Add support for readout timestamp"
 
 This reverts commit 91e7522cb28d2b1e2e12adc8726db8190d711f2e.
 ---
@@ -63,10 +63,10 @@ index 5b1973a..691690c 100644
           * available.
           *
 diff --git a/core/java/android/hardware/camera2/CameraCharacteristics.java b/core/java/android/hardware/camera2/CameraCharacteristics.java
-index 861a850..c32ad72 100644
+index 14d0a56..a9d85ca 100644
 --- a/core/java/android/hardware/camera2/CameraCharacteristics.java
 +++ b/core/java/android/hardware/camera2/CameraCharacteristics.java
-@@ -4419,40 +4419,6 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
+@@ -4469,40 +4469,6 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
              new Key<android.graphics.Rect[]>("android.sensor.opticalBlackRegions", android.graphics.Rect[].class);
  
      /**
@@ -141,10 +141,10 @@ index c67a560..eb8c73a 100644
      //
  
 diff --git a/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java b/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java
-index b3b24cb..b2f118b 100644
+index b9eba9c..9a9163c 100644
 --- a/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java
 +++ b/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java
-@@ -658,21 +658,6 @@ public class CameraCaptureSessionImpl extends CameraCaptureSession
+@@ -657,21 +657,6 @@ public class CameraCaptureSessionImpl extends CameraCaptureSession
              }
  
              @Override
@@ -167,10 +167,10 @@ index b3b24cb..b2f118b 100644
                      CaptureRequest request, android.hardware.camera2.CaptureResult result) {
                  if ((callback != null) && (executor != null)) {
 diff --git a/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java b/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java
-index 53788ba..271c929 100644
+index a6c79b3..3cb0c93 100644
 --- a/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java
 +++ b/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java
-@@ -2060,16 +2060,12 @@ public class CameraDeviceImpl extends CameraDevice
+@@ -2025,16 +2025,12 @@ public class CameraDeviceImpl extends CameraDevice
                      resultExtras.getLastCompletedReprocessFrameNumber();
              final long lastCompletedZslFrameNumber =
                      resultExtras.getLastCompletedZslFrameNumber();
@@ -188,7 +188,7 @@ index 53788ba..271c929 100644
              }
              final CaptureCallbackHolder holder;
  
-@@ -2121,26 +2117,14 @@ public class CameraDeviceImpl extends CameraDevice
+@@ -2086,26 +2082,14 @@ public class CameraDeviceImpl extends CameraDevice
                                                  CameraDeviceImpl.this,
                                                  holder.getRequest(i),
                                                  timestamp - (subsequenceId - i) *

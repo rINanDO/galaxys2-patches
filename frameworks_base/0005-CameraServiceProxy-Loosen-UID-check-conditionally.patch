@@ -1,13 +1,11 @@
-From 8c9d38186c401e0f97423bf0a9dbc99d5f452381 Mon Sep 17 00:00:00 2001
+From 5ec95ee7007c596d4543f2ec4d0ad67f738206bf Mon Sep 17 00:00:00 2001
 From: Danny Baumann <dannybaumann@web.de>
 Date: Fri, 31 Aug 2018 13:29:12 +0200
-Subject: [PATCH 05/11] CameraServiceProxy: Loosen UID check conditionally
+Subject: [PATCH 05/21] CameraServiceProxy: Loosen UID check conditionally
 
 Also allow media UID for camera-in-mediaserver devices.
 
 Change-Id: I34e9ddb49adc78ba0589e3d64918eca7d675ec98
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  core/res/res/values/lineage_config.xml               | 20 ++++++++++++++++++++
  core/res/res/values/lineage_symbols.xml              | 20 ++++++++++++++++++++
@@ -69,10 +67,10 @@ index 0000000..fde3c82
 +    <java-symbol type="bool" name="config_allowMediaUidForCameraServiceProxy" />
 +</resources>
 diff --git a/services/core/java/com/android/server/camera/CameraServiceProxy.java b/services/core/java/com/android/server/camera/CameraServiceProxy.java
-index aec60de..0242224 100644
+index 7bbc604..7c8fee9 100644
 --- a/services/core/java/com/android/server/camera/CameraServiceProxy.java
 +++ b/services/core/java/com/android/server/camera/CameraServiceProxy.java
-@@ -217,6 +217,7 @@ public class CameraServiceProxy extends SystemService
+@@ -218,6 +218,7 @@ public class CameraServiceProxy extends SystemService
      private static final IBinder nfcInterfaceToken = new Binder();
  
      private final boolean mNotifyNfc;
@@ -80,7 +78,7 @@ index aec60de..0242224 100644
  
      private ScheduledThreadPoolExecutor mLogWriterService = new ScheduledThreadPoolExecutor(
              /*corePoolSize*/ 1);
-@@ -553,7 +554,8 @@ public class CameraServiceProxy extends SystemService
+@@ -564,7 +565,8 @@ public class CameraServiceProxy extends SystemService
  
          @Override
          public void pingForUserUpdate() {
@@ -90,7 +88,7 @@ index aec60de..0242224 100644
                  Slog.e(TAG, "Calling UID: " + Binder.getCallingUid() + " doesn't match expected " +
                          " camera service UID!");
                  return;
-@@ -564,7 +566,8 @@ public class CameraServiceProxy extends SystemService
+@@ -575,7 +577,8 @@ public class CameraServiceProxy extends SystemService
  
          @Override
          public void notifyCameraState(CameraSessionStats cameraState) {
@@ -100,7 +98,7 @@ index aec60de..0242224 100644
                  Slog.e(TAG, "Calling UID: " + Binder.getCallingUid() + " doesn't match expected " +
                          " camera service UID!");
                  return;
-@@ -608,6 +611,8 @@ public class CameraServiceProxy extends SystemService
+@@ -619,6 +622,8 @@ public class CameraServiceProxy extends SystemService
  
          mNotifyNfc = SystemProperties.getInt(NFC_NOTIFICATION_PROP, 0) > 0;
          if (DEBUG) Slog.v(TAG, "Notify NFC behavior is " + (mNotifyNfc ? "active" : "disabled"));

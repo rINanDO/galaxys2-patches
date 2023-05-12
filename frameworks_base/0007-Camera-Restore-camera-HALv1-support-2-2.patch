@@ -1,7 +1,7 @@
-From 7186265eb072d937f7aa931d8fbb594b312ab5ca Mon Sep 17 00:00:00 2001
+From 77f7c52f22c3aae8c539d3b68c43ac4ddee92531 Mon Sep 17 00:00:00 2001
 From: Kyle Harrison <khwebmail@gmail.com>
 Date: Thu, 28 Oct 2021 12:29:04 +0100
-Subject: [PATCH 07/11] Camera: Restore camera HALv1 support [2/2]
+Subject: [PATCH 07/21] Camera: Restore camera HALv1 support [2/2]
 
 Revert "Camera: Remove all camera HALv1 code"
 This reverts commit 7208d0af87dda3b6484e7a549d51751ae57d9a30.
@@ -9,7 +9,6 @@ This reverts commit 7208d0af87dda3b6484e7a549d51751ae57d9a30.
 Adapt to changes in camera2 api since the removal of HALv1 support.
 
 Change-Id: I765d2912f024f58ba369b72453817ddf8ebe2b2a
-Change-Id: I657cbe95c1b5a484baff02ac369fe355f77957ec
 ---
  config/boot-image-profile.txt                      |    4 +
  config/preloaded-classes                           |    4 +
@@ -38,7 +37,7 @@ Change-Id: I657cbe95c1b5a484baff02ac369fe355f77957ec
  .../camera2/legacy/SurfaceTextureRenderer.java     |  882 +++++++++++
  .../android/hardware/camera2/legacy/package.html   |    3 +
  .../camera2/params/StreamConfigurationMap.java     |    5 +-
- .../hardware/camera2/utils/SurfaceUtils.java       |  109 +-
+ .../hardware/camera2/utils/SurfaceUtils.java       |  123 +-
  core/jni/Android.bp                                |    3 +-
  core/jni/AndroidRuntime.cpp                        |    6 +-
  core/jni/android_hardware_Camera.cpp               |   17 +-
@@ -47,7 +46,7 @@ Change-Id: I657cbe95c1b5a484baff02ac369fe355f77957ec
  ...android_hardware_camera2_utils_SurfaceUtils.cpp |  229 ---
  .../integration/CameraBinderTest.java              |   28 +
  .../mediaframeworktest/unit/CameraOpenTest.java    |   53 +
- 36 files changed, 12169 insertions(+), 356 deletions(-)
+ 36 files changed, 12169 insertions(+), 370 deletions(-)
  create mode 100644 core/java/android/hardware/camera2/legacy/BurstHolder.java
  create mode 100644 core/java/android/hardware/camera2/legacy/CameraDeviceState.java
  create mode 100644 core/java/android/hardware/camera2/legacy/CameraDeviceUserShim.java
@@ -76,10 +75,10 @@ Change-Id: I657cbe95c1b5a484baff02ac369fe355f77957ec
  create mode 100644 media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/unit/CameraOpenTest.java
 
 diff --git a/config/boot-image-profile.txt b/config/boot-image-profile.txt
-index 1e18e96..5e44541 100644
+index 385da59..6c56d54 100644
 --- a/config/boot-image-profile.txt
 +++ b/config/boot-image-profile.txt
-@@ -34656,6 +34656,10 @@ Landroid/hardware/camera2/impl/CameraMetadataNative$Key;
+@@ -34751,6 +34751,10 @@ Landroid/hardware/camera2/impl/CameraMetadataNative$Key;
  Landroid/hardware/camera2/impl/CameraMetadataNative;
  Landroid/hardware/camera2/impl/GetCommand;
  Landroid/hardware/camera2/impl/SetCommand;
@@ -91,10 +90,10 @@ index 1e18e96..5e44541 100644
  Landroid/hardware/camera2/marshal/MarshalQueryable;
  Landroid/hardware/camera2/marshal/MarshalRegistry$MarshalToken;
 diff --git a/config/preloaded-classes b/config/preloaded-classes
-index c4ccc16..63f3719 100644
+index 6de1461..51d1c13 100644
 --- a/config/preloaded-classes
 +++ b/config/preloaded-classes
-@@ -2339,6 +2339,10 @@ android.hardware.camera2.impl.CameraMetadataNative$Key
+@@ -2338,6 +2338,10 @@ android.hardware.camera2.impl.CameraMetadataNative$Key
  android.hardware.camera2.impl.CameraMetadataNative
  android.hardware.camera2.impl.GetCommand
  android.hardware.camera2.impl.SetCommand
@@ -11261,21 +11260,27 @@ index 5981d27..342e028 100644
                  }
              }
 diff --git a/core/java/android/hardware/camera2/utils/SurfaceUtils.java b/core/java/android/hardware/camera2/utils/SurfaceUtils.java
-index 349c131..fef5efe 100644
+index 6c83057..c730259 100644
 --- a/core/java/android/hardware/camera2/utils/SurfaceUtils.java
 +++ b/core/java/android/hardware/camera2/utils/SurfaceUtils.java
-@@ -24,8 +24,8 @@ import android.app.ActivityThread;
+@@ -16,14 +16,10 @@
+ 
+ package android.hardware.camera2.utils;
+ 
+-import static android.system.OsConstants.EINVAL;
+-
+-import static com.android.internal.util.Preconditions.checkNotNull;
+-
  import android.compat.annotation.UnsupportedAppUsage;
- import android.content.res.Resources;
  import android.graphics.ImageFormat;
 -import android.graphics.PixelFormat;
 -import android.hardware.HardwareBuffer;
 +import android.hardware.camera2.legacy.LegacyCameraDevice;
 +import android.hardware.camera2.legacy.LegacyExceptionUtils.BufferQueueAbandonedException;
  import android.hardware.camera2.params.StreamConfigurationMap;
- import android.os.SystemProperties;
- import android.text.TextUtils;
-@@ -44,15 +44,6 @@ import java.util.List;
+ import android.util.Range;
+ import android.util.Size;
+@@ -39,15 +35,6 @@ import java.util.List;
   */
  public class SurfaceUtils {
  
@@ -11291,7 +11296,7 @@ index 349c131..fef5efe 100644
      /**
       * Check if a surface is for preview consumer based on consumer end point Gralloc usage flags.
       *
-@@ -60,17 +51,7 @@ public class SurfaceUtils {
+@@ -55,17 +42,7 @@ public class SurfaceUtils {
       * @return true if the surface is for preview consumer, false otherwise.
       */
      public static boolean isSurfaceForPreview(Surface surface) {
@@ -11310,7 +11315,7 @@ index 349c131..fef5efe 100644
      }
  
      /**
-@@ -81,17 +62,7 @@ public class SurfaceUtils {
+@@ -76,17 +53,7 @@ public class SurfaceUtils {
       * @return true if the surface is for hardware video encoder consumer, false otherwise.
       */
      public static boolean isSurfaceForHwVideoEncoder(Surface surface) {
@@ -11329,7 +11334,7 @@ index 349c131..fef5efe 100644
      }
  
      /**
-@@ -101,10 +72,9 @@ public class SurfaceUtils {
+@@ -96,10 +63,9 @@ public class SurfaceUtils {
       * @return the native object id of the surface, 0 if surface is not backed by a native object.
       */
      public static long getSurfaceId(Surface surface) {
@@ -11342,7 +11347,7 @@ index 349c131..fef5efe 100644
              return 0;
          }
      }
-@@ -116,12 +86,7 @@ public class SurfaceUtils {
+@@ -111,12 +77,7 @@ public class SurfaceUtils {
       * @return the native object id of the surface, 0 if surface is not backed by a native object.
       */
      public static long getSurfaceUsage(Surface surface) {
@@ -11356,7 +11361,7 @@ index 349c131..fef5efe 100644
      }
      /**
       * Get the Surface size.
-@@ -133,13 +98,11 @@ public class SurfaceUtils {
+@@ -128,13 +89,11 @@ public class SurfaceUtils {
       */
      @UnsupportedAppUsage
      public static Size getSurfaceSize(Surface surface) {
@@ -11375,7 +11380,7 @@ index 349c131..fef5efe 100644
      }
  
      /**
-@@ -151,17 +114,11 @@ public class SurfaceUtils {
+@@ -146,17 +105,11 @@ public class SurfaceUtils {
       * @throws IllegalArgumentException if the surface is already abandoned.
       */
      public static int getSurfaceFormat(Surface surface) {
@@ -11397,7 +11402,7 @@ index 349c131..fef5efe 100644
      }
  
      /**
-@@ -171,14 +128,13 @@ public class SurfaceUtils {
+@@ -166,14 +119,13 @@ public class SurfaceUtils {
       * @param surface The surface to be queried for format.
       * @return format of the surface.
       *
@@ -11417,7 +11422,7 @@ index 349c131..fef5efe 100644
      }
  
      /**
-@@ -190,10 +146,11 @@ public class SurfaceUtils {
+@@ -185,10 +137,11 @@ public class SurfaceUtils {
       * @throws IllegalArgumentException if the surface is already abandoned.
       */
      public static int getSurfaceDataspace(Surface surface) {
@@ -11433,7 +11438,7 @@ index 349c131..fef5efe 100644
      }
  
      /**
-@@ -202,21 +159,9 @@ public class SurfaceUtils {
+@@ -197,21 +150,9 @@ public class SurfaceUtils {
       *
       */
      public static boolean isFlexibleConsumer(Surface output) {
@@ -11456,6 +11461,21 @@ index 349c131..fef5efe 100644
      /**
       * A high speed output surface can only be preview or hardware encoder surface.
       *
+@@ -293,14 +234,4 @@ public class SurfaceUtils {
+         }
+     }
+ 
+-    private static native int nativeDetectSurfaceType(Surface surface);
+-
+-    private static native int nativeDetectSurfaceDataspace(Surface surface);
+-
+-    private static native long nativeDetectSurfaceUsageFlags(Surface surface);
+-
+-    private static native int nativeDetectSurfaceDimens(Surface surface,
+-            /*out*/int[/*2*/] dimens);
+-
+-    private static native long nativeGetSurfaceId(Surface surface);
+ }
 diff --git a/core/jni/Android.bp b/core/jni/Android.bp
 index aa66171..18658bb 100644
 --- a/core/jni/Android.bp

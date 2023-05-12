@@ -1,7 +1,7 @@
-From 50199af1b3b3150a41adda04064e549c881514b8 Mon Sep 17 00:00:00 2001
+From 6550d3a6cfda51c188a94b71e3dbeeb9571b912e Mon Sep 17 00:00:00 2001
 From: Danny Lin <danny@kdrag0n.dev>
 Date: Thu, 22 Sep 2022 16:04:44 +0200
-Subject: [PATCH 11/11] Add support for app signature spoofing
+Subject: [PATCH 21/21] Add support for app signature spoofing
 
 This is needed by microG GmsCore to pretend to be the official Google
 Play Services package, because client apps check the package signature
@@ -31,8 +31,6 @@ Changes made for Android 13:
 
 Change-Id: I4cb021605257b9a4d13015aec3401fee5e5841b6
 Change-Id: I4f446734f9380fdbe994c07aea6c7cd893985c38
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  core/api/current.txt                               |  2 ++
  core/res/AndroidManifest.xml                       | 15 +++++++++++
@@ -41,7 +39,7 @@ Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
  4 files changed, 56 insertions(+), 3 deletions(-)
 
 diff --git a/core/api/current.txt b/core/api/current.txt
-index c8a43db..2771830 100644
+index 487e57d1..04e6974 100644
 --- a/core/api/current.txt
 +++ b/core/api/current.txt
 @@ -87,6 +87,7 @@ package android {
@@ -61,10 +59,10 @@ index c8a43db..2771830 100644
      field public static final String MICROPHONE = "android.permission-group.MICROPHONE";
      field public static final String NEARBY_DEVICES = "android.permission-group.NEARBY_DEVICES";
 diff --git a/core/res/AndroidManifest.xml b/core/res/AndroidManifest.xml
-index 3d7bd90..258df73 100644
+index f9e3d85..e06074f 100644
 --- a/core/res/AndroidManifest.xml
 +++ b/core/res/AndroidManifest.xml
-@@ -3537,6 +3537,21 @@
+@@ -3567,6 +3567,21 @@
          android:description="@string/permdesc_getPackageSize"
          android:protectionLevel="normal" />
  
@@ -87,10 +85,10 @@ index 3d7bd90..258df73 100644
           {@link android.content.pm.PackageManager#addPackageToPreferred}
           for details. -->
 diff --git a/core/res/res/values/strings.xml b/core/res/res/values/strings.xml
-index 5763345..8ffdbdd 100644
+index 9410e06..7ed7a03 100644
 --- a/core/res/res/values/strings.xml
 +++ b/core/res/res/values/strings.xml
-@@ -975,6 +975,18 @@
+@@ -978,6 +978,18 @@
      <!--  Permissions -->
  
      <!-- Title of an application permission, listed so the user can choose whether they want to allow the application to do this. -->

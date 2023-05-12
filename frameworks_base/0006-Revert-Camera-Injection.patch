@@ -1,7 +1,7 @@
-From 6c9716bbd28924500057a2fc178f29008b64a22c Mon Sep 17 00:00:00 2001
+From 74fa1ce4e8fdaef1ba3a42a6dca751e814a19dc6 Mon Sep 17 00:00:00 2001
 From: Yaroslav Zviezda <acroreiser@gmail.com>
 Date: Sun, 18 Sep 2022 04:53:18 +0300
-Subject: [PATCH 06/11] Revert Camera Injection
+Subject: [PATCH 06/21] Revert Camera Injection
 
 This code breaks camera HAL1 restoration and pointless for HAL1 devices.
 
@@ -9,8 +9,6 @@ Change-Id: I901f29496e9443bdf892f544a27d9757d52c192a
 
  Conflicts:
 	services/companion/java/com/android/server/companion/virtual/CameraAccessController.java
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../hardware/camera2/CameraInjectionSession.java   | 128 ------------
  .../android/hardware/camera2/CameraManager.java    | 144 +-------------
@@ -597,10 +595,10 @@ index 231cc05..0000000
 -    }
 -}
 diff --git a/core/res/AndroidManifest.xml b/core/res/AndroidManifest.xml
-index 1b90803..3d7bd90 100644
+index bbe3124..f9e3d85 100644
 --- a/core/res/AndroidManifest.xml
 +++ b/core/res/AndroidManifest.xml
-@@ -2638,11 +2638,6 @@
+@@ -2668,11 +2668,6 @@
      <permission android:name="android.permission.CAMERA_SEND_SYSTEM_EVENTS"
          android:protectionLevel="signature|privileged" />
  
@@ -798,10 +796,10 @@ index 2904f28..d5a5e92 100644
  
      private int queryUidFromPackageName(int userId, String packageName) {
 diff --git a/services/core/java/com/android/server/camera/CameraServiceProxy.java b/services/core/java/com/android/server/camera/CameraServiceProxy.java
-index 0242224..6f29d04 100644
+index 7c8fee9..a7df330 100644
 --- a/services/core/java/com/android/server/camera/CameraServiceProxy.java
 +++ b/services/core/java/com/android/server/camera/CameraServiceProxy.java
-@@ -1024,28 +1024,7 @@ public class CameraServiceProxy extends SystemService
+@@ -1035,28 +1035,7 @@ public class CameraServiceProxy extends SystemService
      }
  
      private boolean notifyUsbDeviceHotplugLocked(@NonNull UsbDevice device, boolean attached) {
