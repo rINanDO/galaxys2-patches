@@ -36,6 +36,7 @@ echo
 echo "======= frameworks/av =========="
 cd "$ANDROIDDIR/frameworks/av"
 git checkout $LOSBRANCH
+git am --signoff < "$PATCHESDIR/frameworks_av/0001-Revert-Camera-memcpy-Blob-header-rather-than-directl.patch"
 git am --signoff < "$PATCHESDIR/frameworks_av/0002-Revert-Camera-Fix-missing-physical-camera-availabili.patch"
 git am --signoff < "$PATCHESDIR/frameworks_av/0003-Revert-Camera-Avoid-roundBufferDimensionsNearest-als.patch"
 git am --signoff < "$PATCHESDIR/frameworks_av/0004-Revert-Camera-Skip-stream-size-check-for-whitelisted.patch"
