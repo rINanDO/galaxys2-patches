@@ -1,0 +1,36 @@
+From 575b29a1d83f1ce1b4045d1925fee9000ad90136 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Fri, 12 May 2023 22:56:54 +0200
+Subject: [PATCH 01/39] Revert "Camera: memcpy Blob header rather than directly
+ writing fields"
+
+This reverts commit dc519093e8ece9e2f587151fea4fde5d67da08a5.
+---
+ services/camera/libcameraservice/api2/HeicCompositeStream.cpp | 10 ++++------
+ 1 file changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/services/camera/libcameraservice/api2/HeicCompositeStream.cpp b/services/camera/libcameraservice/api2/HeicCompositeStream.cpp
+index 237ce5e..54cc27a 100644
+--- a/services/camera/libcameraservice/api2/HeicCompositeStream.cpp
++++ b/services/camera/libcameraservice/api2/HeicCompositeStream.cpp
+@@ -1161,13 +1161,11 @@ status_t HeicCompositeStream::processCompletedInputFrame(int64_t frameNumber,
+     inputFrame.fileFd = -1;
+ 
+     // Fill in HEIC header
+-    // Must be in sync with CAMERA3_HEIC_BLOB_ID in android_media_Utils.cpp
+     uint8_t *header = static_cast<uint8_t*>(dstBuffer) + mMaxHeicBufferSize - sizeof(CameraBlob);
+-    CameraBlob blobHeader = {
+-        .blobId = static_cast<CameraBlobId>(0x00FE),
+-        .blobSizeBytes = static_cast<int32_t>(fSize)
+-    };
+-    memcpy(header, &blobHeader, sizeof(CameraBlob));
++    CameraBlob *blobHeader = (CameraBlob *)header;
++    // Must be in sync with CAMERA3_HEIC_BLOB_ID in android_media_Utils.cpp
++    blobHeader->blobId = static_cast<CameraBlobId>(0x00FE);
++    blobHeader->blobSizeBytes = fSize;
+ 
+     res = native_window_set_buffers_timestamp(mOutputSurface.get(), inputFrame.timestamp);
+     if (res != OK) {
+-- 
+2.7.4
+

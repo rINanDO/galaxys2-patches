@@ -1,0 +1,54 @@
+From 36a5ddfe9a7cd9418da6a7fa8905f9e947df5830 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Fri, 12 May 2023 22:58:45 +0200
+Subject: [PATCH 05/39] Revert "Camera: Avoid over-delaying frames in
+ PreviewFrameSpacer"
+
+This reverts commit 4b35b1d1d5b20c8181305408e27f45a35dd553fa.
+---
+ services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp | 8 +++-----
+ services/camera/libcameraservice/device3/PreviewFrameSpacer.h   | 1 -
+ 2 files changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
+index 83caa00..b3cb178 100644
+--- a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
++++ b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
+@@ -69,9 +69,7 @@ bool PreviewFrameSpacer::threadLoop() {
+     }
+ 
+     // Cache the frame to match readout time interval, for up to kMaxFrameWaitTime
+-    // Because the code between here and queueBuffer() takes time to execute, make sure the
+-    // presentationInterval is slightly shorter than readoutInterval.
+-    nsecs_t expectedQueueTime = mLastCameraPresentTime + readoutInterval - kFrameAdjustThreshold;
++    nsecs_t expectedQueueTime = mLastCameraPresentTime + readoutInterval;
+     nsecs_t frameWaitTime = std::min(kMaxFrameWaitTime, expectedQueueTime - currentTime);
+     if (frameWaitTime > 0 && mPendingBuffers.size() < 2) {
+         mBufferCond.waitRelative(mLock, frameWaitTime);
+@@ -80,9 +78,9 @@ bool PreviewFrameSpacer::threadLoop() {
+         }
+         currentTime = systemTime();
+     }
+-    ALOGV("%s: readoutInterval %" PRId64 ", waited for %" PRId64
++    ALOGV("%s: readoutInterval %" PRId64 ", queueInterval %" PRId64 ", waited for %" PRId64
+             ", timestamp %" PRId64, __FUNCTION__, readoutInterval,
+-            mPendingBuffers.size() < 2 ? frameWaitTime : 0, buffer.timestamp);
++            currentTime - mLastCameraPresentTime, frameWaitTime, buffer.timestamp);
+     mPendingBuffers.pop();
+     queueBufferToClientLocked(buffer, currentTime);
+     return true;
+diff --git a/services/camera/libcameraservice/device3/PreviewFrameSpacer.h b/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
+index f46de3d..cb9690c 100644
+--- a/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
++++ b/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
+@@ -86,7 +86,6 @@ class PreviewFrameSpacer : public Thread {
+     static constexpr nsecs_t kWaitDuration = 5000000LL; // 50ms
+     static constexpr nsecs_t kFrameIntervalThreshold = 80000000LL; // 80ms
+     static constexpr nsecs_t kMaxFrameWaitTime = 10000000LL; // 10ms
+-    static constexpr nsecs_t kFrameAdjustThreshold = 2000000LL; // 2ms
+ };
+ 
+ }; //namespace camera3
+-- 
+2.7.4
+
