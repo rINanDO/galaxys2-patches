@@ -1,22 +1,23 @@
-From 5ec95ee7007c596d4543f2ec4d0ad67f738206bf Mon Sep 17 00:00:00 2001
+From e0d41bf67f724825e29b33093f65c1f6c4a21011 Mon Sep 17 00:00:00 2001
 From: Danny Baumann <dannybaumann@web.de>
 Date: Fri, 31 Aug 2018 13:29:12 +0200
-Subject: [PATCH 05/21] CameraServiceProxy: Loosen UID check conditionally
+Subject: [PATCH 08/23] CameraServiceProxy: Loosen UID check conditionally
 
 Also allow media UID for camera-in-mediaserver devices.
 
 Change-Id: I34e9ddb49adc78ba0589e3d64918eca7d675ec98
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- core/res/res/values/lineage_config.xml               | 20 ++++++++++++++++++++
- core/res/res/values/lineage_symbols.xml              | 20 ++++++++++++++++++++
- .../android/server/camera/CameraServiceProxy.java    |  9 +++++++--
+ core/res/res/values/lineage_config.xml        | 20 +++++++++++++++++++
+ core/res/res/values/lineage_symbols.xml       | 20 +++++++++++++++++++
+ .../server/camera/CameraServiceProxy.java     |  9 +++++++--
  3 files changed, 47 insertions(+), 2 deletions(-)
  create mode 100644 core/res/res/values/lineage_config.xml
  create mode 100644 core/res/res/values/lineage_symbols.xml
 
 diff --git a/core/res/res/values/lineage_config.xml b/core/res/res/values/lineage_config.xml
 new file mode 100644
-index 0000000..74bcc33
+index 000000000000..74bcc3351690
 --- /dev/null
 +++ b/core/res/res/values/lineage_config.xml
 @@ -0,0 +1,20 @@
@@ -42,7 +43,7 @@ index 0000000..74bcc33
 +</resources>
 diff --git a/core/res/res/values/lineage_symbols.xml b/core/res/res/values/lineage_symbols.xml
 new file mode 100644
-index 0000000..fde3c82
+index 000000000000..fde3c82e6c27
 --- /dev/null
 +++ b/core/res/res/values/lineage_symbols.xml
 @@ -0,0 +1,20 @@
@@ -67,7 +68,7 @@ index 0000000..fde3c82
 +    <java-symbol type="bool" name="config_allowMediaUidForCameraServiceProxy" />
 +</resources>
 diff --git a/services/core/java/com/android/server/camera/CameraServiceProxy.java b/services/core/java/com/android/server/camera/CameraServiceProxy.java
-index 7bbc604..7c8fee9 100644
+index 7bbc604de660..7c8fee9fad1b 100644
 --- a/services/core/java/com/android/server/camera/CameraServiceProxy.java
 +++ b/services/core/java/com/android/server/camera/CameraServiceProxy.java
 @@ -218,6 +218,7 @@ public class CameraServiceProxy extends SystemService
@@ -108,5 +109,5 @@ index 7bbc604..7c8fee9 100644
          mLogWriterService.setKeepAliveTime(1, TimeUnit.SECONDS);
          mLogWriterService.allowCoreThreadTimeOut(true);
 -- 
-2.7.4
+2.40.1
 

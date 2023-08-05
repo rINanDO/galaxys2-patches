@@ -1,17 +1,18 @@
-From f986f7541e9c9546b35dbf1ee6d8e496ba629d8f Mon Sep 17 00:00:00 2001
+From 23bf9dfc237e2774e9525ebe37b7562965bb436a Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Tue, 14 Dec 2021 08:51:42 +0100
-Subject: [PATCH 11/21] Hack: Ignore SensorPrivacyService Security Exception
+Subject: [PATCH 14/23] Hack: Ignore SensorPrivacyService Security Exception
 
 Temporary ignore this. Don't what causes this exception.
 
 Change-Id: I8a3bd008b8db54114f78ab638ecef47b5c32a68b
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../java/com/android/server/sensorprivacy/SensorPrivacyService.java     | 2 +-
+ .../com/android/server/sensorprivacy/SensorPrivacyService.java  | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/services/core/java/com/android/server/sensorprivacy/SensorPrivacyService.java b/services/core/java/com/android/server/sensorprivacy/SensorPrivacyService.java
-index c354f11..59b41c6c 100644
+index c354f116af5f..59b41c6c055e 100644
 --- a/services/core/java/com/android/server/sensorprivacy/SensorPrivacyService.java
 +++ b/services/core/java/com/android/server/sensorprivacy/SensorPrivacyService.java
 @@ -849,7 +849,7 @@ public final class SensorPrivacyService extends SystemService {
@@ -24,5 +25,5 @@ index c354f11..59b41c6c 100644
  
          /**
 -- 
-2.7.4
+2.40.1
 

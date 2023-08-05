@@ -1,7 +1,7 @@
-From 74fa1ce4e8fdaef1ba3a42a6dca751e814a19dc6 Mon Sep 17 00:00:00 2001
+From 6c83d53c6921224bfe1f600fe41951d7a2dd245e Mon Sep 17 00:00:00 2001
 From: Yaroslav Zviezda <acroreiser@gmail.com>
 Date: Sun, 18 Sep 2022 04:53:18 +0300
-Subject: [PATCH 06/21] Revert Camera Injection
+Subject: [PATCH 09/23] Revert Camera Injection
 
 This code breaks camera HAL1 restoration and pointless for HAL1 devices.
 
@@ -9,20 +9,22 @@ Change-Id: I901f29496e9443bdf892f544a27d9757d52c192a
 
  Conflicts:
 	services/companion/java/com/android/server/companion/virtual/CameraAccessController.java
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../hardware/camera2/CameraInjectionSession.java   | 128 ------------
- .../android/hardware/camera2/CameraManager.java    | 144 +-------------
- .../camera2/impl/CameraInjectionSessionImpl.java   | 219 ---------------------
- core/res/AndroidManifest.xml                       |   5 -
- .../companion/virtual/CameraAccessController.java  | 128 ------------
- .../android/server/camera/CameraServiceProxy.java  |  21 --
+ .../camera2/CameraInjectionSession.java       | 128 ----------
+ .../hardware/camera2/CameraManager.java       | 144 +-----------
+ .../impl/CameraInjectionSessionImpl.java      | 219 ------------------
+ core/res/AndroidManifest.xml                  |   5 -
+ .../virtual/CameraAccessController.java       | 128 ----------
+ .../server/camera/CameraServiceProxy.java     |  21 --
  6 files changed, 2 insertions(+), 643 deletions(-)
  delete mode 100644 core/java/android/hardware/camera2/CameraInjectionSession.java
  delete mode 100644 core/java/android/hardware/camera2/impl/CameraInjectionSessionImpl.java
 
 diff --git a/core/java/android/hardware/camera2/CameraInjectionSession.java b/core/java/android/hardware/camera2/CameraInjectionSession.java
 deleted file mode 100644
-index bd5a4bc..0000000
+index bd5a4bcd77d7..000000000000
 --- a/core/java/android/hardware/camera2/CameraInjectionSession.java
 +++ /dev/null
 @@ -1,128 +0,0 @@
@@ -155,7 +157,7 @@ index bd5a4bc..0000000
 -    }
 -}
 diff --git a/core/java/android/hardware/camera2/CameraManager.java b/core/java/android/hardware/camera2/CameraManager.java
-index 028b1af..42ed2d9 100644
+index f4dd9b9a680f..eaa62857dd68 100644
 --- a/core/java/android/hardware/camera2/CameraManager.java
 +++ b/core/java/android/hardware/camera2/CameraManager.java
 @@ -31,7 +31,6 @@ import android.hardware.CameraStatus;
@@ -166,7 +168,7 @@ index 028b1af..42ed2d9 100644
  import android.hardware.camera2.impl.CameraMetadataNative;
  import android.hardware.camera2.params.ExtensionSessionConfiguration;
  import android.hardware.camera2.params.SessionConfiguration;
-@@ -1099,7 +1098,6 @@ public final class CameraManager {
+@@ -1116,7 +1115,6 @@ public final class CameraManager {
          if (CameraManagerGlobal.sCameraServiceDisabled) {
              throw new IllegalArgumentException("No camera available on device");
          }
@@ -174,7 +176,7 @@ index 028b1af..42ed2d9 100644
      }
  
      /**
-@@ -1122,10 +1120,7 @@ public final class CameraManager {
+@@ -1139,10 +1137,7 @@ public final class CameraManager {
       */
      public int getTorchStrengthLevel(@NonNull String cameraId)
              throws CameraAccessException {
@@ -186,10 +188,11 @@ index 028b1af..42ed2d9 100644
      }
  
      /**
-@@ -1455,67 +1450,6 @@ public final class CameraManager {
+@@ -1471,67 +1466,6 @@ public final class CameraManager {
+         return false;
      }
  
-     /**
+-    /**
 -     * Inject the external camera to replace the internal camera session.
 -     *
 -     * <p>If injecting the external camera device fails, then the injection callback's
@@ -250,11 +253,10 @@ index 028b1af..42ed2d9 100644
 -        }
 -    }
 -
--    /**
+     /**
       * A per-process global camera manager instance, to retain a connection to the camera service,
       * and to distribute camera availability notices to API-registered callbacks
-      */
-@@ -1783,10 +1717,6 @@ public final class CameraManager {
+@@ -1800,10 +1734,6 @@ public final class CameraManager {
                  public void onTorchStatusChanged(int status, String id) throws RemoteException {
                  }
                  @Override
@@ -265,7 +267,7 @@ index 028b1af..42ed2d9 100644
                  public void onCameraAccessPrioritiesChanged() {
                  }
                  @Override
-@@ -1972,52 +1902,10 @@ public final class CameraManager {
+@@ -1989,52 +1919,10 @@ public final class CameraManager {
  
          public void turnOnTorchWithStrengthLevel(String cameraId, int torchStrength) throws
                  CameraAccessException {
@@ -318,7 +320,7 @@ index 028b1af..42ed2d9 100644
              return torchStrength;
          }
  
-@@ -2182,14 +2070,7 @@ public final class CameraManager {
+@@ -2199,14 +2087,7 @@ public final class CameraManager {
  
          private void postSingleTorchStrengthLevelUpdate(final TorchCallback callback,
                   final Executor executor, final String id, final int newStrengthLevel) {
@@ -334,7 +336,7 @@ index 028b1af..42ed2d9 100644
          }
  
          /**
-@@ -2381,19 +2262,6 @@ public final class CameraManager {
+@@ -2412,19 +2293,6 @@ public final class CameraManager {
          } // onTorchStatusChangedLocked
  
          private void onTorchStrengthLevelChangedLocked(String cameraId, int newStrengthLevel) {
@@ -354,10 +356,11 @@ index 028b1af..42ed2d9 100644
          } // onTorchStrengthLevelChanged
  
          /**
-@@ -2487,14 +2355,6 @@ public final class CameraManager {
+@@ -2517,14 +2385,6 @@ public final class CameraManager {
+             }
          }
  
-         @Override
+-        @Override
 -        public void onTorchStrengthLevelChanged(String cameraId, int newStrengthLevel)
 -                throws RemoteException {
 -            synchronized (mLock) {
@@ -365,13 +368,12 @@ index 028b1af..42ed2d9 100644
 -            }
 -        }
 -
--        @Override
+         @Override
          public void onCameraAccessPrioritiesChanged() {
              synchronized (mLock) {
-                 final int callbackCount = mCallbackMap.size();
 diff --git a/core/java/android/hardware/camera2/impl/CameraInjectionSessionImpl.java b/core/java/android/hardware/camera2/impl/CameraInjectionSessionImpl.java
 deleted file mode 100644
-index 231cc05..0000000
+index 231cc05ad7cf..000000000000
 --- a/core/java/android/hardware/camera2/impl/CameraInjectionSessionImpl.java
 +++ /dev/null
 @@ -1,219 +0,0 @@
@@ -595,10 +597,10 @@ index 231cc05..0000000
 -    }
 -}
 diff --git a/core/res/AndroidManifest.xml b/core/res/AndroidManifest.xml
-index bbe3124..f9e3d85 100644
+index 856ab3adbe9c..2bc4f09a2d6a 100644
 --- a/core/res/AndroidManifest.xml
 +++ b/core/res/AndroidManifest.xml
-@@ -2668,11 +2668,6 @@
+@@ -2669,11 +2669,6 @@
      <permission android:name="android.permission.CAMERA_SEND_SYSTEM_EVENTS"
          android:protectionLevel="signature|privileged" />
  
@@ -611,7 +613,7 @@ index bbe3124..f9e3d85 100644
      <!-- Permissions associated with telephony state -->
      <!-- =========================================== -->
 diff --git a/services/companion/java/com/android/server/companion/virtual/CameraAccessController.java b/services/companion/java/com/android/server/companion/virtual/CameraAccessController.java
-index 2904f28..d5a5e92 100644
+index 2904f28fca01..d5a5e9200f25 100644
 --- a/services/companion/java/com/android/server/companion/virtual/CameraAccessController.java
 +++ b/services/companion/java/com/android/server/companion/virtual/CameraAccessController.java
 @@ -16,7 +16,6 @@
@@ -796,7 +798,7 @@ index 2904f28..d5a5e92 100644
  
      private int queryUidFromPackageName(int userId, String packageName) {
 diff --git a/services/core/java/com/android/server/camera/CameraServiceProxy.java b/services/core/java/com/android/server/camera/CameraServiceProxy.java
-index 7c8fee9..a7df330 100644
+index 7c8fee9fad1b..a7df330444dc 100644
 --- a/services/core/java/com/android/server/camera/CameraServiceProxy.java
 +++ b/services/core/java/com/android/server/camera/CameraServiceProxy.java
 @@ -1035,28 +1035,7 @@ public class CameraServiceProxy extends SystemService
@@ -829,5 +831,5 @@ index 7c8fee9..a7df330 100644
      }
  
 -- 
-2.7.4
+2.40.1
 

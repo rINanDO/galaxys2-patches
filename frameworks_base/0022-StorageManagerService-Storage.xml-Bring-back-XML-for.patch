@@ -1,7 +1,7 @@
-From 78bc17e7de1921d364a99e79e80afe3184a93fa8 Mon Sep 17 00:00:00 2001
+From 5e6cfbfcc1c97458df2298e74bc85c17d747f70e Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Sun, 28 Nov 2021 17:28:48 +0100
-Subject: [PATCH 19/21] StorageManagerService: Storage.xml: Bring back
+Subject: [PATCH 22/23] StorageManagerService: Storage.xml: Bring back
  XML-format UTF-8
 
 This fixes TWRP boot issues because it expectes an XML UTF-8 formatted
@@ -9,12 +9,13 @@ storage.xml file. But in Android S this is changed to
 TypedXML(Serializer).
 
 Change-Id: Ic097fb234f707279e575e4c001fc8376f47cf72b
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../com/android/server/StorageManagerService.java  | 50 ++++++++++++----------
+ .../android/server/StorageManagerService.java | 50 +++++++++++--------
  1 file changed, 28 insertions(+), 22 deletions(-)
 
 diff --git a/services/core/java/com/android/server/StorageManagerService.java b/services/core/java/com/android/server/StorageManagerService.java
-index c367dce..9b9a4b5 100644
+index c127a9f69caf..f5745f4c14e6 100644
 --- a/services/core/java/com/android/server/StorageManagerService.java
 +++ b/services/core/java/com/android/server/StorageManagerService.java
 @@ -41,7 +41,11 @@ import static android.os.storage.OnObbStateChangeListener.ERROR_PERMISSION_DENIE
@@ -145,5 +146,5 @@ index c367dce..9b9a4b5 100644
      }
  
 -- 
-2.7.4
+2.40.1
 

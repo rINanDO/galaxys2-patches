@@ -1,28 +1,31 @@
-From 376c6a3e01b0c8e78694d72af0b0674bc3fa935e Mon Sep 17 00:00:00 2001
+From effbbbe2254dd8f5818c6791e43525654360fbc2 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Thu, 20 Oct 2022 22:24:53 +0200
-Subject: [PATCH 09/21] Revert "Camera: Add support for readout timestamp"
+Subject: [PATCH 12/23] Revert "Camera: Add support for readout timestamp"
 
 This reverts commit 91e7522cb28d2b1e2e12adc8726db8190d711f2e.
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../hardware/camera2/CameraCaptureSession.java     | 36 ----------------------
- .../hardware/camera2/CameraCharacteristics.java    | 34 --------------------
- .../android/hardware/camera2/CameraMetadata.java   | 22 -------------
- .../camera2/impl/CameraCaptureSessionImpl.java     | 15 ---------
- .../hardware/camera2/impl/CameraDeviceImpl.java    | 24 +++------------
- .../hardware/camera2/impl/CaptureCallback.java     |  7 -----
- .../hardware/camera2/impl/CaptureResultExtras.java | 23 +-------------
- .../camera2/params/OutputConfiguration.java        | 25 ++-------------
+ .../camera2/CameraCaptureSession.java         | 36 -------------------
+ .../camera2/CameraCharacteristics.java        | 34 ------------------
+ .../hardware/camera2/CameraMetadata.java      | 22 ------------
+ .../impl/CameraCaptureSessionImpl.java        | 15 --------
+ .../camera2/impl/CameraDeviceImpl.java        | 24 +++----------
+ .../camera2/impl/CaptureCallback.java         |  7 ----
+ .../camera2/impl/CaptureResultExtras.java     | 23 +-----------
+ .../camera2/params/OutputConfiguration.java   | 25 ++-----------
  8 files changed, 7 insertions(+), 179 deletions(-)
 
 diff --git a/core/java/android/hardware/camera2/CameraCaptureSession.java b/core/java/android/hardware/camera2/CameraCaptureSession.java
-index 5b1973a..691690c 100644
+index 5b1973ad2dd4..691690c09e0e 100644
 --- a/core/java/android/hardware/camera2/CameraCaptureSession.java
 +++ b/core/java/android/hardware/camera2/CameraCaptureSession.java
-@@ -1234,42 +1234,6 @@ public abstract class CameraCaptureSession implements AutoCloseable {
+@@ -1233,42 +1233,6 @@ public abstract class CameraCaptureSession implements AutoCloseable {
+             // default empty implementation
          }
  
-         /**
+-        /**
 -         * This method is called when the camera device has started reading out the output
 -         * image for the request, at the beginning of the sensor image readout.
 -         *
@@ -58,18 +61,18 @@ index 5b1973a..691690c 100644
 -            // default empty implementation
 -        }
 -
--        /**
+         /**
           * This method is called when some results from an image capture are
           * available.
-          *
 diff --git a/core/java/android/hardware/camera2/CameraCharacteristics.java b/core/java/android/hardware/camera2/CameraCharacteristics.java
-index 14d0a56..a9d85ca 100644
+index 9d624b6c0ed8..289c5c91fd4a 100644
 --- a/core/java/android/hardware/camera2/CameraCharacteristics.java
 +++ b/core/java/android/hardware/camera2/CameraCharacteristics.java
-@@ -4469,40 +4469,6 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
+@@ -4468,40 +4468,6 @@ public final class CameraCharacteristics extends CameraMetadata<CameraCharacteri
+     public static final Key<android.graphics.Rect[]> SENSOR_OPTICAL_BLACK_REGIONS =
              new Key<android.graphics.Rect[]>("android.sensor.opticalBlackRegions", android.graphics.Rect[].class);
  
-     /**
+-    /**
 -     * <p>Whether or not the camera device supports readout timestamp and
 -     * onReadoutStarted callback.</p>
 -     * <p>If this tag is HARDWARE, the camera device calls onReadoutStarted in addition to the
@@ -103,18 +106,18 @@ index 14d0a56..a9d85ca 100644
 -    public static final Key<Integer> SENSOR_READOUT_TIMESTAMP =
 -            new Key<Integer>("android.sensor.readoutTimestamp", int.class);
 -
--    /**
+     /**
       * <p>List of lens shading modes for {@link CaptureRequest#SHADING_MODE android.shading.mode} that are supported by this camera device.</p>
       * <p>This list contains lens shading modes that can be set for the camera device.
-      * Camera devices that support the MANUAL_POST_PROCESSING capability will always
 diff --git a/core/java/android/hardware/camera2/CameraMetadata.java b/core/java/android/hardware/camera2/CameraMetadata.java
-index c67a560..eb8c73a 100644
+index 7055c9c6aa4d..e1089c22f593 100644
 --- a/core/java/android/hardware/camera2/CameraMetadata.java
 +++ b/core/java/android/hardware/camera2/CameraMetadata.java
 @@ -1658,28 +1658,6 @@ public abstract class CameraMetadata<TKey> {
+      */
      public static final int SENSOR_REFERENCE_ILLUMINANT1_ISO_STUDIO_TUNGSTEN = 24;
  
-     //
+-    //
 -    // Enumeration values for CameraCharacteristics#SENSOR_READOUT_TIMESTAMP
 -    //
 -
@@ -136,18 +139,18 @@ index c67a560..eb8c73a 100644
 -     */
 -    public static final int SENSOR_READOUT_TIMESTAMP_HARDWARE = 1;
 -
--    //
+     //
      // Enumeration values for CameraCharacteristics#LED_AVAILABLE_LEDS
      //
- 
 diff --git a/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java b/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java
-index b9eba9c..9a9163c 100644
+index b9eba9c1d541..9a9163c724ff 100644
 --- a/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java
 +++ b/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java
-@@ -657,21 +657,6 @@ public class CameraCaptureSessionImpl extends CameraCaptureSession
+@@ -656,21 +656,6 @@ public class CameraCaptureSessionImpl extends CameraCaptureSession
+                 }
              }
  
-             @Override
+-            @Override
 -            public void onReadoutStarted(CameraDevice camera,
 -                    CaptureRequest request, long timestamp, long frameNumber) {
 -                if ((callback != null) && (executor != null)) {
@@ -162,15 +165,14 @@ index b9eba9c..9a9163c 100644
 -                }
 -            }
 -
--            @Override
+             @Override
              public void onCapturePartial(CameraDevice camera,
                      CaptureRequest request, android.hardware.camera2.CaptureResult result) {
-                 if ((callback != null) && (executor != null)) {
 diff --git a/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java b/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java
-index a6c79b3..3cb0c93 100644
+index 0c2468e65577..09a29a272d49 100644
 --- a/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java
 +++ b/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java
-@@ -2025,16 +2025,12 @@ public class CameraDeviceImpl extends CameraDevice
+@@ -2028,16 +2028,12 @@ public class CameraDeviceImpl extends CameraDevice
                      resultExtras.getLastCompletedReprocessFrameNumber();
              final long lastCompletedZslFrameNumber =
                      resultExtras.getLastCompletedZslFrameNumber();
@@ -188,7 +190,7 @@ index a6c79b3..3cb0c93 100644
              }
              final CaptureCallbackHolder holder;
  
-@@ -2086,26 +2082,14 @@ public class CameraDeviceImpl extends CameraDevice
+@@ -2089,26 +2085,14 @@ public class CameraDeviceImpl extends CameraDevice
                                                  CameraDeviceImpl.this,
                                                  holder.getRequest(i),
                                                  timestamp - (subsequenceId - i) *
@@ -219,25 +221,25 @@ index a6c79b3..3cb0c93 100644
                                  }
                              }
 diff --git a/core/java/android/hardware/camera2/impl/CaptureCallback.java b/core/java/android/hardware/camera2/impl/CaptureCallback.java
-index b064e6a..6defe63 100644
+index b064e6a1f975..6defe63b1766 100644
 --- a/core/java/android/hardware/camera2/impl/CaptureCallback.java
 +++ b/core/java/android/hardware/camera2/impl/CaptureCallback.java
-@@ -66,13 +66,6 @@ public abstract class CaptureCallback {
+@@ -65,13 +65,6 @@ public abstract class CaptureCallback {
+     public abstract void onCaptureStarted(CameraDevice camera,
              CaptureRequest request, long timestamp, long frameNumber);
  
-     /**
+-    /**
 -     * This method is called when the camera device has started reading out the output
 -     * image for the request, at the beginning of the sensor image readout.
 -     */
 -    public abstract void onReadoutStarted(CameraDevice camera,
 -            CaptureRequest request, long timestamp, long frameNumber);
 -
--    /**
+     /**
       * This method is called when some results from an image capture are
       * available.
-      *
 diff --git a/core/java/android/hardware/camera2/impl/CaptureResultExtras.java b/core/java/android/hardware/camera2/impl/CaptureResultExtras.java
-index 8bf9498..5d9da73 100644
+index 8bf94986a490..5d9da73fd5c0 100644
 --- a/core/java/android/hardware/camera2/impl/CaptureResultExtras.java
 +++ b/core/java/android/hardware/camera2/impl/CaptureResultExtras.java
 @@ -33,8 +33,6 @@ public class CaptureResultExtras implements Parcelable {
@@ -304,7 +306,7 @@ index 8bf9498..5d9da73 100644
 -    }
  }
 diff --git a/core/java/android/hardware/camera2/params/OutputConfiguration.java b/core/java/android/hardware/camera2/params/OutputConfiguration.java
-index 90e92db..bd92846 100644
+index 9868d87460e0..856874e31497 100644
 --- a/core/java/android/hardware/camera2/params/OutputConfiguration.java
 +++ b/core/java/android/hardware/camera2/params/OutputConfiguration.java
 @@ -247,26 +247,6 @@ public final class OutputConfiguration implements Parcelable {
@@ -354,5 +356,5 @@ index 90e92db..bd92846 100644
                      timestampBase);
          }
 -- 
-2.7.4
+2.40.1
 

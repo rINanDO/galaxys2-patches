@@ -1,7 +1,7 @@
-From fcd23e3e84d3a8d2f6030fce6df615978ea60324 Mon Sep 17 00:00:00 2001
+From 7771820c8776f5aca1ffc0e808e90708a8a1f50c Mon Sep 17 00:00:00 2001
 From: Kishore Srivenkata Ganesh Bolisetty <bsrivenk@codeaurora.org>
 Date: Mon, 5 Jan 2015 17:40:39 +0530
-Subject: [PATCH 20/21] frameworks/base : Enable Aggressive trim settings
+Subject: [PATCH 23/23] frameworks/base : Enable Aggressive trim settings
 
 This change will enable aggressive trim settings for targets
 up to 1gb. The change can be turned on/off from system properties.
@@ -9,12 +9,13 @@ By default, the properties are set for targets up to 1GB.
 
 Change-Id: I233dddbff07e7ec1fe2ee96402fe1d411903beb5
 CRs-Fixed: 783020
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../server/am/ActivityManagerConstants.java        | 47 ++++++++++++++++++++--
+ .../server/am/ActivityManagerConstants.java   | 47 +++++++++++++++++--
  1 file changed, 43 insertions(+), 4 deletions(-)
 
 diff --git a/services/core/java/com/android/server/am/ActivityManagerConstants.java b/services/core/java/com/android/server/am/ActivityManagerConstants.java
-index 3016228..0420df5 100644
+index 30162288d92c..0420df5f1d24 100644
 --- a/services/core/java/com/android/server/am/ActivityManagerConstants.java
 +++ b/services/core/java/com/android/server/am/ActivityManagerConstants.java
 @@ -35,6 +35,8 @@ import android.os.Handler;
@@ -105,5 +106,5 @@ index 3016228..0420df5 100644
 +    }
  }
 -- 
-2.7.4
+2.40.1
 

@@ -1,7 +1,7 @@
-From 0b09bc4a0764fabc552f351f76ae0158f0121204 Mon Sep 17 00:00:00 2001
+From 13216714ec1511b55f6b699cb1680372ad54940f Mon Sep 17 00:00:00 2001
 From: flintman <flintman@flintmancomputers.com>
 Date: Sat, 21 Nov 2015 20:51:06 -0500
-Subject: [PATCH 15/21] sensors: Create bool to select what timestamp to use
+Subject: [PATCH 18/23] sensors: Create bool to select what timestamp to use
 
 Older devices may have an issue with rotation freezes up and
 requires a reboot to fix. In deep sleep the sensor's timestamp
@@ -11,14 +11,15 @@ SystemClock.elapsedRealtimeNanos() instead of event.timestamp.
 Possibly an update to the custom sensor libs.
 
 Change-Id: Ie456e12cb65fbb921cb780112df301655b93b14f
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- core/res/res/values/lineage_config.xml                             | 4 ++++
- core/res/res/values/lineage_symbols.xml                            | 3 +++
- .../core/java/com/android/server/wm/WindowOrientationListener.java | 7 ++++++-
+ core/res/res/values/lineage_config.xml                     | 4 ++++
+ core/res/res/values/lineage_symbols.xml                    | 3 +++
+ .../com/android/server/wm/WindowOrientationListener.java   | 7 ++++++-
  3 files changed, 13 insertions(+), 1 deletion(-)
 
 diff --git a/core/res/res/values/lineage_config.xml b/core/res/res/values/lineage_config.xml
-index eb35d02..f74fcb6 100644
+index eb35d028e217..f74fcb6097b9 100644
 --- a/core/res/res/values/lineage_config.xml
 +++ b/core/res/res/values/lineage_config.xml
 @@ -20,4 +20,8 @@
@@ -31,7 +32,7 @@ index eb35d02..f74fcb6 100644
 +    <bool name="config_useSystemClockforRotationSensor">false</bool>
  </resources>
 diff --git a/core/res/res/values/lineage_symbols.xml b/core/res/res/values/lineage_symbols.xml
-index a2990bf..9ba05a2 100644
+index a2990bf0ef77..9ba05a2311fc 100644
 --- a/core/res/res/values/lineage_symbols.xml
 +++ b/core/res/res/values/lineage_symbols.xml
 @@ -20,4 +20,7 @@
@@ -43,7 +44,7 @@ index a2990bf..9ba05a2 100644
 +    <java-symbol type="bool" name="config_useSystemClockforRotationSensor" />
  </resources>
 diff --git a/services/core/java/com/android/server/wm/WindowOrientationListener.java b/services/core/java/com/android/server/wm/WindowOrientationListener.java
-index 3e165e4..deda4d5 100644
+index 14c816db0dbb..933006943423 100644
 --- a/services/core/java/com/android/server/wm/WindowOrientationListener.java
 +++ b/services/core/java/com/android/server/wm/WindowOrientationListener.java
 @@ -75,6 +75,7 @@ public abstract class WindowOrientationListener {
@@ -54,7 +55,7 @@ index 3e165e4..deda4d5 100644
      private Sensor mSensor;
  
      @VisibleForTesting
-@@ -140,6 +141,9 @@ public abstract class WindowOrientationListener {
+@@ -146,6 +147,9 @@ public abstract class WindowOrientationListener {
              mSensor = nonWakeUpDeviceOrientationSensor;
          }
  
@@ -64,7 +65,7 @@ index 3e165e4..deda4d5 100644
          if (mSensor != null) {
              mOrientationJudge = new OrientationSensorJudge();
          }
-@@ -699,7 +703,8 @@ public abstract class WindowOrientationListener {
+@@ -705,7 +709,8 @@ public abstract class WindowOrientationListener {
                  // Reset the orientation listener state if the samples are too far apart in time
                  // or when we see values of (0, 0, 0) which indicates that we polled the
                  // accelerometer too soon after turning it on and we don't have any data yet.
@@ -75,5 +76,5 @@ index 3e165e4..deda4d5 100644
                  final float timeDeltaMS = (now - then) * 0.000001f;
                  final boolean skipSample;
 -- 
-2.7.4
+2.40.1
 

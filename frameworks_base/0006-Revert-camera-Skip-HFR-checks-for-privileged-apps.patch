@@ -1,15 +1,17 @@
-From e9c18fe92464b82e70f40855682036dc5932fae1 Mon Sep 17 00:00:00 2001
+From e88de0bf9e0adb7fe2843898b3f02cb67fa538d4 Mon Sep 17 00:00:00 2001
 From: Khalvat-M <mmba313@gmail.com>
 Date: Wed, 11 Jan 2023 06:39:08 +0330
-Subject: [PATCH 03/21] Revert "camera: Skip HFR checks for privileged apps."
+Subject: [PATCH 06/23] Revert "camera: Skip HFR checks for privileged apps."
 
 This reverts commit d7ccae9b94233d997c314c29ac0f2bd01ad90366.
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../hardware/camera2/utils/SurfaceUtils.java       | 23 ----------------------
+ .../hardware/camera2/utils/SurfaceUtils.java  | 23 -------------------
  1 file changed, 23 deletions(-)
 
 diff --git a/core/java/android/hardware/camera2/utils/SurfaceUtils.java b/core/java/android/hardware/camera2/utils/SurfaceUtils.java
-index 349c131..6c83057 100644
+index 349c1319142c..6c83057fdf29 100644
 --- a/core/java/android/hardware/camera2/utils/SurfaceUtils.java
 +++ b/core/java/android/hardware/camera2/utils/SurfaceUtils.java
 @@ -20,20 +20,15 @@ import static android.system.OsConstants.EINVAL;
@@ -66,5 +68,5 @@ index 349c131..6c83057 100644
  
      private static native int nativeDetectSurfaceDataspace(Surface surface);
 -- 
-2.7.4
+2.40.1
 

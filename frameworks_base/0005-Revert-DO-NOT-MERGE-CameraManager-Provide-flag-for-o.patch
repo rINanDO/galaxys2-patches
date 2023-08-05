@@ -1,24 +1,26 @@
-From 0c5881ae7f8951520f5dca587e1a9c6e7433b6b6 Mon Sep 17 00:00:00 2001
+From b930d06f7a370ca4ac8b19b799cea0fb594b44cf Mon Sep 17 00:00:00 2001
 From: Khalvat-M <mmba313@gmail.com>
 Date: Wed, 22 Mar 2023 18:48:03 +0330
-Subject: [PATCH 02/21] Revert "DO NOT MERGE CameraManager: Provide flag for
+Subject: [PATCH 05/23] Revert "DO NOT MERGE CameraManager: Provide flag for
  overriding camera output to portrait."
 
 This reverts commit ddc70c75f35de7be6752b9138574445216c3aa0c.
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- core/api/test-current.txt                          |   1 -
- core/java/android/hardware/Camera.java             |  23 +---
- .../android/hardware/camera2/CameraManager.java    |  43 +-----
- core/jni/android_hardware_Camera.cpp               | 144 ++++++++++++++-------
- .../integration/CameraBinderTest.java              |   9 +-
- .../integration/CameraDeviceBinderTest.java        |   5 +-
+ core/api/test-current.txt                     |   1 -
+ core/java/android/hardware/Camera.java        |  23 +--
+ .../hardware/camera2/CameraManager.java       |  43 +-----
+ core/jni/android_hardware_Camera.cpp          | 144 ++++++++++++------
+ .../integration/CameraBinderTest.java         |   9 +-
+ .../integration/CameraDeviceBinderTest.java   |   5 +-
  6 files changed, 110 insertions(+), 115 deletions(-)
 
 diff --git a/core/api/test-current.txt b/core/api/test-current.txt
-index 650d51c..8f29f92 100644
+index 7046a2cd395f..14bf5320a438 100644
 --- a/core/api/test-current.txt
 +++ b/core/api/test-current.txt
-@@ -1139,7 +1139,6 @@ package android.hardware.camera2 {
+@@ -1140,7 +1140,6 @@ package android.hardware.camera2 {
    public final class CameraManager {
      method public String[] getCameraIdListNoLazy() throws android.hardware.camera2.CameraAccessException;
      method @RequiresPermission(allOf={android.Manifest.permission.SYSTEM_CAMERA, android.Manifest.permission.CAMERA}) public void openCamera(@NonNull String, int, @NonNull java.util.concurrent.Executor, @NonNull android.hardware.camera2.CameraDevice.StateCallback) throws android.hardware.camera2.CameraAccessException;
@@ -27,7 +29,7 @@ index 650d51c..8f29f92 100644
  
    public abstract static class CameraManager.AvailabilityCallback {
 diff --git a/core/java/android/hardware/Camera.java b/core/java/android/hardware/Camera.java
-index 2fbcf5b..7193b93 100644
+index 2fbcf5bfaf52..7193b93dba7f 100644
 --- a/core/java/android/hardware/Camera.java
 +++ b/core/java/android/hardware/Camera.java
 @@ -29,7 +29,6 @@ import android.annotation.SdkConstant;
@@ -104,7 +106,7 @@ index 2fbcf5b..7193b93 100644
      private native final void native_release();
  
 diff --git a/core/java/android/hardware/camera2/CameraManager.java b/core/java/android/hardware/camera2/CameraManager.java
-index 4c433c1..028b1af 100644
+index e8d33aa493e2..f4dd9b9a680f 100644
 --- a/core/java/android/hardware/camera2/CameraManager.java
 +++ b/core/java/android/hardware/camera2/CameraManager.java
 @@ -23,10 +23,6 @@ import android.annotation.RequiresPermission;
@@ -118,10 +120,11 @@ index 4c433c1..028b1af 100644
  import android.content.Context;
  import android.content.pm.PackageManager;
  import android.graphics.Point;
-@@ -109,24 +105,6 @@ public final class CameraManager {
+@@ -108,24 +104,6 @@ public final class CameraManager {
+             "android.permission.CAMERA_OPEN_CLOSE_LISTENER";
      private final boolean mHasOpenCloseListenerPermission;
  
-     /**
+-    /**
 -     * Force camera output to be rotated to portrait orientation on landscape cameras.
 -     * Many apps do not handle this situation and display stretched images otherwise.
 -     * @hide
@@ -139,11 +142,10 @@ index 4c433c1..028b1af 100644
 -    public static final String LANDSCAPE_TO_PORTRAIT_PROP =
 -            "camera.enable_landscape_to_portrait";
 -
--    /**
+     /**
       * @hide
       */
-     public CameraManager(Context context) {
-@@ -543,8 +521,7 @@ public final class CameraManager {
+@@ -560,8 +538,7 @@ public final class CameraManager {
              for (String physicalCameraId : physicalCameraIds) {
                  CameraMetadataNative physicalCameraInfo =
                          cameraService.getCameraCharacteristics(physicalCameraId,
@@ -153,7 +155,7 @@ index 4c433c1..028b1af 100644
                  StreamConfiguration[] configs = physicalCameraInfo.get(
                          CameraCharacteristics.
                                  SCALER_PHYSICAL_CAMERA_MULTI_RESOLUTION_STREAM_CONFIGURATIONS);
-@@ -603,9 +580,8 @@ public final class CameraManager {
+@@ -620,9 +597,8 @@ public final class CameraManager {
              try {
                  Size displaySize = getDisplaySize();
  
@@ -164,7 +166,7 @@ index 4c433c1..028b1af 100644
                  try {
                      info.setCameraId(Integer.parseInt(cameraId));
                  } catch (NumberFormatException e) {
-@@ -722,12 +698,9 @@ public final class CameraManager {
+@@ -739,12 +715,9 @@ public final class CameraManager {
                          ICameraService.ERROR_DISCONNECTED,
                          "Camera service is currently unavailable");
                  }
@@ -179,7 +181,7 @@ index 4c433c1..028b1af 100644
              } catch (ServiceSpecificException e) {
                  if (e.errorCode == ICameraService.ERROR_DEPRECATED_HAL) {
                      throw new AssertionError("Should've gone down the shim path");
-@@ -1155,11 +1128,6 @@ public final class CameraManager {
+@@ -1172,11 +1145,6 @@ public final class CameraManager {
          return CameraManagerGlobal.get().getTorchStrengthLevel(cameraId);
      }
  
@@ -191,7 +193,7 @@ index 4c433c1..028b1af 100644
      /**
       * A callback for camera devices becoming available or unavailable to open.
       *
-@@ -1606,9 +1574,6 @@ public final class CameraManager {
+@@ -1623,9 +1591,6 @@ public final class CameraManager {
          public static final boolean sCameraServiceDisabled =
                  SystemProperties.getBoolean("config.disable_cameraservice", false);
  
@@ -202,7 +204,7 @@ index 4c433c1..028b1af 100644
              return gCameraManager;
          }
 diff --git a/core/jni/android_hardware_Camera.cpp b/core/jni/android_hardware_Camera.cpp
-index d0e5211..d51d0df 100644
+index d0e5211504f8..d51d0df88f01 100644
 --- a/core/jni/android_hardware_Camera.cpp
 +++ b/core/jni/android_hardware_Camera.cpp
 @@ -529,8 +529,9 @@ static jint android_hardware_Camera_getNumberOfCameras(JNIEnv *env, jobject thiz
@@ -392,7 +394,7 @@ index d0e5211..d51d0df 100644
  
  struct field {
 diff --git a/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java b/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java
-index 2b7bcbe..a2eae2c 100644
+index 2b7bcbee79fd..a2eae2c9579a 100644
 --- a/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java
 +++ b/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java
 @@ -85,8 +85,7 @@ public class CameraBinderTest extends AndroidTestCase {
@@ -426,7 +428,7 @@ index 2b7bcbe..a2eae2c 100644
  
              Log.v(TAG, String.format("Camera %s connected", cameraId));
 diff --git a/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraDeviceBinderTest.java b/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraDeviceBinderTest.java
-index 9d09dcc..0890346 100644
+index 9d09dcc5c440..0890346db198 100644
 --- a/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraDeviceBinderTest.java
 +++ b/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraDeviceBinderTest.java
 @@ -244,8 +244,7 @@ public class CameraDeviceBinderTest extends AndroidTestCase {
@@ -449,5 +451,5 @@ index 9d09dcc..0890346 100644
          assertFalse(info.isEmpty());
          assertNotNull(info.get(CameraCharacteristics.SCALER_AVAILABLE_FORMATS));
 -- 
-2.7.4
+2.40.1
 

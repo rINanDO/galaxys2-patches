@@ -1,17 +1,19 @@
-From 0e5226f6134a8bd477a085044a584fa4addd627d Mon Sep 17 00:00:00 2001
+From 656f4922374580eaa6a70834d5e2d4c6caa1ddf4 Mon Sep 17 00:00:00 2001
 From: Khalvat-M <mmba313@gmail.com>
 Date: Wed, 11 Jan 2023 06:37:39 +0330
-Subject: [PATCH 04/21] Revert "Camera: Skip stream size check for whitelisted
+Subject: [PATCH 07/23] Revert "Camera: Skip stream size check for whitelisted
  apps.."
 
 This reverts commit 599b3c1559d588089173840bfaa1e43db51a0952.
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../camera2/impl/CameraCaptureSessionImpl.java     |  3 +-
- .../hardware/camera2/impl/CameraDeviceImpl.java    | 35 ----------------------
+ .../impl/CameraCaptureSessionImpl.java        |  3 +-
+ .../camera2/impl/CameraDeviceImpl.java        | 35 -------------------
  2 files changed, 1 insertion(+), 37 deletions(-)
 
 diff --git a/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java b/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java
-index b3b24cb..b9eba9c 100644
+index b3b24cb78d38..b9eba9c1d541 100644
 --- a/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java
 +++ b/core/java/android/hardware/camera2/impl/CameraCaptureSessionImpl.java
 @@ -222,8 +222,7 @@ public class CameraCaptureSessionImpl extends CameraCaptureSession
@@ -25,7 +27,7 @@ index b3b24cb..b9eba9c 100644
          }
      }
 diff --git a/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java b/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java
-index 53788ba..a6c79b3 100644
+index a07e8d2793b3..0c2468e65577 100644
 --- a/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java
 +++ b/core/java/android/hardware/camera2/impl/CameraDeviceImpl.java
 @@ -18,7 +18,6 @@ package android.hardware.camera2.impl;
@@ -45,7 +47,7 @@ index 53788ba..a6c79b3 100644
  import android.util.Log;
  import android.util.Range;
  import android.util.Size;
-@@ -154,7 +151,6 @@ public class CameraDeviceImpl extends CameraDevice
+@@ -155,7 +152,6 @@ public class CameraDeviceImpl extends CameraDevice
      private int mNextSessionId = 0;
  
      private final int mAppTargetSdkVersion;
@@ -53,7 +55,7 @@ index 53788ba..a6c79b3 100644
  
      private ExecutorService mOfflineSwitchService;
      private CameraOfflineSessionImpl mOfflineSessionImpl;
-@@ -305,7 +301,6 @@ public class CameraDeviceImpl extends CameraDevice
+@@ -306,7 +302,6 @@ public class CameraDeviceImpl extends CameraDevice
          } else {
              mTotalPartialCount = partialCount;
          }
@@ -61,7 +63,7 @@ index 53788ba..a6c79b3 100644
      }
  
      public CameraDeviceCallbacks getCallbacks() {
-@@ -1508,27 +1503,6 @@ public class CameraDeviceImpl extends CameraDevice
+@@ -1511,27 +1506,6 @@ public class CameraDeviceImpl extends CameraDevice
          return false;
      }
  
@@ -89,7 +91,7 @@ index 53788ba..a6c79b3 100644
      private void checkInputConfiguration(InputConfiguration inputConfig) {
          if (inputConfig == null) {
              return;
-@@ -1566,15 +1540,6 @@ public class CameraDeviceImpl extends CameraDevice
+@@ -1569,15 +1543,6 @@ public class CameraDeviceImpl extends CameraDevice
                          inputConfig.getWidth() + "x" + inputConfig.getHeight() + " is not valid");
              }
          } else {
@@ -106,5 +108,5 @@ index 53788ba..a6c79b3 100644
                      !checkInputConfigurationWithStreamConfigurations(inputConfig, /*maxRes*/true)) {
                  throw new IllegalArgumentException("Input config with format " +
 -- 
-2.7.4
+2.40.1
 

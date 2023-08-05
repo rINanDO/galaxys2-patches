@@ -1,7 +1,7 @@
-From b44370b2f889465a4e725d65e3ae492a29177a14 Mon Sep 17 00:00:00 2001
+From 992d1bd673107c9757c8c5146c976a4ea4e4ff9e Mon Sep 17 00:00:00 2001
 From: SagarMakhar <sagarmakhar@gmail.com>
 Date: Wed, 29 Dec 2021 08:16:18 +0000
-Subject: [PATCH 10/21] BiometricScheduler: Cancel operation if not idle
+Subject: [PATCH 13/23] BiometricScheduler: Cancel operation if not idle
 
 - some hals fail to report success/failure (for ex. realme fp hals)
 [DarkJoker360 - Switch to overlays]
@@ -11,18 +11,19 @@ Change-Id: I442ce063280af36a04c25fcbc3dd45a90f196988
 Signed-off-by: SagarMakhar <sagarmakhar@gmail.com>
 Signed-off-by: DarkJoker360 <simoespo159@gmail.com>
 Signed-off-by: Pranav Vashi <neobuddy89@gmail.com>
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- core/res/res/values/lineage_config.xml             |  3 +
- core/res/res/values/lineage_symbols.xml            |  3 +
- .../biometrics/sensors/BiometricScheduler.java     | 72 +++++++++++++++++++++-
- .../sensors/BiometricSchedulerOperation.java       |  4 +-
- .../biometrics/sensors/face/hidl/Face10.java       |  2 +-
- .../sensors/fingerprint/hidl/Fingerprint21.java    |  2 +-
- .../fingerprint/hidl/Fingerprint21UdfpsMock.java   |  6 +-
+ core/res/res/values/lineage_config.xml        |  3 +
+ core/res/res/values/lineage_symbols.xml       |  3 +
+ .../sensors/BiometricScheduler.java           | 72 ++++++++++++++++++-
+ .../sensors/BiometricSchedulerOperation.java  |  4 +-
+ .../biometrics/sensors/face/hidl/Face10.java  |  2 +-
+ .../fingerprint/hidl/Fingerprint21.java       |  2 +-
+ .../hidl/Fingerprint21UdfpsMock.java          |  6 +-
  7 files changed, 82 insertions(+), 10 deletions(-)
 
 diff --git a/core/res/res/values/lineage_config.xml b/core/res/res/values/lineage_config.xml
-index 74bcc33..eb35d02 100644
+index 74bcc3351690..eb35d028e217 100644
 --- a/core/res/res/values/lineage_config.xml
 +++ b/core/res/res/values/lineage_config.xml
 @@ -17,4 +17,7 @@
@@ -34,7 +35,7 @@ index 74bcc33..eb35d02 100644
 +    <bool name="config_fpCancelIfNotIdle">false</bool>
  </resources>
 diff --git a/core/res/res/values/lineage_symbols.xml b/core/res/res/values/lineage_symbols.xml
-index fde3c82..a2990bf 100644
+index fde3c82e6c27..a2990bf0ef77 100644
 --- a/core/res/res/values/lineage_symbols.xml
 +++ b/core/res/res/values/lineage_symbols.xml
 @@ -17,4 +17,7 @@
@@ -46,7 +47,7 @@ index fde3c82..a2990bf 100644
 +    <java-symbol type="bool" name="config_fpCancelIfNotIdle" />
  </resources>
 diff --git a/services/core/java/com/android/server/biometrics/sensors/BiometricScheduler.java b/services/core/java/com/android/server/biometrics/sensors/BiometricScheduler.java
-index 63609f7..679fcf8 100644
+index 63609f77dc75..679fcf871ea0 100644
 --- a/services/core/java/com/android/server/biometrics/sensors/BiometricScheduler.java
 +++ b/services/core/java/com/android/server/biometrics/sensors/BiometricScheduler.java
 @@ -60,6 +60,9 @@ import java.util.function.Consumer;
@@ -163,7 +164,7 @@ index 63609f7..679fcf8 100644
       * Requests to cancel enrollment.
       * @param token from the caller, should match the token passed in when requesting enrollment
 diff --git a/services/core/java/com/android/server/biometrics/sensors/BiometricSchedulerOperation.java b/services/core/java/com/android/server/biometrics/sensors/BiometricSchedulerOperation.java
-index ef2931f..7c18670 100644
+index ef2931ff5850..7c18670bfc5a 100644
 --- a/services/core/java/com/android/server/biometrics/sensors/BiometricSchedulerOperation.java
 +++ b/services/core/java/com/android/server/biometrics/sensors/BiometricSchedulerOperation.java
 @@ -85,7 +85,7 @@ public class BiometricSchedulerOperation {
@@ -185,7 +186,7 @@ index ef2931f..7c18670 100644
      @NonNull
      final Runnable mCancelWatchdog;
 diff --git a/services/core/java/com/android/server/biometrics/sensors/face/hidl/Face10.java b/services/core/java/com/android/server/biometrics/sensors/face/hidl/Face10.java
-index 73c759f..4e63039 100644
+index 73c759f7738c..4e630390bd6c 100644
 --- a/services/core/java/com/android/server/biometrics/sensors/face/hidl/Face10.java
 +++ b/services/core/java/com/android/server/biometrics/sensors/face/hidl/Face10.java
 @@ -370,7 +370,7 @@ public class Face10 implements IHwBinder.DeathRecipient, ServiceProvider {
@@ -198,7 +199,7 @@ index 73c759f..4e63039 100644
                  BiometricContext.getInstance(context));
      }
 diff --git a/services/core/java/com/android/server/biometrics/sensors/fingerprint/hidl/Fingerprint21.java b/services/core/java/com/android/server/biometrics/sensors/fingerprint/hidl/Fingerprint21.java
-index 02353bc..fab3d90 100644
+index 02353bc01c79..fab3d9020cb0 100644
 --- a/services/core/java/com/android/server/biometrics/sensors/fingerprint/hidl/Fingerprint21.java
 +++ b/services/core/java/com/android/server/biometrics/sensors/fingerprint/hidl/Fingerprint21.java
 @@ -368,7 +368,7 @@ public class Fingerprint21 implements IHwBinder.DeathRecipient, ServiceProvider
@@ -211,7 +212,7 @@ index 02353bc..fab3d90 100644
                          gestureAvailabilityDispatcher);
          final HalResultController controller = new HalResultController(sensorProps.sensorId,
 diff --git a/services/core/java/com/android/server/biometrics/sensors/fingerprint/hidl/Fingerprint21UdfpsMock.java b/services/core/java/com/android/server/biometrics/sensors/fingerprint/hidl/Fingerprint21UdfpsMock.java
-index 846c2d9..1e2dde2 100644
+index 846c2d9f3df7..1e2dde2a2704 100644
 --- a/services/core/java/com/android/server/biometrics/sensors/fingerprint/hidl/Fingerprint21UdfpsMock.java
 +++ b/services/core/java/com/android/server/biometrics/sensors/fingerprint/hidl/Fingerprint21UdfpsMock.java
 @@ -137,9 +137,9 @@ public class Fingerprint21UdfpsMock extends Fingerprint21 implements TrustManage
@@ -236,5 +237,5 @@ index 846c2d9..1e2dde2 100644
                  new MockHalResultController(sensorProps.sensorId, context, handler, scheduler);
          return new Fingerprint21UdfpsMock(context, biometricStateCallback, sensorProps, scheduler,
 -- 
-2.7.4
+2.40.1
 

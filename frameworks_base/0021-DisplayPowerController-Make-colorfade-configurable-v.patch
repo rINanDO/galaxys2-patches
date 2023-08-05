@@ -1,18 +1,19 @@
-From bc5b41033bde79c62ed5718af6643f44b620f8f5 Mon Sep 17 00:00:00 2001
+From 29178c3ffc7566ea805cef72bd204eccc4414625 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Thu, 15 Jul 2021 08:46:58 +0200
-Subject: [PATCH 18/21] DisplayPowerController: Make colorfade configurable via
+Subject: [PATCH 21/23] DisplayPowerController: Make colorfade configurable via
  systemprop
 
 Set ro.displaypower.colorfade=false to disable colorfade.
 
 Change-Id: I63316b55cba2a6360b83999eefc9d3613aa1a7f0
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../core/java/com/android/server/display/DisplayPowerController.java  | 4 +++-
+ .../com/android/server/display/DisplayPowerController.java    | 4 +++-
  1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/services/core/java/com/android/server/display/DisplayPowerController.java b/services/core/java/com/android/server/display/DisplayPowerController.java
-index 8e1d1ae..119924b 100644
+index 2d9f1399ba8c..e9ed31906b5e 100644
 --- a/services/core/java/com/android/server/display/DisplayPowerController.java
 +++ b/services/core/java/com/android/server/display/DisplayPowerController.java
 @@ -108,6 +108,8 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
@@ -24,7 +25,7 @@ index 8e1d1ae..119924b 100644
  
      private static final boolean DEBUG = false;
      private static final boolean DEBUG_PRETEND_PROXIMITY_SENSOR_ABSENT = false;
-@@ -644,7 +646,7 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
+@@ -658,7 +660,7 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
  
          setUpAutoBrightness(resources, handler);
  
@@ -34,5 +35,5 @@ index 8e1d1ae..119924b 100644
                  com.android.internal.R.bool.config_animateScreenLights);
  
 -- 
-2.7.4
+2.40.1
 

@@ -1,0 +1,150 @@
+From b1b36381f90c63c35b666296b917e05e3aa55ddb Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 5 Aug 2023 16:59:56 +0200
+Subject: [PATCH 02/23] Revert "DO NOT MERGE Force slowJpegMode on certain
+ camera1 apps"
+
+This reverts commit fa9aa00a075203d68084ca0ec157b90dfea2f391.
+---
+ core/java/android/hardware/Camera.java        | 24 ++++++-------------
+ core/jni/android_hardware_Camera.cpp          |  7 +++---
+ core/res/res/values/config.xml                |  5 ----
+ core/res/res/values/symbols.xml               |  1 -
+ .../integration/CameraBinderTest.java         |  3 +--
+ 5 files changed, 11 insertions(+), 29 deletions(-)
+
+diff --git a/core/java/android/hardware/Camera.java b/core/java/android/hardware/Camera.java
+index e986320b4a9f..333ef4fccc3d 100644
+--- a/core/java/android/hardware/Camera.java
++++ b/core/java/android/hardware/Camera.java
+@@ -17,7 +17,12 @@
+ package android.hardware;
+ 
+ import static android.system.OsConstants.EACCES;
++import static android.system.OsConstants.EBUSY;
++import static android.system.OsConstants.EINVAL;
+ import static android.system.OsConstants.ENODEV;
++import static android.system.OsConstants.ENOSYS;
++import static android.system.OsConstants.EOPNOTSUPP;
++import static android.system.OsConstants.EUSERS;
+ 
+ import android.annotation.Nullable;
+ import android.annotation.SdkConstant;
+@@ -53,7 +58,6 @@ import android.util.Log;
+ import android.view.Surface;
+ import android.view.SurfaceHolder;
+ 
+-import com.android.internal.R;
+ import com.android.internal.annotations.GuardedBy;
+ import com.android.internal.app.IAppOpsCallback;
+ import com.android.internal.app.IAppOpsService;
+@@ -531,22 +535,8 @@ public class Camera {
+ 
+         boolean overrideToPortrait = CameraManager.shouldOverrideToPortrait(
+                 ActivityThread.currentApplication().getApplicationContext());
+-        boolean forceSlowJpegMode = shouldForceSlowJpegMode();
+         return native_setup(new WeakReference<Camera>(this), cameraId,
+-                ActivityThread.currentOpPackageName(), overrideToPortrait, forceSlowJpegMode);
+-    }
+-
+-    private boolean shouldForceSlowJpegMode() {
+-        Context applicationContext = ActivityThread.currentApplication().getApplicationContext();
+-        String[] slowJpegPackageNames = applicationContext.getResources().getStringArray(
+-                R.array.config_forceSlowJpegModeList);
+-        String callingPackageName = applicationContext.getPackageName();
+-        for (String packageName : slowJpegPackageNames) {
+-            if (TextUtils.equals(packageName, callingPackageName)) {
+-                return true;
+-            }
+-        }
+-        return false;
++                ActivityThread.currentOpPackageName(), overrideToPortrait);
+     }
+ 
+     /** used by Camera#open, Camera#open(int) */
+@@ -620,7 +610,7 @@ public class Camera {
+ 
+     @UnsupportedAppUsage
+     private native int native_setup(Object cameraThis, int cameraId, String packageName,
+-            boolean overrideToPortrait, boolean forceSlowJpegMode);
++            boolean overrideToPortrait);
+ 
+     private native final void native_release();
+ 
+diff --git a/core/jni/android_hardware_Camera.cpp b/core/jni/android_hardware_Camera.cpp
+index d1602aecde85..d0e5211504f8 100644
+--- a/core/jni/android_hardware_Camera.cpp
++++ b/core/jni/android_hardware_Camera.cpp
+@@ -556,8 +556,7 @@ static void android_hardware_Camera_getCameraInfo(JNIEnv *env, jobject thiz, jin
+ // connect to camera service
+ static jint android_hardware_Camera_native_setup(JNIEnv *env, jobject thiz, jobject weak_this,
+                                                  jint cameraId, jstring clientPackageName,
+-                                                 jboolean overrideToPortrait,
+-                                                 jboolean forceSlowJpegMode) {
++                                                 jboolean overrideToPortrait) {
+     // Convert jstring to String16
+     const char16_t *rawClientName = reinterpret_cast<const char16_t*>(
+         env->GetStringChars(clientPackageName, NULL));
+@@ -569,7 +568,7 @@ static jint android_hardware_Camera_native_setup(JNIEnv *env, jobject thiz, jobj
+     int targetSdkVersion = android_get_application_target_sdk_version();
+     sp<Camera> camera =
+             Camera::connect(cameraId, clientName, Camera::USE_CALLING_UID, Camera::USE_CALLING_PID,
+-                            targetSdkVersion, overrideToPortrait, forceSlowJpegMode);
++                            targetSdkVersion, overrideToPortrait);
+     if (camera == NULL) {
+         return -EACCES;
+     }
+@@ -1055,7 +1054,7 @@ static const JNINativeMethod camMethods[] = {
+         {"_getNumberOfCameras", "()I", (void *)android_hardware_Camera_getNumberOfCameras},
+         {"_getCameraInfo", "(IZLandroid/hardware/Camera$CameraInfo;)V",
+          (void *)android_hardware_Camera_getCameraInfo},
+-        {"native_setup", "(Ljava/lang/Object;ILjava/lang/String;ZZ)I",
++        {"native_setup", "(Ljava/lang/Object;ILjava/lang/String;Z)I",
+          (void *)android_hardware_Camera_native_setup},
+         {"native_release", "()V", (void *)android_hardware_Camera_release},
+         {"setPreviewSurface", "(Landroid/view/Surface;)V",
+diff --git a/core/res/res/values/config.xml b/core/res/res/values/config.xml
+index f5ed2e508411..fc8aa8d5bff9 100644
+--- a/core/res/res/values/config.xml
++++ b/core/res/res/values/config.xml
+@@ -5068,11 +5068,6 @@
+          of known compatibility issues. -->
+     <string-array name="config_highRefreshRateBlacklist"></string-array>
+ 
+-    <!-- The list of packages to force slowJpegMode for Apps using Camera API1 -->
+-    <string-array name="config_forceSlowJpegModeList" translatable="false">
+-        <!-- Add packages here -->
+-    </string-array>
+-
+     <!-- Whether or not to hide the navigation bar when the soft keyboard is visible in order to
+          create additional screen real estate outside beyond the keyboard. Note that the user needs
+          to have a confirmed way to dismiss the keyboard when desired. -->
+diff --git a/core/res/res/values/symbols.xml b/core/res/res/values/symbols.xml
+index 7d8e2f818ce9..486c71b055e1 100644
+--- a/core/res/res/values/symbols.xml
++++ b/core/res/res/values/symbols.xml
+@@ -4222,7 +4222,6 @@
+ 
+   <java-symbol type="string" name="config_factoryResetPackage" />
+   <java-symbol type="array" name="config_highRefreshRateBlacklist" />
+-  <java-symbol type="array" name="config_forceSlowJpegModeList" />
+ 
+   <java-symbol type="layout" name="chooser_dialog" />
+   <java-symbol type="layout" name="chooser_dialog_item" />
+diff --git a/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java b/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java
+index cc7a7d5bb9dc..2b7bcbee79fd 100644
+--- a/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java
++++ b/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java
+@@ -161,8 +161,7 @@ public class CameraBinderTest extends AndroidTestCase {
+                             ICameraService.USE_CALLING_UID,
+                             ICameraService.USE_CALLING_PID,
+                             getContext().getApplicationInfo().targetSdkVersion,
+-                            /*overrideToPortrait*/false,
+-                            /*forceSlowJpegMode*/false);
++                            /*overrideToPortrait*/false);
+             assertNotNull(String.format("Camera %s was null", cameraId), cameraUser);
+ 
+             Log.v(TAG, String.format("Camera %s connected", cameraId));
+-- 
+2.40.1
+

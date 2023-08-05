@@ -1,19 +1,20 @@
-From f0e73944d7c8ddc7d45cdeb1e85454b00ebcfd32 Mon Sep 17 00:00:00 2001
+From 0b0924b4bc4e17050d04e9dc362d798ec92ab61a Mon Sep 17 00:00:00 2001
 From: SagarMakhar <sagarmakhar@gmail.com>
 Date: Sun, 16 Jan 2022 08:25:59 +0000
-Subject: [PATCH 14/21] Fix brightness slider curve for some devices
+Subject: [PATCH 17/23] Fix brightness slider curve for some devices
 
 - these devices report max brightness as 2047 or 4095
 
 Change-Id: I83b38a1334b8df156e4e53b06243c48d565be5d5
 Signed-off-by: SagarMakhar <sagarmakhar@gmail.com>
 Signed-off-by: Pranav Vashi <neobuddy89@gmail.com>
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../settingslib/display/BrightnessUtils.java       | 33 +++++-----------------
+ .../settingslib/display/BrightnessUtils.java  | 33 ++++---------------
  1 file changed, 7 insertions(+), 26 deletions(-)
 
 diff --git a/packages/SettingsLib/src/com/android/settingslib/display/BrightnessUtils.java b/packages/SettingsLib/src/com/android/settingslib/display/BrightnessUtils.java
-index 4f86afaa9..e4490c8 100644
+index 4f86afaa995c..e4490c851081 100644
 --- a/packages/SettingsLib/src/com/android/settingslib/display/BrightnessUtils.java
 +++ b/packages/SettingsLib/src/com/android/settingslib/display/BrightnessUtils.java
 @@ -18,10 +18,12 @@ package com.android.settingslib.display;
@@ -73,5 +74,5 @@ index 4f86afaa9..e4490c8 100644
      }
  }
 -- 
-2.7.4
+2.40.1
 
