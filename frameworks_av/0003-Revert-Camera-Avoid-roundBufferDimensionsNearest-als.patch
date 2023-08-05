@@ -1,18 +1,18 @@
-From 852acca559c4631120c51a203fcf0e758c7d95e3 Mon Sep 17 00:00:00 2001
+From 265b813b8b43dea55954668c65ed79f3b0e8324d Mon Sep 17 00:00:00 2001
 From: Khalvat-M <mmba313@gmail.com>
 Date: Wed, 11 Jan 2023 06:49:29 +0330
-Subject: [PATCH 03/39] Revert "Camera: Avoid roundBufferDimensionsNearest also
+Subject: [PATCH 03/47] Revert "Camera: Avoid roundBufferDimensionsNearest also
  for HAL_PIXEL_FORMAT_BLOB"
 
 This reverts commit 893516da239eb44b90a2654ab53ed6d27d74d86c.
 
 Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../camera/libcameraservice/utils/SessionConfigurationUtils.cpp    | 7 +++----
+ .../libcameraservice/utils/SessionConfigurationUtils.cpp   | 7 +++----
  1 file changed, 3 insertions(+), 4 deletions(-)
 
 diff --git a/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp b/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
-index eb45fbe..b49f86c 100644
+index eb45fbec26..b49f86c0e7 100644
 --- a/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
 +++ b/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
 @@ -213,11 +213,10 @@ bool roundBufferDimensionNearest(int32_t width, int32_t height,
@@ -31,5 +31,5 @@ index eb45fbe..b49f86c 100644
          bestWidth  = width;
          bestHeight = height;
 -- 
-2.7.4
+2.40.1
 

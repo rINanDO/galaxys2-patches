@@ -1,0 +1,133 @@
+From 1873c69bc9f1b1086fa9e8bf412e895a356ec4f9 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 5 Aug 2023 17:26:00 +0200
+Subject: [PATCH 11/47] Revert "Turn off overrideToPortrait where not needed."
+
+This reverts commit 7b14d5e6c4387c5d4ec5cf61be57ba4bf61d29af.
+---
+ media/libstagefright/CameraSource.cpp                        | 2 +-
+ .../camera/libcameraservice/common/aidl/AidlProviderInfo.cpp | 5 ++---
+ .../camera/libcameraservice/common/hidl/HidlProviderInfo.cpp | 4 ++--
+ .../libcameraservice/device3/aidl/AidlCamera3Device.cpp      | 2 +-
+ .../libcameraservice/device3/hidl/HidlCamera3Device.cpp      | 4 ++--
+ services/camera/libcameraservice/hidl/HidlCameraService.cpp  | 4 ++--
+ 6 files changed, 10 insertions(+), 11 deletions(-)
+
+diff --git a/media/libstagefright/CameraSource.cpp b/media/libstagefright/CameraSource.cpp
+index 88e3362767..842327d8f8 100644
+--- a/media/libstagefright/CameraSource.cpp
++++ b/media/libstagefright/CameraSource.cpp
+@@ -150,7 +150,7 @@ status_t CameraSource::isCameraAvailable(
+ 
+     if (camera == 0) {
+         mCamera = Camera::connect(cameraId, clientName, clientUid, clientPid,
+-                /*targetSdkVersion*/__ANDROID_API_FUTURE__, /*overrideToPortrait*/false);
++                /*targetSdkVersion*/__ANDROID_API_FUTURE__, /*overrideToPortrait*/true);
+         if (mCamera == 0) return -EBUSY;
+         mCameraFlags &= ~FLAGS_HOT_CAMERA;
+     } else {
+diff --git a/services/camera/libcameraservice/common/aidl/AidlProviderInfo.cpp b/services/camera/libcameraservice/common/aidl/AidlProviderInfo.cpp
+index 67c4841a6c..2c035deeef 100644
+--- a/services/camera/libcameraservice/common/aidl/AidlProviderInfo.cpp
++++ b/services/camera/libcameraservice/common/aidl/AidlProviderInfo.cpp
+@@ -760,7 +760,7 @@ status_t AidlProviderInfo::convertToAidlHALStreamCombinationAndCameraIdsLocked(
+                 SessionConfigurationUtils::targetPerfClassPrimaryCamera(
+                         perfClassPrimaryCameraIds, cameraId, targetSdkVersion);
+         res = mManager->getCameraCharacteristicsLocked(cameraId, overrideForPerfClass, &deviceInfo,
+-                /*overrideToPortrait*/false);
++                /*overrideToPortrait*/true);
+         if (res != OK) {
+             return res;
+         }
+@@ -768,8 +768,7 @@ status_t AidlProviderInfo::convertToAidlHALStreamCombinationAndCameraIdsLocked(
+                 [this](const String8 &id, bool overrideForPerfClass) {
+                     CameraMetadata physicalDeviceInfo;
+                     mManager->getCameraCharacteristicsLocked(id.string(), overrideForPerfClass,
+-                                                   &physicalDeviceInfo,
+-                                                   /*overrideToPortrait*/false);
++                                                   &physicalDeviceInfo, /*overrideToPortrait*/true);
+                     return physicalDeviceInfo;
+                 };
+         std::vector<std::string> physicalCameraIds;
+diff --git a/services/camera/libcameraservice/common/hidl/HidlProviderInfo.cpp b/services/camera/libcameraservice/common/hidl/HidlProviderInfo.cpp
+index 630090b4ac..1df6ec4449 100644
+--- a/services/camera/libcameraservice/common/hidl/HidlProviderInfo.cpp
++++ b/services/camera/libcameraservice/common/hidl/HidlProviderInfo.cpp
+@@ -920,7 +920,7 @@ status_t HidlProviderInfo::convertToHALStreamCombinationAndCameraIdsLocked(
+                 SessionConfigurationUtils::targetPerfClassPrimaryCamera(
+                         perfClassPrimaryCameraIds, cameraId, targetSdkVersion);
+         res = mManager->getCameraCharacteristicsLocked(cameraId, overrideForPerfClass, &deviceInfo,
+-                /*overrideToPortrait*/false);
++                /*overrideToPortrait*/true);
+         if (res != OK) {
+             return res;
+         }
+@@ -928,7 +928,7 @@ status_t HidlProviderInfo::convertToHALStreamCombinationAndCameraIdsLocked(
+                 [this](const String8 &id, bool overrideForPerfClass) {
+                     CameraMetadata physicalDeviceInfo;
+                     mManager->getCameraCharacteristicsLocked(id.string(), overrideForPerfClass,
+-                            &physicalDeviceInfo, /*overrideToPortrait*/false);
++                            &physicalDeviceInfo, /*overrideToPortrait*/true);
+                     return physicalDeviceInfo;
+                 };
+         std::vector<std::string> physicalCameraIds;
+diff --git a/services/camera/libcameraservice/device3/aidl/AidlCamera3Device.cpp b/services/camera/libcameraservice/device3/aidl/AidlCamera3Device.cpp
+index 1bc9ef2490..3fa72993c1 100644
+--- a/services/camera/libcameraservice/device3/aidl/AidlCamera3Device.cpp
++++ b/services/camera/libcameraservice/device3/aidl/AidlCamera3Device.cpp
+@@ -210,7 +210,7 @@ status_t AidlCamera3Device::initialize(sp<CameraProviderManager> manager,
+             // Do not override characteristics for physical cameras
+             res = manager->getCameraCharacteristics(
+                     physicalId, /*overrideForPerfClass*/false, &mPhysicalDeviceInfoMap[physicalId],
+-                    mOverrideToPortrait);
++                    /*overrideToPortrait*/true);
+             if (res != OK) {
+                 SET_ERR_L("Could not retrieve camera %s characteristics: %s (%d)",
+                         physicalId.c_str(), strerror(-res), res);
+diff --git a/services/camera/libcameraservice/device3/hidl/HidlCamera3Device.cpp b/services/camera/libcameraservice/device3/hidl/HidlCamera3Device.cpp
+index c675c6349e..382b2875de 100644
+--- a/services/camera/libcameraservice/device3/hidl/HidlCamera3Device.cpp
++++ b/services/camera/libcameraservice/device3/hidl/HidlCamera3Device.cpp
+@@ -163,7 +163,7 @@ status_t HidlCamera3Device::initialize(sp<CameraProviderManager> manager,
+     }
+ 
+     res = manager->getCameraCharacteristics(mId.string(), mOverrideForPerfClass, &mDeviceInfo,
+-            /*overrideToPortrait*/false);
++            mOverrideToPortrait);
+     if (res != OK) {
+         SET_ERR_L("Could not retrieve camera characteristics: %s (%d)", strerror(-res), res);
+         session->close();
+@@ -178,7 +178,7 @@ status_t HidlCamera3Device::initialize(sp<CameraProviderManager> manager,
+             // Do not override characteristics for physical cameras
+             res = manager->getCameraCharacteristics(
+                     physicalId, /*overrideForPerfClass*/false, &mPhysicalDeviceInfoMap[physicalId],
+-                    /*overrideToPortrait*/false);
++                    /*overrideToPortrait*/true);
+             if (res != OK) {
+                 SET_ERR_L("Could not retrieve camera %s characteristics: %s (%d)",
+                         physicalId.c_str(), strerror(-res), res);
+diff --git a/services/camera/libcameraservice/hidl/HidlCameraService.cpp b/services/camera/libcameraservice/hidl/HidlCameraService.cpp
+index fc063aba66..259e8a5666 100644
+--- a/services/camera/libcameraservice/hidl/HidlCameraService.cpp
++++ b/services/camera/libcameraservice/hidl/HidlCameraService.cpp
+@@ -65,7 +65,7 @@ HidlCameraService::getCameraCharacteristics(const hidl_string& cameraId,
+     HStatus status = HStatus::NO_ERROR;
+     binder::Status serviceRet =
+         mAidlICameraService->getCameraCharacteristics(String16(cameraId.c_str()),
+-                /*targetSdkVersion*/__ANDROID_API_FUTURE__, /*overrideToPortrait*/false,
++                /*targetSdkVersion*/__ANDROID_API_FUTURE__, /*overrideToPortrait*/true,
+                 &cameraMetadata);
+     HCameraMetadata hidlMetadata;
+     if (!serviceRet.isOk()) {
+@@ -117,7 +117,7 @@ Return<void> HidlCameraService::connectDevice(const sp<HCameraDeviceCallback>& h
+     binder::Status serviceRet = mAidlICameraService->connectDevice(
+             callbacks, String16(cameraId.c_str()), String16(""), {},
+             hardware::ICameraService::USE_CALLING_UID, 0/*oomScoreOffset*/,
+-            /*targetSdkVersion*/__ANDROID_API_FUTURE__, /*overrideToPortrait*/false,
++            /*targetSdkVersion*/__ANDROID_API_FUTURE__, /*overrideToPortrait*/true,
+             /*out*/&deviceRemote);
+     HStatus status = HStatus::NO_ERROR;
+     if (!serviceRet.isOk()) {
+-- 
+2.40.1
+

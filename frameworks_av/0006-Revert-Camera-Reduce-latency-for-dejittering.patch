@@ -1,23 +1,23 @@
-From 1a7b83baeb43252984f190255c82f62a5adeb6c7 Mon Sep 17 00:00:00 2001
+From f098813286d9bab5fbcb0b83db5c6944648afa50 Mon Sep 17 00:00:00 2001
 From: z3DD3r <z3dd3r@gmail.com>
 Date: Fri, 9 Dec 2022 22:52:04 +0300
-Subject: [PATCH 06/39] Revert "Camera: Reduce latency for dejittering"
+Subject: [PATCH 06/47] Revert "Camera: Reduce latency for dejittering"
 
 This reverts commit 35bd3553b06468c8d77adecca498ff0a0d194d41.
 
 Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../libcameraservice/device3/Camera3OutputStream.cpp       | 14 ++++----------
- .../camera/libcameraservice/device3/Camera3OutputStream.h  |  2 +-
- .../camera/libcameraservice/device3/PreviewFrameSpacer.cpp |  2 +-
- .../camera/libcameraservice/device3/PreviewFrameSpacer.h   |  2 +-
+ .../device3/Camera3OutputStream.cpp                | 14 ++++----------
+ .../libcameraservice/device3/Camera3OutputStream.h |  2 +-
+ .../device3/PreviewFrameSpacer.cpp                 |  2 +-
+ .../libcameraservice/device3/PreviewFrameSpacer.h  |  2 +-
  4 files changed, 7 insertions(+), 13 deletions(-)
 
 diff --git a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
-index 396104c..d454880 100644
+index 26fab414c6..93b585816b 100644
 --- a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
 +++ b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
-@@ -1410,24 +1410,18 @@ void Camera3OutputStream::returnPrefetchedBuffersLocked() {
+@@ -1415,24 +1415,18 @@ void Camera3OutputStream::returnPrefetchedBuffersLocked() {
  }
  
  nsecs_t Camera3OutputStream::syncTimestampToDisplayLocked(nsecs_t t) {
@@ -44,7 +44,7 @@ index 396104c..d454880 100644
      nsecs_t minPresentT = mLastPresentTime + vsyncEventData.frameInterval / 2;
  
      // Find the best presentation time without worrying about previous frame's
-@@ -1533,8 +1527,8 @@ nsecs_t Camera3OutputStream::syncTimestampToDisplayLocked(nsecs_t t) {
+@@ -1538,8 +1532,8 @@ nsecs_t Camera3OutputStream::syncTimestampToDisplayLocked(nsecs_t t) {
          }
      }
  
@@ -56,10 +56,10 @@ index 396104c..d454880 100644
          // presentation time would cause a frame drop. The best option now
          // is to use the next VSync as long as the last presentation time
 diff --git a/services/camera/libcameraservice/device3/Camera3OutputStream.h b/services/camera/libcameraservice/device3/Camera3OutputStream.h
-index db988a0..741bca2 100644
+index a719d6be52..3dd6deee85 100644
 --- a/services/camera/libcameraservice/device3/Camera3OutputStream.h
 +++ b/services/camera/libcameraservice/device3/Camera3OutputStream.h
-@@ -432,7 +432,7 @@ class Camera3OutputStream :
+@@ -437,7 +437,7 @@ class Camera3OutputStream :
      static constexpr nsecs_t kSpacingResetIntervalNs = 50000000LL; // 50 millisecond
      static constexpr nsecs_t kTimelineThresholdNs = 1000000LL; // 1 millisecond
      static constexpr float kMaxIntervalRatioDeviation = 0.05f;
@@ -69,7 +69,7 @@ index db988a0..741bca2 100644
  
      // Re-space frames by delaying queueBuffer so that frame delivery has
 diff --git a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
-index b3cb178..67f42b4 100644
+index b3cb17857f..67f42b45e3 100644
 --- a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
 +++ b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
 @@ -68,7 +68,7 @@ bool PreviewFrameSpacer::threadLoop() {
@@ -82,7 +82,7 @@ index b3cb178..67f42b4 100644
      nsecs_t frameWaitTime = std::min(kMaxFrameWaitTime, expectedQueueTime - currentTime);
      if (frameWaitTime > 0 && mPendingBuffers.size() < 2) {
 diff --git a/services/camera/libcameraservice/device3/PreviewFrameSpacer.h b/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
-index cb9690c..e165768 100644
+index cb9690cf63..e165768b97 100644
 --- a/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
 +++ b/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
 @@ -85,7 +85,7 @@ class PreviewFrameSpacer : public Thread {
@@ -95,5 +95,5 @@ index cb9690c..e165768 100644
  
  }; //namespace camera3
 -- 
-2.7.4
+2.40.1
 

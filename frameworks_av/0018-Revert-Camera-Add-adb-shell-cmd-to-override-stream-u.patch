@@ -1,0 +1,483 @@
+From 3870b6e68564d8b3bb44ffe807852fef6a5188a1 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 5 Aug 2023 17:35:43 +0200
+Subject: [PATCH 18/47] Revert "Camera: Add adb shell cmd to override stream
+ use case"
+
+This reverts commit abe5ea1b0bdca448713ecd0fb06e3a64d81822ea.
+---
+ .../camera/libcameraservice/CameraService.cpp | 58 ----------------
+ .../camera/libcameraservice/CameraService.h   | 17 -----
+ .../libcameraservice/api1/Camera2Client.cpp   |  9 ---
+ .../libcameraservice/api1/Camera2Client.h     |  4 --
+ .../api2/CameraDeviceClient.cpp               |  9 ---
+ .../api2/CameraDeviceClient.h                 |  3 -
+ .../api2/CameraOfflineSessionClient.cpp       |  7 --
+ .../api2/CameraOfflineSessionClient.h         |  5 --
+ .../common/CameraDeviceBase.h                 | 10 ---
+ .../device3/Camera3Device.cpp                 | 67 -------------------
+ .../libcameraservice/device3/Camera3Device.h  |  9 ---
+ .../device3/Camera3FakeStream.h               |  2 -
+ .../device3/Camera3OutputStream.cpp           |  5 --
+ .../device3/Camera3OutputStream.h             |  5 --
+ .../device3/Camera3OutputStreamInterface.h    |  5 --
+ 15 files changed, 215 deletions(-)
+
+diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
+index ce94227b21..2388b7966b 100644
+--- a/services/camera/libcameraservice/CameraService.cpp
++++ b/services/camera/libcameraservice/CameraService.cpp
+@@ -2006,7 +2006,6 @@ Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String8&
+         }
+ 
+         client->setImageDumpMask(mImageDumpMask);
+-        client->setStreamUseCaseOverrides(mStreamUseCaseOverrides);
+     } // lock is destroyed, allow further connect calls
+ 
+     // Important: release the mutex here so the client can call back into the service from its
+@@ -4376,13 +4375,6 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
+     String8 activeClientString = mActiveClientManager.toString();
+     dprintf(fd, "Active Camera Clients:\n%s", activeClientString.string());
+     dprintf(fd, "Allowed user IDs: %s\n", toString(mAllowedUsers).string());
+-    if (mStreamUseCaseOverrides.size() > 0) {
+-        dprintf(fd, "Active stream use case overrides:");
+-        for (int64_t useCaseOverride : mStreamUseCaseOverrides) {
+-            dprintf(fd, " %" PRId64, useCaseOverride);
+-        }
+-        dprintf(fd, "\n");
+-    }
+ 
+     dumpEventLog(fd);
+ 
+@@ -4874,10 +4866,6 @@ status_t CameraService::shellCommand(int in, int out, int err, const Vector<Stri
+         return handleGetImageDumpMask(out);
+     } else if (args.size() >= 2 && args[0] == String16("set-camera-mute")) {
+         return handleSetCameraMute(args);
+-    } else if (args.size() >= 2 && args[0] == String16("set-stream-use-case-override")) {
+-        return handleSetStreamUseCaseOverrides(args);
+-    } else if (args.size() >= 1 && args[0] == String16("clear-stream-use-case-override")) {
+-        return handleClearStreamUseCaseOverrides();
+     } else if (args.size() >= 2 && args[0] == String16("watch")) {
+         return handleWatchCommand(args, in, out);
+     } else if (args.size() >= 2 && args[0] == String16("set-watchdog")) {
+@@ -5050,43 +5038,6 @@ status_t CameraService::handleSetCameraMute(const Vector<String16>& args) {
+     return OK;
+ }
+ 
+-status_t CameraService::handleSetStreamUseCaseOverrides(const Vector<String16>& args) {
+-    std::vector<int64_t> useCasesOverride;
+-    for (size_t i = 1; i < args.size(); i++) {
+-        int64_t useCase = ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_DEFAULT;
+-        String8 arg8 = String8(args[i]);
+-        if (arg8 == "DEFAULT") {
+-            useCase = ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_DEFAULT;
+-        } else if (arg8 == "PREVIEW") {
+-            useCase = ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_PREVIEW;
+-        } else if (arg8 == "STILL_CAPTURE") {
+-            useCase = ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_STILL_CAPTURE;
+-        } else if (arg8 == "VIDEO_RECORD") {
+-            useCase = ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_VIDEO_RECORD;
+-        } else if (arg8 == "PREVIEW_VIDEO_STILL") {
+-            useCase = ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_PREVIEW_VIDEO_STILL;
+-        } else if (arg8 == "VIDEO_CALL") {
+-            useCase = ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_VIDEO_CALL;
+-        } else {
+-            ALOGE("%s: Invalid stream use case %s", __FUNCTION__, String8(args[i]).c_str());
+-            return BAD_VALUE;
+-        }
+-        useCasesOverride.push_back(useCase);
+-    }
+-
+-    Mutex::Autolock lock(mServiceLock);
+-    mStreamUseCaseOverrides = std::move(useCasesOverride);
+-
+-    return OK;
+-}
+-
+-status_t CameraService::handleClearStreamUseCaseOverrides() {
+-    Mutex::Autolock lock(mServiceLock);
+-    mStreamUseCaseOverrides.clear();
+-
+-    return OK;
+-}
+-
+ status_t CameraService::handleWatchCommand(const Vector<String16>& args, int inFd, int outFd) {
+     if (args.size() >= 3 && args[1] == String16("start")) {
+         return startWatchingTags(args, outFd);
+@@ -5441,15 +5392,6 @@ status_t CameraService::printHelp(int out) {
+         "      Valid values 0=OFF, 1=ON for JPEG\n"
+         "  get-image-dump-mask returns the current image-dump-mask value\n"
+         "  set-camera-mute <0/1> enable or disable camera muting\n"
+-        "  set-stream-use-case-override <usecase1> <usecase2> ... override stream use cases\n"
+-        "      Use cases applied in descending resolutions. So usecase1 is assigned to the\n"
+-        "      largest resolution, usecase2 is assigned to the 2nd largest resolution, and so\n"
+-        "      on. In case the number of usecases is smaller than the number of streams, the\n"
+-        "      last use case is assigned to all the remaining streams. In case of multiple\n"
+-        "      streams with the same resolution, the tie-breaker is (JPEG, RAW, YUV, and PRIV)\n"
+-        "      Valid values are (case sensitive): DEFAULT, PREVIEW, STILL_CAPTURE, VIDEO_RECORD,\n"
+-        "      PREVIEW_VIDEO_STILL, VIDEO_CALL\n"
+-        "  clear-stream-use-case-override clear the stream use case override\n"
+         "  watch <start|stop|dump|print|clear> manages tag monitoring in connected clients\n"
+         "  help print this message\n");
+ }
+diff --git a/services/camera/libcameraservice/CameraService.h b/services/camera/libcameraservice/CameraService.h
+index 29f978a75c..f2d15efeda 100644
+--- a/services/camera/libcameraservice/CameraService.h
++++ b/services/camera/libcameraservice/CameraService.h
+@@ -342,13 +342,6 @@ public:
+         // Set Camera service watchdog
+         virtual status_t setCameraServiceWatchdog(bool enabled) = 0;
+ 
+-        // Set stream use case overrides
+-        virtual void setStreamUseCaseOverrides(
+-                const std::vector<int64_t>& useCaseOverrides) = 0;
+-
+-        // Clear stream use case overrides
+-        virtual void clearStreamUseCaseOverrides() = 0;
+-
+         // The injection camera session to replace the internal camera
+         // session.
+         virtual status_t injectCamera(const String8& injectedCamId,
+@@ -500,7 +493,6 @@ public:
+         virtual bool canCastToApiClient(apiLevel level) const;
+ 
+         void setImageDumpMask(int /*mask*/) { }
+-        void setStreamUseCaseOverrides(const std::vector<int64_t>& /*usecaseOverrides*/) { }
+     protected:
+         // Initialized in constructor
+ 
+@@ -1215,12 +1207,6 @@ private:
+     // Set the camera mute state
+     status_t handleSetCameraMute(const Vector<String16>& args);
+ 
+-    // Set the stream use case overrides
+-    status_t handleSetStreamUseCaseOverrides(const Vector<String16>& args);
+-
+-    // Clear the stream use case overrides
+-    status_t handleClearStreamUseCaseOverrides();
+-
+     // Handle 'watch' command as passed through 'cmd'
+     status_t handleWatchCommand(const Vector<String16> &args, int inFd, int outFd);
+ 
+@@ -1316,9 +1302,6 @@ private:
+     // Camera Service watchdog flag
+     bool mCameraServiceWatchdogEnabled = true;
+ 
+-    // Current stream use case overrides
+-    std::vector<int64_t> mStreamUseCaseOverrides;
+-
+     /**
+      * A listener class that implements the IBinder::DeathRecipient interface
+      * for use to call back the error state injected by the external camera, and
+diff --git a/services/camera/libcameraservice/api1/Camera2Client.cpp b/services/camera/libcameraservice/api1/Camera2Client.cpp
+index 47c4d175e0..20bf73db35 100644
+--- a/services/camera/libcameraservice/api1/Camera2Client.cpp
++++ b/services/camera/libcameraservice/api1/Camera2Client.cpp
+@@ -2345,15 +2345,6 @@ status_t Camera2Client::setCameraMute(bool enabled) {
+     return mDevice->setCameraMute(enabled);
+ }
+ 
+-void Camera2Client::setStreamUseCaseOverrides(
+-        const std::vector<int64_t>& useCaseOverrides) {
+-    mDevice->setStreamUseCaseOverrides(useCaseOverrides);
+-}
+-
+-void Camera2Client::clearStreamUseCaseOverrides() {
+-    mDevice->clearStreamUseCaseOverrides();
+-}
+-
+ status_t Camera2Client::waitUntilCurrentRequestIdLocked() {
+     int32_t activeRequestId = mStreamingProcessor->getActiveRequestId();
+     if (activeRequestId != 0) {
+diff --git a/services/camera/libcameraservice/api1/Camera2Client.h b/services/camera/libcameraservice/api1/Camera2Client.h
+index 06d62e64c0..8081efa11f 100644
+--- a/services/camera/libcameraservice/api1/Camera2Client.h
++++ b/services/camera/libcameraservice/api1/Camera2Client.h
+@@ -92,10 +92,6 @@ public:
+ 
+     virtual status_t        setCameraServiceWatchdog(bool enabled);
+ 
+-    virtual void            setStreamUseCaseOverrides(
+-                                    const std::vector<int64_t>& useCaseOverrides);
+-    virtual void            clearStreamUseCaseOverrides();
+-
+     /**
+      * Interface used by CameraService
+      */
+diff --git a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
+index b3dd6e7424..15df981c7a 100644
+--- a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
++++ b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
+@@ -1749,15 +1749,6 @@ status_t CameraDeviceClient::setCameraMute(bool enabled) {
+     return mDevice->setCameraMute(enabled);
+ }
+ 
+-void CameraDeviceClient::setStreamUseCaseOverrides(
+-        const std::vector<int64_t>& useCaseOverrides) {
+-    mDevice->setStreamUseCaseOverrides(useCaseOverrides);
+-}
+-
+-void CameraDeviceClient::clearStreamUseCaseOverrides() {
+-    mDevice->clearStreamUseCaseOverrides();
+-}
+-
+ binder::Status CameraDeviceClient::switchToOffline(
+         const sp<hardware::camera2::ICameraDeviceCallbacks>& cameraCb,
+         const std::vector<int>& offlineOutputIds,
+diff --git a/services/camera/libcameraservice/api2/CameraDeviceClient.h b/services/camera/libcameraservice/api2/CameraDeviceClient.h
+index 4c692cda59..45915ba963 100644
+--- a/services/camera/libcameraservice/api2/CameraDeviceClient.h
++++ b/services/camera/libcameraservice/api2/CameraDeviceClient.h
+@@ -208,9 +208,6 @@ public:
+ 
+     virtual status_t      setCameraServiceWatchdog(bool enabled);
+ 
+-    virtual void          setStreamUseCaseOverrides(const std::vector<int64_t>& useCaseOverrides);
+-    virtual void          clearStreamUseCaseOverrides() override;
+-
+     /**
+      * Device listener interface
+      */
+diff --git a/services/camera/libcameraservice/api2/CameraOfflineSessionClient.cpp b/services/camera/libcameraservice/api2/CameraOfflineSessionClient.cpp
+index 0f31c6656e..beb655bfdf 100644
+--- a/services/camera/libcameraservice/api2/CameraOfflineSessionClient.cpp
++++ b/services/camera/libcameraservice/api2/CameraOfflineSessionClient.cpp
+@@ -85,13 +85,6 @@ status_t CameraOfflineSessionClient::setCameraMute(bool) {
+     return INVALID_OPERATION;
+ }
+ 
+-void CameraOfflineSessionClient::setStreamUseCaseOverrides(
+-        const std::vector<int64_t>& /*useCaseOverrides*/) {
+-}
+-
+-void CameraOfflineSessionClient::clearStreamUseCaseOverrides() {
+-}
+-
+ 
+ status_t CameraOfflineSessionClient::dump(int fd, const Vector<String16>& args) {
+     return BasicClient::dump(fd, args);
+diff --git a/services/camera/libcameraservice/api2/CameraOfflineSessionClient.h b/services/camera/libcameraservice/api2/CameraOfflineSessionClient.h
+index 4bfd323253..9ea1093cea 100644
+--- a/services/camera/libcameraservice/api2/CameraOfflineSessionClient.h
++++ b/services/camera/libcameraservice/api2/CameraOfflineSessionClient.h
+@@ -86,11 +86,6 @@ public:
+ 
+     status_t setCameraServiceWatchdog(bool enabled) override;
+ 
+-    void setStreamUseCaseOverrides(
+-            const std::vector<int64_t>& useCaseOverrides) override;
+-
+-    void clearStreamUseCaseOverrides() override;
+-
+     // permissions management
+     status_t startCameraOps() override;
+     status_t finishCameraOps() override;
+diff --git a/services/camera/libcameraservice/common/CameraDeviceBase.h b/services/camera/libcameraservice/common/CameraDeviceBase.h
+index 8f7b16d657..69514f3ff1 100644
+--- a/services/camera/libcameraservice/common/CameraDeviceBase.h
++++ b/services/camera/libcameraservice/common/CameraDeviceBase.h
+@@ -463,15 +463,6 @@ class CameraDeviceBase : public virtual FrameProducer {
+      */
+     void setImageDumpMask(int mask) { mImageDumpMask = mask; }
+ 
+-    /**
+-     * Set stream use case overrides
+-     */
+-    void setStreamUseCaseOverrides(const std::vector<int64_t>& useCaseOverrides) {
+-          mStreamUseCaseOverrides = useCaseOverrides;
+-    }
+-
+-    void clearStreamUseCaseOverrides() {}
+-
+     /**
+      * The injection camera session to replace the internal camera
+      * session.
+@@ -486,7 +477,6 @@ class CameraDeviceBase : public virtual FrameProducer {
+ 
+ protected:
+     bool mImageDumpMask = 0;
+-    std::vector<int64_t> mStreamUseCaseOverrides;
+ };
+ 
+ }; // namespace android
+diff --git a/services/camera/libcameraservice/device3/Camera3Device.cpp b/services/camera/libcameraservice/device3/Camera3Device.cpp
+index 27b8964bd6..ca70b88c15 100644
+--- a/services/camera/libcameraservice/device3/Camera3Device.cpp
++++ b/services/camera/libcameraservice/device3/Camera3Device.cpp
+@@ -2335,9 +2335,6 @@ status_t Camera3Device::configureStreamsLocked(int operatingMode,
+         tryRemoveFakeStreamLocked();
+     }
+ 
+-    // Override stream use case based on "adb shell command"
+-    overrideStreamUseCaseLocked();
+-
+     // Start configuring the streams
+     ALOGV("%s: Camera %s: Starting stream configuration", __FUNCTION__, mId.string());
+ 
+@@ -4119,19 +4116,6 @@ status_t Camera3Device::setCameraServiceWatchdog(bool enabled) {
+     return OK;
+ }
+ 
+-void Camera3Device::setStreamUseCaseOverrides(
+-        const std::vector<int64_t>& useCaseOverrides) {
+-    Mutex::Autolock il(mInterfaceLock);
+-    Mutex::Autolock l(mLock);
+-    mStreamUseCaseOverrides = useCaseOverrides;
+-}
+-
+-void Camera3Device::clearStreamUseCaseOverrides() {
+-    Mutex::Autolock il(mInterfaceLock);
+-    Mutex::Autolock l(mLock);
+-    mStreamUseCaseOverrides.clear();
+-}
+-
+ void Camera3Device::RequestThread::cleanUpFailedRequests(bool sendRequestError) {
+     if (mNextRequests.empty()) {
+         return;
+@@ -5236,55 +5220,4 @@ status_t Camera3Device::stopInjection() {
+     return mInjectionMethods->stopInjection();
+ }
+ 
+-void Camera3Device::overrideStreamUseCaseLocked() {
+-    if (mStreamUseCaseOverrides.size() == 0) {
+-        return;
+-    }
+-
+-    // Start from an array of indexes in mStreamUseCaseOverrides, and sort them
+-    // based first on size, and second on formats of [JPEG, RAW, YUV, PRIV].
+-    std::vector<int> outputStreamsIndices(mOutputStreams.size());
+-    for (size_t i = 0; i < outputStreamsIndices.size(); i++) {
+-        outputStreamsIndices[i] = i;
+-    }
+-
+-    std::sort(outputStreamsIndices.begin(), outputStreamsIndices.end(),
+-            [&](int a, int b) -> bool {
+-
+-                auto formatScore = [](int format) {
+-                    switch (format) {
+-                    case HAL_PIXEL_FORMAT_BLOB:
+-                        return 4;
+-                    case HAL_PIXEL_FORMAT_RAW16:
+-                    case HAL_PIXEL_FORMAT_RAW10:
+-                    case HAL_PIXEL_FORMAT_RAW12:
+-                        return 3;
+-                    case HAL_PIXEL_FORMAT_YCBCR_420_888:
+-                        return 2;
+-                    case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
+-                        return 1;
+-                    default:
+-                        return 0;
+-                    }
+-                };
+-
+-                int sizeA = mOutputStreams[a]->getWidth() * mOutputStreams[a]->getHeight();
+-                int sizeB = mOutputStreams[a]->getWidth() * mOutputStreams[a]->getHeight();
+-                int formatAScore = formatScore(mOutputStreams[a]->getFormat());
+-                int formatBScore = formatScore(mOutputStreams[b]->getFormat());
+-                if (sizeA > sizeB ||
+-                        (sizeA == sizeB && formatAScore >= formatBScore)) {
+-                    return true;
+-                } else {
+-                    return false;
+-                }
+-            });
+-
+-    size_t overlapSize = std::min(mStreamUseCaseOverrides.size(), mOutputStreams.size());
+-    for (size_t i = 0; i < mOutputStreams.size(); i++) {
+-        mOutputStreams[outputStreamsIndices[i]]->setStreamUseCase(
+-                mStreamUseCaseOverrides[std::min(i, overlapSize-1)]);
+-    }
+-}
+-
+ }; // namespace android
+diff --git a/services/camera/libcameraservice/device3/Camera3Device.h b/services/camera/libcameraservice/device3/Camera3Device.h
+index f038f02e48..bcb76954d0 100644
+--- a/services/camera/libcameraservice/device3/Camera3Device.h
++++ b/services/camera/libcameraservice/device3/Camera3Device.h
+@@ -286,13 +286,6 @@ class Camera3Device :
+      */
+     status_t setCameraServiceWatchdog(bool enabled);
+ 
+-    // Set stream use case overrides
+-    void setStreamUseCaseOverrides(
+-            const std::vector<int64_t>& useCaseOverrides);
+-
+-    // Clear stream use case overrides
+-    void clearStreamUseCaseOverrides();
+-
+     // Get the status trackeer for the camera device
+     wp<camera3::StatusTracker> getStatusTracker() { return mStatusTracker; }
+ 
+@@ -1437,8 +1430,6 @@ class Camera3Device :
+ 
+     sp<Camera3DeviceInjectionMethods> mInjectionMethods;
+ 
+-    void overrideStreamUseCaseLocked();
+-
+ }; // class Camera3Device
+ 
+ }; // namespace android
+diff --git a/services/camera/libcameraservice/device3/Camera3FakeStream.h b/services/camera/libcameraservice/device3/Camera3FakeStream.h
+index 1e9f4782fb..a93d1da759 100644
+--- a/services/camera/libcameraservice/device3/Camera3FakeStream.h
++++ b/services/camera/libcameraservice/device3/Camera3FakeStream.h
+@@ -101,8 +101,6 @@ class Camera3FakeStream :
+     virtual status_t setBatchSize(size_t batchSize) override;
+ 
+     virtual void onMinDurationChanged(nsecs_t /*duration*/, bool /*fixedFps*/) {}
+-
+-    virtual void setStreamUseCase(int64_t /*streamUseCase*/) {}
+   protected:
+ 
+     /**
+diff --git a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
+index 141a8ae06b..51be54e7ad 100644
+--- a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
++++ b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
+@@ -1373,11 +1373,6 @@ void Camera3OutputStream::onMinDurationChanged(nsecs_t duration, bool fixedFps)
+     mFixedFps = fixedFps;
+ }
+ 
+-void Camera3OutputStream::setStreamUseCase(int64_t streamUseCase) {
+-    Mutex::Autolock l(mLock);
+-    camera_stream::use_case = streamUseCase;
+-}
+-
+ void Camera3OutputStream::returnPrefetchedBuffersLocked() {
+     std::vector<Surface::BatchBuffer> batchedBuffers;
+ 
+diff --git a/services/camera/libcameraservice/device3/Camera3OutputStream.h b/services/camera/libcameraservice/device3/Camera3OutputStream.h
+index 6e5a857543..1b4739cf50 100644
+--- a/services/camera/libcameraservice/device3/Camera3OutputStream.h
++++ b/services/camera/libcameraservice/device3/Camera3OutputStream.h
+@@ -252,11 +252,6 @@ class Camera3OutputStream :
+      */
+     virtual void onMinDurationChanged(nsecs_t duration, bool fixedFps) override;
+ 
+-    /**
+-     * Modify stream use case
+-     */
+-    virtual void setStreamUseCase(int64_t streamUseCase) override;
+-
+     /**
+      * Apply ZSL related consumer usage quirk.
+      */
+diff --git a/services/camera/libcameraservice/device3/Camera3OutputStreamInterface.h b/services/camera/libcameraservice/device3/Camera3OutputStreamInterface.h
+index 4baa7e8298..dbc6fe1514 100644
+--- a/services/camera/libcameraservice/device3/Camera3OutputStreamInterface.h
++++ b/services/camera/libcameraservice/device3/Camera3OutputStreamInterface.h
+@@ -117,11 +117,6 @@ class Camera3OutputStreamInterface : public virtual Camera3StreamInterface {
+      * AE_TARGET_FPS_RANGE in the capture request.
+      */
+     virtual void onMinDurationChanged(nsecs_t duration, bool fixedFps) = 0;
+-
+-    /**
+-     * Modify the stream use case for this output.
+-     */
+-    virtual void setStreamUseCase(int64_t streamUseCase) = 0;
+ };
+ 
+ // Helper class to organize a synchronized mapping of stream IDs to stream instances
+-- 
+2.40.1
+

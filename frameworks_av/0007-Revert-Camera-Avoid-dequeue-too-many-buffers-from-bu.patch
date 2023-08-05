@@ -1,24 +1,24 @@
-From 10a09d15d2816bf937d7eec7199b0b7907f253e4 Mon Sep 17 00:00:00 2001
+From 64bdc88052291453bf98e539858e66257d99a587 Mon Sep 17 00:00:00 2001
 From: z3DD3r <z3dd3r@gmail.com>
 Date: Fri, 9 Dec 2022 22:52:15 +0300
-Subject: [PATCH 07/39] Revert "Camera: Avoid dequeue too many buffers from
+Subject: [PATCH 07/47] Revert "Camera: Avoid dequeue too many buffers from
  buffer queue"
 
 This reverts commit c235270ed552cbbe1df31cf3862f913872fab38a.
 
 Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../device3/Camera3IOStreamBase.cpp                | 14 +-----
- .../libcameraservice/device3/Camera3IOStreamBase.h | 10 -----
- .../device3/Camera3OutputStream.cpp                | 21 +--------
- .../libcameraservice/device3/Camera3OutputStream.h |  1 -
- .../libcameraservice/device3/Camera3Stream.cpp     | 50 ++++++----------------
- .../libcameraservice/device3/Camera3Stream.h       |  7 +--
- .../device3/PreviewFrameSpacer.cpp                 |  1 -
+ .../device3/Camera3IOStreamBase.cpp           | 14 +-----
+ .../device3/Camera3IOStreamBase.h             | 10 ----
+ .../device3/Camera3OutputStream.cpp           | 21 +-------
+ .../device3/Camera3OutputStream.h             |  1 -
+ .../device3/Camera3Stream.cpp                 | 50 +++++--------------
+ .../libcameraservice/device3/Camera3Stream.h  |  7 +--
+ .../device3/PreviewFrameSpacer.cpp            |  1 -
  7 files changed, 17 insertions(+), 87 deletions(-)
 
 diff --git a/services/camera/libcameraservice/device3/Camera3IOStreamBase.cpp b/services/camera/libcameraservice/device3/Camera3IOStreamBase.cpp
-index f594f84..add1483 100644
+index f594f84f70..add1483bf8 100644
 --- a/services/camera/libcameraservice/device3/Camera3IOStreamBase.cpp
 +++ b/services/camera/libcameraservice/device3/Camera3IOStreamBase.cpp
 @@ -41,10 +41,8 @@ Camera3IOStreamBase::Camera3IOStreamBase(int id, camera_stream_type_t type,
@@ -59,7 +59,7 @@ index f594f84..add1483 100644
      switch (mState) {
          case STATE_IN_RECONFIG:
 diff --git a/services/camera/libcameraservice/device3/Camera3IOStreamBase.h b/services/camera/libcameraservice/device3/Camera3IOStreamBase.h
-index ca1f238..f389d53 100644
+index ca1f238de2..f389d53b16 100644
 --- a/services/camera/libcameraservice/device3/Camera3IOStreamBase.h
 +++ b/services/camera/libcameraservice/device3/Camera3IOStreamBase.h
 @@ -56,18 +56,11 @@ class Camera3IOStreamBase :
@@ -92,7 +92,7 @@ index ca1f238..f389d53 100644
  
      status_t getBufferPreconditionCheckLocked() const;
 diff --git a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
-index d454880..9dc9552 100644
+index 93b585816b..478c9fdd83 100644
 --- a/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
 +++ b/services/camera/libcameraservice/device3/Camera3OutputStream.cpp
 @@ -419,7 +419,6 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
@@ -155,10 +155,10 @@ index d454880..9dc9552 100644
      status_t res;
  
 diff --git a/services/camera/libcameraservice/device3/Camera3OutputStream.h b/services/camera/libcameraservice/device3/Camera3OutputStream.h
-index 741bca2..1b4739c 100644
+index 3dd6deee85..6e5a857543 100644
 --- a/services/camera/libcameraservice/device3/Camera3OutputStream.h
 +++ b/services/camera/libcameraservice/device3/Camera3OutputStream.h
-@@ -259,7 +259,6 @@ class Camera3OutputStream :
+@@ -264,7 +264,6 @@ class Camera3OutputStream :
  
      void setImageDumpMask(int mask) { mImageDumpMask = mask; }
      bool shouldLogError(status_t res);
@@ -167,7 +167,7 @@ index 741bca2..1b4739c 100644
    protected:
      Camera3OutputStream(int id, camera_stream_type_t type,
 diff --git a/services/camera/libcameraservice/device3/Camera3Stream.cpp b/services/camera/libcameraservice/device3/Camera3Stream.cpp
-index 88be9ff..7ad6649 100644
+index 88be9ff137..7ad6649754 100644
 --- a/services/camera/libcameraservice/device3/Camera3Stream.cpp
 +++ b/services/camera/libcameraservice/device3/Camera3Stream.cpp
 @@ -665,19 +665,11 @@ status_t Camera3Stream::getBuffer(camera_stream_buffer *buffer,
@@ -259,7 +259,7 @@ index 88be9ff..7ad6649 100644
  
      res = getBuffersLocked(buffers);
 diff --git a/services/camera/libcameraservice/device3/Camera3Stream.h b/services/camera/libcameraservice/device3/Camera3Stream.h
-index 214618a..d429e6c 100644
+index 214618a172..d429e6caa8 100644
 --- a/services/camera/libcameraservice/device3/Camera3Stream.h
 +++ b/services/camera/libcameraservice/device3/Camera3Stream.h
 @@ -558,10 +558,6 @@ class Camera3Stream :
@@ -291,7 +291,7 @@ index 214618a..d429e6c 100644
      static const nsecs_t kWaitForBufferDuration = 3000000000LL; // 3000 ms
  
 diff --git a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
-index 67f42b4..0439501 100644
+index 67f42b45e3..0439501733 100644
 --- a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
 +++ b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
 @@ -122,7 +122,6 @@ void PreviewFrameSpacer::queueBufferToClientLocked(
@@ -303,5 +303,5 @@ index 67f42b4..0439501 100644
      mLastCameraReadoutTime = bufferHolder.readoutTimestamp;
  }
 -- 
-2.7.4
+2.40.1
 

@@ -1,19 +1,21 @@
-From 0e6eead7b0361c2e7c64cbd2d1bd540c58cf42f0 Mon Sep 17 00:00:00 2001
+From 39316cd87611809b476f3a9789ec09594a88fff9 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Fri, 12 May 2023 22:56:56 +0200
-Subject: [PATCH 02/39] Revert "Camera: Fix missing physical camera
+Subject: [PATCH 02/47] Revert "Camera: Fix missing physical camera
  availability callback"
 
 This reverts commit 3d316f37cc755289bdfd8a4c70d9e36a40e7e64d.
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- services/camera/libcameraservice/CameraService.cpp | 11 +--
- .../common/CameraProviderManager.cpp               | 57 +++++++++-----
- .../common/CameraProviderManager.h                 | 16 ++--
- .../tests/CameraProviderManagerTest.cpp            | 87 +---------------------
+ .../camera/libcameraservice/CameraService.cpp | 11 +--
+ .../common/CameraProviderManager.cpp          | 57 ++++++++----
+ .../common/CameraProviderManager.h            | 16 ++--
+ .../tests/CameraProviderManagerTest.cpp       | 87 +------------------
  4 files changed, 51 insertions(+), 120 deletions(-)
 
 diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
-index 2a04658..f31c0a7 100644
+index bfd3120f73..f12498173c 100644
 --- a/services/camera/libcameraservice/CameraService.cpp
 +++ b/services/camera/libcameraservice/CameraService.cpp
 @@ -203,7 +203,6 @@ status_t CameraService::enumerateProviders() {
@@ -56,7 +58,7 @@ index 2a04658..f31c0a7 100644
      }
  
 diff --git a/services/camera/libcameraservice/common/CameraProviderManager.cpp b/services/camera/libcameraservice/common/CameraProviderManager.cpp
-index 3132787..2d85797 100644
+index 43f92a9927..b617cdca75 100644
 --- a/services/camera/libcameraservice/common/CameraProviderManager.cpp
 +++ b/services/camera/libcameraservice/common/CameraProviderManager.cpp
 @@ -197,17 +197,12 @@ std::pair<int, int> CameraProviderManager::getCameraCount() const {
@@ -174,7 +176,7 @@ index 3132787..2d85797 100644
  CameraProviderManager::ProviderInfo::DeviceInfo3::DeviceInfo3(const std::string& name,
          const metadata_vendor_id_t tagId, const std::string &id,
          uint16_t minorVersion,
-@@ -2673,6 +2691,9 @@ status_t CameraProviderManager::ProviderInfo::parseDeviceName(const std::string&
+@@ -2675,6 +2693,9 @@ status_t CameraProviderManager::ProviderInfo::parseDeviceName(const std::string&
  }
  
  CameraProviderManager::ProviderInfo::~ProviderInfo() {
@@ -185,7 +187,7 @@ index 3132787..2d85797 100644
      // CameraProvider interface dies, so do not unregister callbacks.
  }
 diff --git a/services/camera/libcameraservice/common/CameraProviderManager.h b/services/camera/libcameraservice/common/CameraProviderManager.h
-index e8d9a37..c0a3447 100644
+index e8d9a37c9a..c0a34476f3 100644
 --- a/services/camera/libcameraservice/common/CameraProviderManager.h
 +++ b/services/camera/libcameraservice/common/CameraProviderManager.h
 @@ -23,6 +23,7 @@
@@ -240,7 +242,7 @@ index e8d9a37..c0a3447 100644
  
          // Parse provider instance name for type and id
 diff --git a/services/camera/libcameraservice/tests/CameraProviderManagerTest.cpp b/services/camera/libcameraservice/tests/CameraProviderManagerTest.cpp
-index 2f55def..e9f6979 100644
+index 2f55defd75..e9f6979573 100644
 --- a/services/camera/libcameraservice/tests/CameraProviderManagerTest.cpp
 +++ b/services/camera/libcameraservice/tests/CameraProviderManagerTest.cpp
 @@ -102,57 +102,23 @@ struct TestICameraProvider : virtual public provider::V2_5::ICameraProvider {
@@ -369,5 +371,5 @@ index 2f55def..e9f6979 100644
 -        << "Unavailable physical camera Ids not set properly.";
 -}
 -- 
-2.7.4
+2.40.1
 

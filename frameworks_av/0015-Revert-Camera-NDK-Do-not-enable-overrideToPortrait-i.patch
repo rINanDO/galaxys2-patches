@@ -1,0 +1,36 @@
+From a0c762f4b0935dea7eeb32c4f778c9656a042430 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 5 Aug 2023 17:28:23 +0200
+Subject: [PATCH 15/47] Revert "Camera NDK: Do not enable overrideToPortrait in
+ ACameraManager"
+
+This reverts commit 45ec7c2e4c749bbd5933f1a5e855f7513a975332.
+---
+ camera/ndk/impl/ACameraManager.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/camera/ndk/impl/ACameraManager.cpp b/camera/ndk/impl/ACameraManager.cpp
+index 02047ae506..23d90ccf4a 100644
+--- a/camera/ndk/impl/ACameraManager.cpp
++++ b/camera/ndk/impl/ACameraManager.cpp
+@@ -696,7 +696,7 @@ camera_status_t ACameraManager::getCameraCharacteristics(
+     CameraMetadata rawMetadata;
+     int targetSdkVersion = android_get_application_target_sdk_version();
+     binder::Status serviceRet = cs->getCameraCharacteristics(String16(cameraIdStr),
+-            targetSdkVersion, /*overrideToPortrait*/false, &rawMetadata);
++            targetSdkVersion, /*overrideToPortrait*/true, &rawMetadata);
+     if (!serviceRet.isOk()) {
+         switch(serviceRet.serviceSpecificErrorCode()) {
+             case hardware::ICameraService::ERROR_DISCONNECTED:
+@@ -748,7 +748,7 @@ ACameraManager::openCamera(
+     binder::Status serviceRet = cs->connectDevice(
+             callbacks, String16(cameraId), String16(""), {},
+             hardware::ICameraService::USE_CALLING_UID, /*oomScoreOffset*/0,
+-            targetSdkVersion, /*overrideToPortrait*/false, /*out*/&deviceRemote);
++            targetSdkVersion, /*overrideToPortrait*/true, /*out*/&deviceRemote);
+ 
+     if (!serviceRet.isOk()) {
+         ALOGE("%s: connect camera device failed: %s", __FUNCTION__, serviceRet.toString8().string());
+-- 
+2.40.1
+

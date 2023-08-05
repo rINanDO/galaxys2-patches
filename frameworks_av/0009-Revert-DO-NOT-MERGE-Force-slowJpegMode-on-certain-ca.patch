@@ -1,0 +1,365 @@
+From 5c96a180fef2b426c8e0dc493225ff0446a9636c Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 5 Aug 2023 17:22:58 +0200
+Subject: [PATCH 09/47] Revert "DO NOT MERGE Force slowJpegMode on certain
+ camera1 apps"
+
+This reverts commit 4094e1f16644c84c31866c33cf84a0441247ba07.
+---
+ camera/Camera.cpp                             |  5 ++--
+ camera/CameraBase.cpp                         |  8 +++----
+ .../aidl/android/hardware/ICameraService.aidl |  3 +--
+ camera/include/camera/Camera.h                |  4 ++--
+ camera/include/camera/CameraBase.h            |  2 +-
+ camera/tests/CameraZSLTests.cpp               |  2 +-
+ media/libstagefright/CameraSource.cpp         |  3 +--
+ .../camera/libcameraservice/CameraService.cpp | 23 ++++++++-----------
+ .../camera/libcameraservice/CameraService.h   |  8 +++----
+ .../libcameraservice/api1/Camera2Client.cpp   |  6 +----
+ .../libcameraservice/api1/Camera2Client.h     |  3 +--
+ .../api1/client2/Parameters.cpp               |  7 +++---
+ .../api1/client2/Parameters.h                 |  2 --
+ .../api2/CameraOfflineSessionClient.cpp       |  1 +
+ .../camera_service_fuzzer.cpp                 |  1 -
+ 15 files changed, 30 insertions(+), 48 deletions(-)
+
+diff --git a/camera/Camera.cpp b/camera/Camera.cpp
+index 224468274b..d1618e409b 100644
+--- a/camera/Camera.cpp
++++ b/camera/Camera.cpp
+@@ -71,11 +71,10 @@ Camera::~Camera()
+ }
+ 
+ sp<Camera> Camera::connect(int cameraId, const String16& clientPackageName,
+-        int clientUid, int clientPid, int targetSdkVersion, bool overrideToPortrait,
+-        bool forceSlowJpegMode)
++        int clientUid, int clientPid, int targetSdkVersion, bool overrideToPortrait)
+ {
+     return CameraBaseT::connect(cameraId, clientPackageName, clientUid,
+-            clientPid, targetSdkVersion, overrideToPortrait, forceSlowJpegMode);
++            clientPid, targetSdkVersion, overrideToPortrait);
+ }
+ 
+ status_t Camera::reconnect()
+diff --git a/camera/CameraBase.cpp b/camera/CameraBase.cpp
+index 9ae4607d3f..0a5bc12ec9 100644
+--- a/camera/CameraBase.cpp
++++ b/camera/CameraBase.cpp
+@@ -163,7 +163,7 @@ template <typename TCam, typename TCamTraits>
+ sp<TCam> CameraBase<TCam, TCamTraits>::connect(int cameraId,
+                                                const String16& clientPackageName,
+                                                int clientUid, int clientPid, int targetSdkVersion,
+-                                               bool overrideToPortrait, bool forceSlowJpegMode)
++                                               bool overrideToPortrait)
+ {
+     ALOGV("%s: connect", __FUNCTION__);
+     sp<TCam> c = new TCam(cameraId);
+@@ -173,11 +173,9 @@ sp<TCam> CameraBase<TCam, TCamTraits>::connect(int cameraId,
+     binder::Status ret;
+     if (cs != nullptr) {
+         TCamConnectService fnConnectService = TCamTraits::fnConnectService;
+-        ALOGI("Connect camera (legacy API) - overrideToPortrait %d, forceSlowJpegMode %d",
+-                overrideToPortrait, forceSlowJpegMode);
++        ALOGI("Connect camera (legacy API) - overrideToPortrait %d", overrideToPortrait);
+         ret = (cs.get()->*fnConnectService)(cl, cameraId, clientPackageName, clientUid,
+-                clientPid, targetSdkVersion, overrideToPortrait, forceSlowJpegMode,
+-                 /*out*/ &c->mCamera);
++                clientPid, targetSdkVersion, overrideToPortrait, /*out*/ &c->mCamera);
+     }
+     if (ret.isOk() && c->mCamera != nullptr) {
+         IInterface::asBinder(c->mCamera)->linkToDeath(c);
+diff --git a/camera/aidl/android/hardware/ICameraService.aidl b/camera/aidl/android/hardware/ICameraService.aidl
+index 9f325950c0..01baba1663 100644
+--- a/camera/aidl/android/hardware/ICameraService.aidl
++++ b/camera/aidl/android/hardware/ICameraService.aidl
+@@ -84,8 +84,7 @@ interface ICameraService
+             String opPackageName,
+             int clientUid, int clientPid,
+             int targetSdkVersion,
+-            boolean overrideToPortrait,
+-            boolean forceSlowJpegMode);
++            boolean overrideToPortrait);
+ 
+     /**
+      * Open a camera device through the new camera API
+diff --git a/camera/include/camera/Camera.h b/camera/include/camera/Camera.h
+index 21b57afabf..26c36a7713 100644
+--- a/camera/include/camera/Camera.h
++++ b/camera/include/camera/Camera.h
+@@ -58,7 +58,7 @@ struct CameraTraits<Camera>
+     typedef ::android::hardware::ICameraClient TCamCallbacks;
+     typedef ::android::binder::Status(::android::hardware::ICameraService::*TCamConnectService)
+         (const sp<::android::hardware::ICameraClient>&,
+-        int, const String16&, int, int, int, bool, bool,
++        int, const String16&, int, int, int, bool,
+         /*out*/
+         sp<::android::hardware::ICamera>*);
+     static TCamConnectService     fnConnectService;
+@@ -82,7 +82,7 @@ public:
+     static  sp<Camera>  connect(int cameraId,
+                                 const String16& clientPackageName,
+                                 int clientUid, int clientPid, int targetSdkVersion,
+-                                bool overrideToPortrait, bool forceSlowJpegMode);
++                                bool overrideToPortrait);
+ 
+             virtual     ~Camera();
+ 
+diff --git a/camera/include/camera/CameraBase.h b/camera/include/camera/CameraBase.h
+index b20dc1bcd3..9d0721bb5d 100644
+--- a/camera/include/camera/CameraBase.h
++++ b/camera/include/camera/CameraBase.h
+@@ -120,7 +120,7 @@ public:
+     static sp<TCam>      connect(int cameraId,
+                                  const String16& clientPackageName,
+                                  int clientUid, int clientPid, int targetSdkVersion,
+-                                 bool overrideToPortrait, bool forceSlowJpegMode);
++                                 bool overrideToPortrait);
+     virtual void         disconnect();
+ 
+     void                 setListener(const sp<TCamListener>& listener);
+diff --git a/camera/tests/CameraZSLTests.cpp b/camera/tests/CameraZSLTests.cpp
+index 64237096e3..bdfb84a046 100644
+--- a/camera/tests/CameraZSLTests.cpp
++++ b/camera/tests/CameraZSLTests.cpp
+@@ -211,7 +211,7 @@ TEST_F(CameraZSLTests, TestAllPictureSizes) {
+                 String16("ZSLTest"), hardware::ICameraService::USE_CALLING_UID,
+                 hardware::ICameraService::USE_CALLING_PID,
+                 /*targetSdkVersion*/__ANDROID_API_FUTURE__,
+-                /*overrideToPortrait*/false, /*forceSlowJpegMode*/false, &cameraDevice);
++                /*overrideToPortrait*/false, &cameraDevice);
+         EXPECT_TRUE(rc.isOk());
+ 
+         CameraParameters params(cameraDevice->getParameters());
+diff --git a/media/libstagefright/CameraSource.cpp b/media/libstagefright/CameraSource.cpp
+index 967c316530..88e3362767 100644
+--- a/media/libstagefright/CameraSource.cpp
++++ b/media/libstagefright/CameraSource.cpp
+@@ -150,8 +150,7 @@ status_t CameraSource::isCameraAvailable(
+ 
+     if (camera == 0) {
+         mCamera = Camera::connect(cameraId, clientName, clientUid, clientPid,
+-                /*targetSdkVersion*/__ANDROID_API_FUTURE__, /*overrideToPortrait*/false,
+-                /*forceSlowJpegMode*/false);
++                /*targetSdkVersion*/__ANDROID_API_FUTURE__, /*overrideToPortrait*/false);
+         if (mCamera == 0) return -EBUSY;
+         mCameraFlags &= ~FLAGS_HOT_CAMERA;
+     } else {
+diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
+index 4b6c63b2b1..ea61ae665f 100644
+--- a/services/camera/libcameraservice/CameraService.cpp
++++ b/services/camera/libcameraservice/CameraService.cpp
+@@ -946,7 +946,7 @@ Status CameraService::makeClient(const sp<CameraService>& cameraService,
+         int api1CameraId, int facing, int sensorOrientation, int clientPid, uid_t clientUid,
+         int servicePid, std::pair<int, IPCTransport> deviceVersionAndTransport,
+         apiLevel effectiveApiLevel, bool overrideForPerfClass, bool overrideToPortrait,
+-        bool forceSlowJpegMode, /*out*/sp<BasicClient>* client) {
++        /*out*/sp<BasicClient>* client) {
+     // For HIDL devices
+     if (deviceVersionAndTransport.second == IPCTransport::HIDL) {
+         // Create CameraClient based on device version reported by the HAL.
+@@ -979,9 +979,9 @@ Status CameraService::makeClient(const sp<CameraService>& cameraService,
+         sp<ICameraClient> tmp = static_cast<ICameraClient*>(cameraCb.get());
+         *client = new Camera2Client(cameraService, tmp, packageName, featureId,
+                 cameraId, api1CameraId, facing, sensorOrientation, clientPid, clientUid,
+-                servicePid, overrideForPerfClass, overrideToPortrait, forceSlowJpegMode);
+-        ALOGI("%s: Camera1 API (legacy), override to portrait %d, forceSlowJpegMode %d",
+-                __FUNCTION__, overrideToPortrait, forceSlowJpegMode);
++                servicePid, overrideForPerfClass, overrideToPortrait);
++        ALOGI("%s: Camera1 API (legacy), override to portrait %d", __FUNCTION__,
++                overrideToPortrait);
+     } else { // Camera2 API route
+         sp<hardware::camera2::ICameraDeviceCallbacks> tmp =
+                 static_cast<hardware::camera2::ICameraDeviceCallbacks*>(cameraCb.get());
+@@ -1078,8 +1078,7 @@ Status CameraService::initializeShimMetadata(int cameraId) {
+             sp<ICameraClient>{nullptr}, id, cameraId,
+             internalPackageName, /*systemNativeClient*/ false, {}, uid, USE_CALLING_PID,
+             API_1, /*shimUpdateOnly*/ true, /*oomScoreOffset*/ 0,
+-            /*targetSdkVersion*/ __ANDROID_API_FUTURE__, /*overrideToPortrait*/ true,
+-            /*forceSlowJpegMode*/false, /*out*/ tmp)
++            /*targetSdkVersion*/ __ANDROID_API_FUTURE__, /*overrideToPortrait*/ true, /*out*/ tmp)
+             ).isOk()) {
+         ALOGE("%s: Error initializing shim metadata: %s", __FUNCTION__, ret.toString8().string());
+     }
+@@ -1596,7 +1595,6 @@ Status CameraService::connect(
+         int clientPid,
+         int targetSdkVersion,
+         bool overrideToPortrait,
+-        bool forceSlowJpegMode,
+         /*out*/
+         sp<ICamera>* device) {
+ 
+@@ -1608,7 +1606,7 @@ Status CameraService::connect(
+     ret = connectHelper<ICameraClient,Client>(cameraClient, id, api1CameraId,
+             clientPackageName,/*systemNativeClient*/ false, {}, clientUid, clientPid, API_1,
+             /*shimUpdateOnly*/ false, /*oomScoreOffset*/ 0, targetSdkVersion,
+-            overrideToPortrait, forceSlowJpegMode, /*out*/client);
++            overrideToPortrait, /*out*/client);
+ 
+     if(!ret.isOk()) {
+         logRejected(id, CameraThreadState::getCallingPid(), String8(clientPackageName),
+@@ -1737,8 +1735,7 @@ Status CameraService::connectDevice(
+     ret = connectHelper<hardware::camera2::ICameraDeviceCallbacks,CameraDeviceClient>(cameraCb, id,
+             /*api1CameraId*/-1, clientPackageNameAdj, systemNativeClient,clientFeatureId,
+             clientUid, USE_CALLING_PID, API_2, /*shimUpdateOnly*/ false, oomScoreOffset,
+-            targetSdkVersion, overrideToPortrait, /*forceSlowJpegMode*/false,
+-            /*out*/client);
++            targetSdkVersion, overrideToPortrait, /*out*/client);
+ 
+     if(!ret.isOk()) {
+         logRejected(id, callingPid, String8(clientPackageNameAdj), ret.toString8());
+@@ -1800,8 +1797,7 @@ Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String8&
+         int api1CameraId, const String16& clientPackageNameMaybe, bool systemNativeClient,
+         const std::optional<String16>& clientFeatureId, int clientUid, int clientPid,
+         apiLevel effectiveApiLevel, bool shimUpdateOnly, int oomScoreOffset, int targetSdkVersion,
+-        bool overrideToPortrait, bool forceSlowJpegMode,
+-        /*out*/sp<CLIENT>& device) {
++        bool overrideToPortrait, /*out*/sp<CLIENT>& device) {
+     binder::Status ret = binder::Status::ok();
+ 
+     bool isNonSystemNdk = false;
+@@ -1917,8 +1913,7 @@ Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String8&
+                 clientFeatureId, cameraId, api1CameraId, facing, orientation,
+                 clientPid, clientUid, getpid(),
+                 deviceVersionAndTransport, effectiveApiLevel, overrideForPerfClass,
+-                overrideToPortrait, forceSlowJpegMode,
+-                /*out*/&tmp)).isOk()) {
++                overrideToPortrait, /*out*/&tmp)).isOk()) {
+             return ret;
+         }
+         client = static_cast<CLIENT*>(tmp.get());
+diff --git a/services/camera/libcameraservice/CameraService.h b/services/camera/libcameraservice/CameraService.h
+index 70293f4c5b..588cfc02b3 100644
+--- a/services/camera/libcameraservice/CameraService.h
++++ b/services/camera/libcameraservice/CameraService.h
+@@ -141,7 +141,7 @@ public:
+     virtual binder::Status     connect(const sp<hardware::ICameraClient>& cameraClient,
+             int32_t cameraId, const String16& clientPackageName,
+             int32_t clientUid, int clientPid, int targetSdkVersion,
+-            bool overrideToPortrait, bool forceSlowJpegMode,
++            bool overrideToPortrait,
+             /*out*/
+             sp<hardware::ICamera>* device) override;
+ 
+@@ -860,8 +860,7 @@ private:
+             int api1CameraId, const String16& clientPackageNameMaybe, bool systemNativeClient,
+             const std::optional<String16>& clientFeatureId, int clientUid, int clientPid,
+             apiLevel effectiveApiLevel, bool shimUpdateOnly, int scoreOffset, int targetSdkVersion,
+-            bool overrideToPortrait, bool forceSlowJpegMode,
+-            /*out*/sp<CLIENT>& device);
++            bool overrideToPortrait, /*out*/sp<CLIENT>& device);
+ 
+     // Lock guarding camera service state
+     Mutex               mServiceLock;
+@@ -1282,8 +1281,7 @@ private:
+             const String8& cameraId, int api1CameraId, int facing, int sensorOrientation,
+             int clientPid, uid_t clientUid, int servicePid,
+             std::pair<int, IPCTransport> deviceVersionAndIPCTransport, apiLevel effectiveApiLevel,
+-            bool overrideForPerfClass, bool overrideToPortrait, bool forceSlowJpegMode,
+-            /*out*/sp<BasicClient>* client);
++            bool overrideForPerfClass, bool overrideToPortrait, /*out*/sp<BasicClient>* client);
+ 
+     status_t checkCameraAccess(const String16& opPackageName);
+ 
+diff --git a/services/camera/libcameraservice/api1/Camera2Client.cpp b/services/camera/libcameraservice/api1/Camera2Client.cpp
+index ac073767d1..430c82b464 100644
+--- a/services/camera/libcameraservice/api1/Camera2Client.cpp
++++ b/services/camera/libcameraservice/api1/Camera2Client.cpp
+@@ -62,8 +62,7 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
+         uid_t clientUid,
+         int servicePid,
+         bool overrideForPerfClass,
+-        bool overrideToPortrait,
+-        bool forceSlowJpegMode):
++        bool overrideToPortrait):
+         Camera2ClientBase(cameraService, cameraClient, clientPackageName,
+                 false/*systemNativeClient - since no ndk for api1*/, clientFeatureId,
+                 cameraDeviceId, api1CameraId, cameraFacing, sensorOrientation, clientPid,
+@@ -79,9 +78,6 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
+ 
+     SharedParameters::Lock l(mParameters);
+     l.mParameters.state = Parameters::DISCONNECTED;
+-    if (forceSlowJpegMode) {
+-        l.mParameters.isSlowJpegModeForced = true;
+-    }
+ }
+ 
+ status_t Camera2Client::initialize(sp<CameraProviderManager> manager, const String8& monitorTags) {
+diff --git a/services/camera/libcameraservice/api1/Camera2Client.h b/services/camera/libcameraservice/api1/Camera2Client.h
+index bbad6d8ff8..8071bcbfa6 100644
+--- a/services/camera/libcameraservice/api1/Camera2Client.h
++++ b/services/camera/libcameraservice/api1/Camera2Client.h
+@@ -112,8 +112,7 @@ public:
+             uid_t clientUid,
+             int servicePid,
+             bool overrideForPerfClass,
+-            bool overrideToPortrait,
+-            bool forceSlowJpegMode);
++            bool overrideToPortrait);
+ 
+     virtual ~Camera2Client();
+ 
+diff --git a/services/camera/libcameraservice/api1/client2/Parameters.cpp b/services/camera/libcameraservice/api1/client2/Parameters.cpp
+index 50f1a7a87a..123cd757e8 100644
+--- a/services/camera/libcameraservice/api1/client2/Parameters.cpp
++++ b/services/camera/libcameraservice/api1/client2/Parameters.cpp
+@@ -984,8 +984,9 @@ status_t Parameters::initialize(CameraDeviceBase *device) {
+     Size maxJpegSize = getMaxSize(getAvailableJpegSizes());
+     int64_t minFrameDurationNs = getJpegStreamMinFrameDurationNs(maxJpegSize);
+ 
+-    slowJpegMode = isSlowJpegModeForced || minFrameDurationNs > kSlowJpegModeThreshold;
+-    if (slowJpegMode) {
++    slowJpegMode = false;
++    if (minFrameDurationNs > kSlowJpegModeThreshold) {
++        slowJpegMode = true;
+         // Slow jpeg devices does not support video snapshot without
+         // slowing down preview.
+         // TODO: support video size video snapshot only?
+@@ -2082,7 +2083,7 @@ status_t Parameters::set(const String8& paramString) {
+     paramsFlattened = newParams.flatten();
+     params = newParams;
+ 
+-    slowJpegMode = isSlowJpegModeForced;
++    slowJpegMode = false;
+     Size pictureSize = { pictureWidth, pictureHeight };
+     bool zslFrameRateSupported = false;
+     int64_t jpegMinFrameDurationNs = getJpegStreamMinFrameDurationNs(pictureSize);
+diff --git a/services/camera/libcameraservice/api1/client2/Parameters.h b/services/camera/libcameraservice/api1/client2/Parameters.h
+index afad024c88..cbe62a7754 100644
+--- a/services/camera/libcameraservice/api1/client2/Parameters.h
++++ b/services/camera/libcameraservice/api1/client2/Parameters.h
+@@ -182,8 +182,6 @@ struct Parameters {
+     bool isDeviceZslSupported;
+     // Whether the device supports geometric distortion correction
+     bool isDistortionCorrectionSupported;
+-    // Whether slowJpegMode is forced regardless of jpeg stream FPS
+-    bool isSlowJpegModeForced;
+ 
+     // Overall camera state
+     enum State {
+diff --git a/services/camera/libcameraservice/api2/CameraOfflineSessionClient.cpp b/services/camera/libcameraservice/api2/CameraOfflineSessionClient.cpp
+index 2810667cde..0f31c6656e 100644
+--- a/services/camera/libcameraservice/api2/CameraOfflineSessionClient.cpp
++++ b/services/camera/libcameraservice/api2/CameraOfflineSessionClient.cpp
+@@ -92,6 +92,7 @@ void CameraOfflineSessionClient::setStreamUseCaseOverrides(
+ void CameraOfflineSessionClient::clearStreamUseCaseOverrides() {
+ }
+ 
++
+ status_t CameraOfflineSessionClient::dump(int fd, const Vector<String16>& args) {
+     return BasicClient::dump(fd, args);
+ }
+diff --git a/services/camera/libcameraservice/libcameraservice_fuzzer/camera_service_fuzzer.cpp b/services/camera/libcameraservice/libcameraservice_fuzzer/camera_service_fuzzer.cpp
+index 120d43de82..09f8eb601a 100644
+--- a/services/camera/libcameraservice/libcameraservice_fuzzer/camera_service_fuzzer.cpp
++++ b/services/camera/libcameraservice/libcameraservice_fuzzer/camera_service_fuzzer.cpp
+@@ -321,7 +321,6 @@ void CameraFuzzer::invokeCameraAPIs() {
+         rc = mCameraService->connect(this, cameraId, String16(),
+                 android::CameraService::USE_CALLING_UID, android::CameraService::USE_CALLING_PID,
+                 /*targetSdkVersion*/__ANDROID_API_FUTURE__, /*overrideToPortrait*/true,
+-                /*forceSlowJpegMode*/false,
+                 &cameraDevice);
+         if (!rc.isOk()) {
+             // camera not connected
+-- 
+2.40.1
+
