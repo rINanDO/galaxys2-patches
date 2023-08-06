@@ -7,15 +7,6 @@ AOSPBRANCH="refs/tags/android-13.0.0_r61"
 LOSBRANCH="github/lineage-20.0"
 EBRANCH="e/v1-t"
 
-echo "======= packages/modules/Permission =========="
-cd "$ANDROIDDIR/packages/modules/Permission"
-git checkout $EBRANCH
-
-echo
-echo "======= packages/modules/Bluetooth =========="
-cd "$ANDROIDDIR/packages/modules/Bluetooth"
-git checkout $LOSBRANCH
-
 echo
 echo "======= system/core =========="
 cd "$ANDROIDDIR/system/core"

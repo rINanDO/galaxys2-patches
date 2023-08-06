@@ -7,15 +7,6 @@ AOSPBRANCH="refs/tags/android-13.0.0_r61"
 LOSBRANCH="github/lineage-20.0"
 EBRANCH="e/v1-t"
 
-echo "======= packages/modules/Permission -- SKIP =========="
-cd "$ANDROIDDIR/packages/modules/Permission"
-git checkout $EBRANCH
-
-echo
-echo "======= packages/modules/Bluetooth -- CHECK APEX SCRIPT PATCH -- =========="
-cd "$ANDROIDDIR/packages/modules/Bluetooth"
-git checkout $LOSBRANCH
-
 echo
 echo "======= system/core =========="
 cd "$ANDROIDDIR/system/core"
@@ -129,16 +120,17 @@ git am --signoff < "$PATCHESDIR/frameworks_base/0020-ColorFade-fix-EGL-crash-on-
 git am --signoff < "$PATCHESDIR/frameworks_base/0021-DisplayPowerController-Make-colorfade-configurable-v.patch"
 git am --signoff < "$PATCHESDIR/frameworks_base/0022-StorageManagerService-Storage.xml-Bring-back-XML-for.patch"
 git am --signoff < "$PATCHESDIR/frameworks_base/0023-frameworks-base-Enable-Aggressive-trim-settings.patch"
+
 echo
-echo "======= vendor/lineage -- FIX CAMERA PATCHES =========="
+echo "======= vendor/lineage =========="
 cd "$ANDROIDDIR/vendor/lineage"
-git checkout $LOSBRANCH
+git checkout $EBRANCH
 git am --signoff < "$PATCHESDIR/vendor_lineage/0001-kernel-Add-BOARD_CUSTOM_KERNEL_MK-support.patch"
 git am --signoff < "$PATCHESDIR/vendor_lineage/0002-kernel-Bring-back-fuse-ld-lld-from-CFLAGS.patch"
-# FIX THIS git am --signoff < "$PATCHESDIR/vendor_lineage/0003-config-Add-Legacy-QCom-Camera-HAL1-support.patch"
-git am --signoff < "$PATCHESDIR/vendor_lineage/0004-config-Add-direct-connect-rule-support-for-Netd.patch"
-git am --signoff < "$PATCHESDIR/vendor_lineage/0005-config-Add-Process-SDK-version-override-support.patch"
-git am --signoff < "$PATCHESDIR/vendor_lineage/0006-config-Override-memfd-backport-support.patch"
+git am --signoff < "$PATCHESDIR/vendor_lineage/0003-config-Add-direct-connect-rule-support-for-Netd.patch"
+git am --signoff < "$PATCHESDIR/vendor_lineage/0004-config-Add-Process-SDK-version-override-support.patch"
+git am --signoff < "$PATCHESDIR/vendor_lineage/0005-config-Override-memfd-backport-support.patch"
+git am --signoff < "$PATCHESDIR/vendor_lineage/0006-config-Add-Legacy-QCom-Camera-HAL1-support.patch"
 
 echo
 echo "======= packages/modules/adb =========="
