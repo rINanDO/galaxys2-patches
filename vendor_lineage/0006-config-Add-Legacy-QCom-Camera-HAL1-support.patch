@@ -1,7 +1,7 @@
-From 7b061e885c8c66ccc9397230d6760ac73d54fbf2 Mon Sep 17 00:00:00 2001
+From 061a1f41508ff7513fb40123b821ab9169e89cea Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Sat, 5 Nov 2022 18:19:50 +0100
-Subject: [PATCH 3/6] config: Add Legacy (QCom) Camera HAL1 support
+Subject: [PATCH 6/6] config: Add Legacy (QCom) Camera HAL1 support
 
 This effectively reverted the following commits:
 - config: Remove TARGET_SPECIFIC_CAMERA_PARAMETER_LIBRARY 1cfc6cb
@@ -11,13 +11,14 @@ This effectively reverted the following commits:
 
 Change-Id: Ic61e46451ccd63330ca74628c62652047589d13f
 Change-Id: If19685f28fc9c3dd2a1d6c6a1f32ee4b12104b82
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- build/soong/Android.bp     | 103 +++++++++++++++++++++++++++++++++++++++++++++
- config/BoardConfigSoong.mk |  19 +++++++++
+ build/soong/Android.bp     | 103 +++++++++++++++++++++++++++++++++++++
+ config/BoardConfigSoong.mk |  19 +++++++
  2 files changed, 122 insertions(+)
 
 diff --git a/build/soong/Android.bp b/build/soong/Android.bp
-index 870d3b7..32951e8 100644
+index 4a92ac70..ddf42c99 100644
 --- a/build/soong/Android.bp
 +++ b/build/soong/Android.bp
 @@ -50,6 +50,109 @@ cc_library_headers {
@@ -129,12 +130,12 @@ index 870d3b7..32951e8 100644
 +
  // Target platform agnostic config modules
  soong_config_module_type {
-     name: "gralloc_10_usage_bits",
+     name: "aapt_version_code",
 diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
-index 1556e2c..055083d 100644
+index 3ce995c5..1859d06e 100644
 --- a/config/BoardConfigSoong.mk
 +++ b/config/BoardConfigSoong.mk
-@@ -53,6 +53,25 @@ SOONG_CONFIG_lineageQcomVars += \
+@@ -63,6 +63,25 @@ SOONG_CONFIG_lineageQcomVars += \
      qcom_display_headers_namespace
  endif
  
@@ -158,8 +159,8 @@ index 1556e2c..055083d 100644
 +
 +
  # Soong bool variables
+ SOONG_CONFIG_lineageGlobalVars_gralloc_handle_has_custom_content_md_reserved_size := $(TARGET_GRALLOC_HANDLE_HAS_CUSTOM_CONTENT_MD_RESERVED_SIZE)
  SOONG_CONFIG_lineageGlobalVars_gralloc_handle_has_reserved_size := $(TARGET_GRALLOC_HANDLE_HAS_RESERVED_SIZE)
- SOONG_CONFIG_lineageGlobalVars_uses_egl_display_array := $(TARGET_USES_EGL_DISPLAY_ARRAY)
 -- 
-2.7.4
+2.40.1
 
