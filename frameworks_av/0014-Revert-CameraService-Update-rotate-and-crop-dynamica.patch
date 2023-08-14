@@ -1,0 +1,330 @@
+From 0dd842cef26a4becc618faa066bd24cc6b3d508a Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 5 Aug 2023 17:28:03 +0200
+Subject: [PATCH 14/47] Revert "CameraService: Update rotate and crop
+ dynamically on fold/unfold."
+
+This reverts commit c809976b6fa66ba9b4952d05ea550af96319624c.
+---
+ .../common/Camera2ClientBase.cpp              | 23 -------------
+ .../common/Camera2ClientBase.h                |  1 -
+ .../common/CameraOfflineSessionBase.h         |  4 ---
+ .../device3/Camera3Device.cpp                 |  3 +-
+ .../libcameraservice/device3/Camera3Device.h  |  3 --
+ .../device3/Camera3OutputUtils.cpp            | 34 +++++++------------
+ .../device3/Camera3OutputUtils.h              |  1 -
+ .../device3/aidl/AidlCamera3Device.cpp        |  4 +--
+ .../aidl/AidlCamera3OfflineSession.cpp        |  6 ++--
+ .../device3/hidl/HidlCamera3Device.cpp        | 12 +++----
+ .../hidl/HidlCamera3OfflineSession.cpp        |  9 ++---
+ 11 files changed, 27 insertions(+), 73 deletions(-)
+
+diff --git a/services/camera/libcameraservice/common/Camera2ClientBase.cpp b/services/camera/libcameraservice/common/Camera2ClientBase.cpp
+index bf6be64ac9..ad24392de0 100644
+--- a/services/camera/libcameraservice/common/Camera2ClientBase.cpp
++++ b/services/camera/libcameraservice/common/Camera2ClientBase.cpp
+@@ -342,29 +342,6 @@ void Camera2ClientBase<TClientBase>::notifyError(
+           resultExtras.requestId);
+ }
+ 
+-template <typename TClientBase>
+-void Camera2ClientBase<TClientBase>::notifyPhysicalCameraChange(const std::string &physicalId) {
+-    // We're only interested in this notification if overrideToPortrait is turned on.
+-    if (!TClientBase::mOverrideToPortrait) {
+-        return;
+-    }
+-
+-    String8 physicalId8(physicalId.c_str());
+-    auto physicalCameraMetadata = mDevice->infoPhysical(physicalId8);
+-    auto orientationEntry = physicalCameraMetadata.find(ANDROID_SENSOR_ORIENTATION);
+-
+-    if (orientationEntry.count == 1) {
+-        int orientation = orientationEntry.data.i32[0];
+-        int rotateAndCropMode = ANDROID_SCALER_ROTATE_AND_CROP_NONE;
+-
+-        if (orientation == 0 || orientation == 180) {
+-            rotateAndCropMode = ANDROID_SCALER_ROTATE_AND_CROP_90;
+-        }
+-
+-        static_cast<TClientBase *>(this)->setRotateAndCropOverride(rotateAndCropMode);
+-    }
+-}
+-
+ template <typename TClientBase>
+ status_t Camera2ClientBase<TClientBase>::notifyActive(float maxPreviewFps) {
+     if (!mDeviceActive) {
+diff --git a/services/camera/libcameraservice/common/Camera2ClientBase.h b/services/camera/libcameraservice/common/Camera2ClientBase.h
+index 705fe69765..d2dcdb1ab0 100644
+--- a/services/camera/libcameraservice/common/Camera2ClientBase.h
++++ b/services/camera/libcameraservice/common/Camera2ClientBase.h
+@@ -75,7 +75,6 @@ public:
+ 
+     virtual void          notifyError(int32_t errorCode,
+                                       const CaptureResultExtras& resultExtras);
+-    virtual void          notifyPhysicalCameraChange(const std::string &physicalId) override;
+     // Returns errors on app ops permission failures
+     virtual status_t      notifyActive(float maxPreviewFps);
+     virtual void          notifyIdle(int64_t /*requestCount*/, int64_t /*resultErrorCount*/,
+diff --git a/services/camera/libcameraservice/common/CameraOfflineSessionBase.h b/services/camera/libcameraservice/common/CameraOfflineSessionBase.h
+index 63abcf0015..f39b92a48c 100644
+--- a/services/camera/libcameraservice/common/CameraOfflineSessionBase.h
++++ b/services/camera/libcameraservice/common/CameraOfflineSessionBase.h
+@@ -40,10 +40,6 @@ class NotificationListener : public virtual RefBase {
+     // Required for API 1 and 2
+     virtual void notifyError(int32_t errorCode,
+                              const CaptureResultExtras &resultExtras) = 0;
+-
+-    // Optional for API 1 and 2
+-    virtual void notifyPhysicalCameraChange(const std::string &/*physicalId*/) {}
+-
+     // May return an error since it checks appops
+     virtual status_t notifyActive(float maxPreviewFps) = 0;
+     virtual void notifyIdle(int64_t requestCount, int64_t resultError, bool deviceError,
+diff --git a/services/camera/libcameraservice/device3/Camera3Device.cpp b/services/camera/libcameraservice/device3/Camera3Device.cpp
+index d033395345..1309369f04 100644
+--- a/services/camera/libcameraservice/device3/Camera3Device.cpp
++++ b/services/camera/libcameraservice/device3/Camera3Device.cpp
+@@ -96,8 +96,7 @@ Camera3Device::Camera3Device(const String8 &id, bool overrideForPerfClass, bool
+         mLastTemplateId(-1),
+         mNeedFixupMonochromeTags(false),
+         mOverrideForPerfClass(overrideForPerfClass),
+-        mOverrideToPortrait(overrideToPortrait),
+-        mActivePhysicalId("")
++        mOverrideToPortrait(overrideToPortrait)
+ {
+     ATRACE_CALL();
+     ALOGV("%s: Created device for camera %s", __FUNCTION__, mId.string());
+diff --git a/services/camera/libcameraservice/device3/Camera3Device.h b/services/camera/libcameraservice/device3/Camera3Device.h
+index cd214f623f..7ffff310d4 100644
+--- a/services/camera/libcameraservice/device3/Camera3Device.h
++++ b/services/camera/libcameraservice/device3/Camera3Device.h
+@@ -1357,9 +1357,6 @@ class Camera3Device :
+     // app compatibility reasons.
+     bool mOverrideToPortrait;
+ 
+-    // Current active physical id of the logical multi-camera, if any
+-    std::string mActivePhysicalId;
+-
+     // The current minimum expected frame duration based on AE_TARGET_FPS_RANGE
+     nsecs_t mMinExpectedDuration = 0;
+     // Whether the camera device runs at fixed frame rate based on AE_MODE and
+diff --git a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
+index 792756ab61..65693956ae 100644
+--- a/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
++++ b/services/camera/libcameraservice/device3/Camera3OutputUtils.cpp
+@@ -521,35 +521,27 @@ void processCaptureResult(CaptureOutputStates& states, const camera_capture_resu
+         if (result->partial_result != 0)
+             request.resultExtras.partialResultCount = result->partial_result;
+ 
+-        if (result->result != nullptr) {
++        if ((result->result != nullptr) && !states.legacyClient && !states.overrideToPortrait) {
+             camera_metadata_ro_entry entry;
+             auto ret = find_camera_metadata_ro_entry(result->result,
+                     ANDROID_LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID, &entry);
+             if ((ret == OK) && (entry.count > 0)) {
+                 std::string physicalId(reinterpret_cast<const char *>(entry.data.u8));
+-                if (!states.activePhysicalId.empty() && physicalId != states.activePhysicalId) {
+-                    states.listener->notifyPhysicalCameraChange(physicalId);
+-                }
+-                states.activePhysicalId = physicalId;
+-
+-                if (!states.legacyClient && !states.overrideToPortrait) {
+-                    auto deviceInfo = states.physicalDeviceInfoMap.find(physicalId);
+-                    if (deviceInfo != states.physicalDeviceInfoMap.end()) {
+-                        auto orientation = deviceInfo->second.find(ANDROID_SENSOR_ORIENTATION);
+-                        if (orientation.count > 0) {
+-                            ret = CameraUtils::getRotationTransform(deviceInfo->second,
+-                                    OutputConfiguration::MIRROR_MODE_AUTO, &request.transform);
+-                            if (ret != OK) {
+-                                ALOGE("%s: Failed to calculate current stream transformation: %s "
+-                                        "(%d)", __FUNCTION__, strerror(-ret), ret);
+-                            }
+-                        } else {
+-                            ALOGE("%s: Physical device orientation absent!", __FUNCTION__);
++                auto deviceInfo = states.physicalDeviceInfoMap.find(physicalId);
++                if (deviceInfo != states.physicalDeviceInfoMap.end()) {
++                    auto orientation = deviceInfo->second.find(ANDROID_SENSOR_ORIENTATION);
++                    if (orientation.count > 0) {
++                        ret = CameraUtils::getRotationTransform(deviceInfo->second,
++                                OutputConfiguration::MIRROR_MODE_AUTO, &request.transform);
++                        if (ret != OK) {
++                            ALOGE("%s: Failed to calculate current stream transformation: %s (%d)",
++                                    __FUNCTION__, strerror(-ret), ret);
+                         }
+                     } else {
+-                        ALOGE("%s: Physical device not found in device info map found!",
+-                                __FUNCTION__);
++                        ALOGE("%s: Physical device orientation absent!", __FUNCTION__);
+                     }
++                } else {
++                    ALOGE("%s: Physical device not found in device info map found!", __FUNCTION__);
+                 }
+             }
+         }
+diff --git a/services/camera/libcameraservice/device3/Camera3OutputUtils.h b/services/camera/libcameraservice/device3/Camera3OutputUtils.h
+index d5328c5ad4..019c8a8c11 100644
+--- a/services/camera/libcameraservice/device3/Camera3OutputUtils.h
++++ b/services/camera/libcameraservice/device3/Camera3OutputUtils.h
+@@ -108,7 +108,6 @@ namespace camera3 {
+         nsecs_t& minFrameDuration;
+         bool& isFixedFps;
+         bool overrideToPortrait;
+-        std::string &activePhysicalId;
+     };
+ 
+     void processCaptureResult(CaptureOutputStates& states, const camera_capture_result *result);
+diff --git a/services/camera/libcameraservice/device3/aidl/AidlCamera3Device.cpp b/services/camera/libcameraservice/device3/aidl/AidlCamera3Device.cpp
+index 3fa72993c1..1e103f2522 100644
+--- a/services/camera/libcameraservice/device3/aidl/AidlCamera3Device.cpp
++++ b/services/camera/libcameraservice/device3/aidl/AidlCamera3Device.cpp
+@@ -376,7 +376,7 @@ status_t AidlCamera3Device::initialize(sp<CameraProviderManager> manager,
+         mDistortionMappers, mZoomRatioMappers, mRotateAndCropMappers,
+         mTagMonitor, mInputStream, mOutputStreams, mSessionStatsBuilder, listener, *this,
+         *this, *(mInterface), mLegacyClient, mMinExpectedDuration, mIsFixedFps,
+-        mOverrideToPortrait, mActivePhysicalId}, mResultMetadataQueue
++        mOverrideToPortrait}, mResultMetadataQueue
+     };
+ 
+     for (const auto& result : results) {
+@@ -418,7 +418,7 @@ status_t AidlCamera3Device::initialize(sp<CameraProviderManager> manager,
+         mDistortionMappers, mZoomRatioMappers, mRotateAndCropMappers,
+         mTagMonitor, mInputStream, mOutputStreams, mSessionStatsBuilder, listener, *this,
+         *this, *(mInterface), mLegacyClient, mMinExpectedDuration, mIsFixedFps,
+-        mOverrideToPortrait, mActivePhysicalId}, mResultMetadataQueue
++        mOverrideToPortrait}, mResultMetadataQueue
+     };
+     for (const auto& msg : msgs) {
+         camera3::notify(states, msg);
+diff --git a/services/camera/libcameraservice/device3/aidl/AidlCamera3OfflineSession.cpp b/services/camera/libcameraservice/device3/aidl/AidlCamera3OfflineSession.cpp
+index 4b1fb1d801..9ce0622fdc 100644
+--- a/services/camera/libcameraservice/device3/aidl/AidlCamera3OfflineSession.cpp
++++ b/services/camera/libcameraservice/device3/aidl/AidlCamera3OfflineSession.cpp
+@@ -111,7 +111,6 @@ status_t AidlCamera3OfflineSession::initialize(wp<NotificationListener> listener
+         listener = mListener.promote();
+     }
+ 
+-    std::string activePhysicalId(""); // Unused
+     AidlCaptureOutputStates states {
+       {mId,
+         mOfflineReqsLock, mLastCompletedRegularFrameNumber,
+@@ -126,7 +125,7 @@ status_t AidlCamera3OfflineSession::initialize(wp<NotificationListener> listener
+         mDistortionMappers, mZoomRatioMappers, mRotateAndCropMappers,
+         mTagMonitor, mInputStream, mOutputStreams, mSessionStatsBuilder, listener, *this,
+         *this, mBufferRecords, /*legacyClient*/ false, mMinExpectedDuration, mIsFixedFps,
+-        /*overrideToPortrait*/false, activePhysicalId}, mResultMetadataQueue
++        /*overrideToPortrait*/false}, mResultMetadataQueue
+     };
+ 
+     std::lock_guard<std::mutex> lock(mProcessCaptureResultLock);
+@@ -158,7 +157,6 @@ status_t AidlCamera3OfflineSession::initialize(wp<NotificationListener> listener
+         listener = mListener.promote();
+     }
+ 
+-    std::string activePhysicalId(""); // Unused
+     AidlCaptureOutputStates states {
+       {mId,
+         mOfflineReqsLock, mLastCompletedRegularFrameNumber,
+@@ -173,7 +171,7 @@ status_t AidlCamera3OfflineSession::initialize(wp<NotificationListener> listener
+         mDistortionMappers, mZoomRatioMappers, mRotateAndCropMappers,
+         mTagMonitor, mInputStream, mOutputStreams, mSessionStatsBuilder, listener, *this,
+         *this, mBufferRecords, /*legacyClient*/ false, mMinExpectedDuration, mIsFixedFps,
+-        /*overrideToPortrait*/false, activePhysicalId}, mResultMetadataQueue
++        /*overrideToPortrait*/false}, mResultMetadataQueue
+     };
+     for (const auto& msg : msgs) {
+         camera3::notify(states, msg);
+diff --git a/services/camera/libcameraservice/device3/hidl/HidlCamera3Device.cpp b/services/camera/libcameraservice/device3/hidl/HidlCamera3Device.cpp
+index 382b2875de..44c60cfe69 100644
+--- a/services/camera/libcameraservice/device3/hidl/HidlCamera3Device.cpp
++++ b/services/camera/libcameraservice/device3/hidl/HidlCamera3Device.cpp
+@@ -365,8 +365,8 @@ hardware::Return<void> HidlCamera3Device::processCaptureResult_3_4(
+         mNumPartialResults, mVendorTagId, mDeviceInfo, mPhysicalDeviceInfoMap,
+         mDistortionMappers, mZoomRatioMappers, mRotateAndCropMappers,
+         mTagMonitor, mInputStream, mOutputStreams, mSessionStatsBuilder, listener, *this, *this,
+-        *mInterface, mLegacyClient, mMinExpectedDuration, mIsFixedFps, mOverrideToPortrait,
+-        mActivePhysicalId}, mResultMetadataQueue
++        *mInterface, mLegacyClient, mMinExpectedDuration, mIsFixedFps, mOverrideToPortrait},
++        mResultMetadataQueue
+     };
+ 
+     //HidlCaptureOutputStates hidlStates {
+@@ -428,8 +428,8 @@ hardware::Return<void> HidlCamera3Device::processCaptureResult(
+         mNumPartialResults, mVendorTagId, mDeviceInfo, mPhysicalDeviceInfoMap,
+         mDistortionMappers, mZoomRatioMappers, mRotateAndCropMappers,
+         mTagMonitor, mInputStream, mOutputStreams, mSessionStatsBuilder, listener, *this, *this,
+-        *mInterface, mLegacyClient, mMinExpectedDuration, mIsFixedFps, mOverrideToPortrait,
+-        mActivePhysicalId}, mResultMetadataQueue
++        *mInterface, mLegacyClient, mMinExpectedDuration, mIsFixedFps, mOverrideToPortrait},
++        mResultMetadataQueue
+     };
+ 
+     for (const auto& result : results) {
+@@ -476,8 +476,8 @@ hardware::Return<void> HidlCamera3Device::notifyHelper(
+         mNumPartialResults, mVendorTagId, mDeviceInfo, mPhysicalDeviceInfoMap,
+         mDistortionMappers, mZoomRatioMappers, mRotateAndCropMappers,
+         mTagMonitor, mInputStream, mOutputStreams, mSessionStatsBuilder, listener, *this, *this,
+-        *mInterface, mLegacyClient, mMinExpectedDuration, mIsFixedFps, mOverrideToPortrait,
+-        mActivePhysicalId}, mResultMetadataQueue
++        *mInterface, mLegacyClient, mMinExpectedDuration, mIsFixedFps, mOverrideToPortrait},
++        mResultMetadataQueue
+     };
+     for (const auto& msg : msgs) {
+         camera3::notify(states, msg);
+diff --git a/services/camera/libcameraservice/device3/hidl/HidlCamera3OfflineSession.cpp b/services/camera/libcameraservice/device3/hidl/HidlCamera3OfflineSession.cpp
+index 0a6a6f73b0..c7f8fa1497 100644
+--- a/services/camera/libcameraservice/device3/hidl/HidlCamera3OfflineSession.cpp
++++ b/services/camera/libcameraservice/device3/hidl/HidlCamera3OfflineSession.cpp
+@@ -92,7 +92,6 @@ hardware::Return<void> HidlCamera3OfflineSession::processCaptureResult_3_4(
+         listener = mListener.promote();
+     }
+ 
+-    std::string activePhysicalId("");
+     HidlCaptureOutputStates states {
+       {mId,
+         mOfflineReqsLock, mLastCompletedRegularFrameNumber,
+@@ -107,7 +106,7 @@ hardware::Return<void> HidlCamera3OfflineSession::processCaptureResult_3_4(
+         mDistortionMappers, mZoomRatioMappers, mRotateAndCropMappers,
+         mTagMonitor, mInputStream, mOutputStreams, mSessionStatsBuilder, listener, *this, *this,
+         mBufferRecords, /*legacyClient*/ false, mMinExpectedDuration, mIsFixedFps,
+-        /*overrideToPortrait*/false, activePhysicalId}, mResultMetadataQueue
++        /*overrideToPortrait*/false}, mResultMetadataQueue
+     };
+ 
+     std::lock_guard<std::mutex> lock(mProcessCaptureResultLock);
+@@ -134,7 +133,6 @@ hardware::Return<void> HidlCamera3OfflineSession::processCaptureResult(
+ 
+     hardware::hidl_vec<hardware::camera::device::V3_4::PhysicalCameraMetadata> noPhysMetadata;
+ 
+-    std::string activePhysicalId("");
+     HidlCaptureOutputStates states {
+       {mId,
+         mOfflineReqsLock, mLastCompletedRegularFrameNumber,
+@@ -149,7 +147,7 @@ hardware::Return<void> HidlCamera3OfflineSession::processCaptureResult(
+         mDistortionMappers, mZoomRatioMappers, mRotateAndCropMappers,
+         mTagMonitor, mInputStream, mOutputStreams, mSessionStatsBuilder, listener, *this, *this,
+         mBufferRecords, /*legacyClient*/ false, mMinExpectedDuration, mIsFixedFps,
+-        /*overrideToPortrait*/false, activePhysicalId}, mResultMetadataQueue
++        /*overrideToPortrait*/false}, mResultMetadataQueue
+     };
+ 
+     std::lock_guard<std::mutex> lock(mProcessCaptureResultLock);
+@@ -171,7 +169,6 @@ hardware::Return<void> HidlCamera3OfflineSession::notify(
+         listener = mListener.promote();
+     }
+ 
+-    std::string activePhysicalId("");
+     HidlCaptureOutputStates states {
+       {mId,
+         mOfflineReqsLock, mLastCompletedRegularFrameNumber,
+@@ -186,7 +183,7 @@ hardware::Return<void> HidlCamera3OfflineSession::notify(
+         mDistortionMappers, mZoomRatioMappers, mRotateAndCropMappers,
+         mTagMonitor, mInputStream, mOutputStreams, mSessionStatsBuilder, listener, *this, *this,
+         mBufferRecords, /*legacyClient*/ false, mMinExpectedDuration, mIsFixedFps,
+-        /*overrideToPortrait*/false, activePhysicalId}, mResultMetadataQueue
++        /*overrideToPortrait*/false}, mResultMetadataQueue
+     };
+     for (const auto& msg : msgs) {
+         camera3::notify(states, msg);
+-- 
+2.40.1
+

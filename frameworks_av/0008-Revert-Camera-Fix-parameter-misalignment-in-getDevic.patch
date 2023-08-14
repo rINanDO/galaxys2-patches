@@ -1,16 +1,18 @@
-From 402df0729e61885dd2083ffbc12199a40a94d37f Mon Sep 17 00:00:00 2001
+From 47ada6dca7f420226625e05b8d33e0870e46a62c Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Fri, 12 May 2023 23:00:43 +0200
-Subject: [PATCH 08/39] Revert "Camera: Fix parameter misalignment in
+Subject: [PATCH 08/47] Revert "Camera: Fix parameter misalignment in
  getDeviceVersion"
 
 This reverts commit f221e8dd72c325f15437ed4ba32916393e587461.
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  services/camera/libcameraservice/CameraService.cpp | 5 ++---
  1 file changed, 2 insertions(+), 3 deletions(-)
 
 diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
-index f31c0a7..78eb1b6 100644
+index f12498173c..4b6c63b2b1 100644
 --- a/services/camera/libcameraservice/CameraService.cpp
 +++ b/services/camera/libcameraservice/CameraService.cpp
 @@ -335,9 +335,8 @@ void CameraService::filterSPerfClassCharacteristicsLocked() {
@@ -26,5 +28,5 @@ index f31c0a7..78eb1b6 100644
              ALOGE("%s: Unable to get camera device \"%s\" facing", __FUNCTION__, cameraId.c_str());
              return;
 -- 
-2.7.4
+2.40.1
 

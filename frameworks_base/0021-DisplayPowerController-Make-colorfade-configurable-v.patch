@@ -1,0 +1,39 @@
+From 29178c3ffc7566ea805cef72bd204eccc4414625 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 15 Jul 2021 08:46:58 +0200
+Subject: [PATCH 21/23] DisplayPowerController: Make colorfade configurable via
+ systemprop
+
+Set ro.displaypower.colorfade=false to disable colorfade.
+
+Change-Id: I63316b55cba2a6360b83999eefc9d3613aa1a7f0
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
+---
+ .../com/android/server/display/DisplayPowerController.java    | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/display/DisplayPowerController.java b/services/core/java/com/android/server/display/DisplayPowerController.java
+index 2d9f1399ba8c..e9ed31906b5e 100644
+--- a/services/core/java/com/android/server/display/DisplayPowerController.java
++++ b/services/core/java/com/android/server/display/DisplayPowerController.java
+@@ -108,6 +108,8 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
+         DisplayWhiteBalanceController.Callbacks {
+     private static final String SCREEN_ON_BLOCKED_TRACE_NAME = "Screen on blocked";
+     private static final String SCREEN_OFF_BLOCKED_TRACE_NAME = "Screen off blocked";
++    private static final boolean COLORFADE_ENABLED =
++            SystemProperties.getBoolean("ro.displaypower.colorfade", true);
+ 
+     private static final boolean DEBUG = false;
+     private static final boolean DEBUG_PRETEND_PROXIMITY_SENSOR_ABSENT = false;
+@@ -658,7 +660,7 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
+ 
+         setUpAutoBrightness(resources, handler);
+ 
+-        mColorFadeEnabled = !ActivityManager.isLowRamDeviceStatic();
++        mColorFadeEnabled = COLORFADE_ENABLED && !ActivityManager.isLowRamDeviceStatic();
+         mColorFadeFadesConfig = resources.getBoolean(
+                 com.android.internal.R.bool.config_animateScreenLights);
+ 
+-- 
+2.40.1
+

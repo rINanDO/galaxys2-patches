@@ -1,0 +1,38 @@
+From eed2197c06184d5f018e1b99c0d184ad10d099e3 Mon Sep 17 00:00:00 2001
+From: Khalvat-M <mmba313@gmail.com>
+Date: Wed, 22 Mar 2023 15:39:46 +0330
+Subject: [PATCH 04/23] Revert "DO NOT MERGE CameraManager: Enable override to
+ portrait by default for devices with the system property turned on."
+
+This reverts commit fccc2cb660132f8ee01eeb17d803cf93f4bd6afb.
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
+---
+ core/java/android/hardware/camera2/CameraManager.java | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/core/java/android/hardware/camera2/CameraManager.java b/core/java/android/hardware/camera2/CameraManager.java
+index 44761349a322..e8d33aa493e2 100644
+--- a/core/java/android/hardware/camera2/CameraManager.java
++++ b/core/java/android/hardware/camera2/CameraManager.java
+@@ -25,7 +25,7 @@ import android.annotation.SystemService;
+ import android.annotation.TestApi;
+ import android.app.compat.CompatChanges;
+ import android.compat.annotation.ChangeId;
+-import android.compat.annotation.EnabledSince;
++import android.compat.annotation.Disabled;
+ import android.compat.annotation.Overridable;
+ import android.content.Context;
+ import android.content.pm.PackageManager;
+@@ -115,7 +115,7 @@ public final class CameraManager {
+      */
+     @ChangeId
+     @Overridable
+-    @EnabledSince(targetSdkVersion = android.os.Build.VERSION_CODES.BASE)
++    @Disabled
+     @TestApi
+     public static final long OVERRIDE_FRONT_CAMERA_APP_COMPAT = 250678880L;
+ 
+-- 
+2.40.1
+

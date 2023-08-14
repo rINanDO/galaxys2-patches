@@ -1,0 +1,52 @@
+From efe357e2bafbdcd182cbb10942d48ea670fb8f6c Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 5 Nov 2022 21:06:14 +0100
+Subject: [PATCH 5/6] config: Override memfd backport support
+
+Change-Id: I2aefd0ea5e2515a4024dfb6c9dd08c1a26844d63
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
+---
+ build/soong/Android.bp     | 18 ++++++++++++++++++
+ config/BoardConfigSoong.mk |  3 +++
+ 2 files changed, 21 insertions(+)
+
+diff --git a/build/soong/Android.bp b/build/soong/Android.bp
+index 66d3f235..4a92ac70 100644
+--- a/build/soong/Android.bp
++++ b/build/soong/Android.bp
+@@ -396,3 +396,21 @@ target_process_sdk_version_overrides {
+         },
+     },
+ }
++
++// Memfd backport
++soong_config_module_type {
++    name: "has_memfd_backport",
++    module_type: "cc_defaults",
++    config_namespace: "lineageGlobalVars",
++    bool_variables: ["has_memfd_backport"],
++    properties: ["cppflags"],
++}
++
++has_memfd_backport {
++    name: "has_memfd_backport_defaults",
++    soong_config_variables: {
++        has_memfd_backport: {
++            cppflags: ["-DHAS_MEMFD_BACKPORT"],
++        },
++    },
++}
+diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
+index 195b4804..3ce995c5 100644
+--- a/config/BoardConfigSoong.mk
++++ b/config/BoardConfigSoong.mk
+@@ -116,3 +116,6 @@ SOONG_CONFIG_lineageGlobalVars_needs_netd_direct_connect_rule := $(TARGET_NEEDS_
+ 
+ SOONG_CONFIG_lineageGlobalVars += target_process_sdk_version_override
+ SOONG_CONFIG_lineageGlobalVars_target_process_sdk_version_override := $(TARGET_PROCESS_SDK_VERSION_OVERRIDE)
++
++SOONG_CONFIG_lineageGlobalVars += has_memfd_backport
++SOONG_CONFIG_lineageGlobalVars_has_memfd_backport := $(TARGET_HAS_MEMFD_BACKPORT)
+-- 
+2.40.1
+

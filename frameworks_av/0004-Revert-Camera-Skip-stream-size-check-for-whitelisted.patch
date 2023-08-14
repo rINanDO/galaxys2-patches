@@ -1,22 +1,22 @@
-From 01f4f7a884e62623dcb96cb8ccfaf45f2e4f1c11 Mon Sep 17 00:00:00 2001
+From e3ac62b1db4497b8ec1102d78e005ab94504f288 Mon Sep 17 00:00:00 2001
 From: Khalvat-M <mmba313@gmail.com>
 Date: Wed, 11 Jan 2023 06:50:13 +0330
-Subject: [PATCH 04/39] Revert "Camera: Skip stream size check for whitelisted
+Subject: [PATCH 04/47] Revert "Camera: Skip stream size check for whitelisted
  apps"
 
 This reverts commit 781a5b3d1d7386287b4a3adfc3f98dfd48e550fe.
 
 Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- .../libcameraservice/api2/CameraDeviceClient.cpp   | 14 ++------
- .../libcameraservice/api2/CameraDeviceClient.h     |  1 -
- .../libcameraservice/device3/Camera3Device.cpp     |  5 +++
- .../utils/SessionConfigurationUtils.cpp            | 41 +++-------------------
- .../utils/SessionConfigurationUtils.h              |  6 ++--
+ .../api2/CameraDeviceClient.cpp               | 14 ++-----
+ .../api2/CameraDeviceClient.h                 |  1 -
+ .../device3/Camera3Device.cpp                 |  5 +++
+ .../utils/SessionConfigurationUtils.cpp       | 41 +++----------------
+ .../utils/SessionConfigurationUtils.h         |  6 +--
  5 files changed, 16 insertions(+), 51 deletions(-)
 
 diff --git a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
-index 78dbf96..39f8d00 100644
+index df687ef162..1f8641473c 100644
 --- a/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
 +++ b/services/camera/libcameraservice/api2/CameraDeviceClient.cpp
 @@ -106,16 +106,8 @@ CameraDeviceClient::CameraDeviceClient(const sp<CameraService>& cameraService,
@@ -64,10 +64,10 @@ index 78dbf96..39f8d00 100644
          if (!res.isOk())
              return res;
 diff --git a/services/camera/libcameraservice/api2/CameraDeviceClient.h b/services/camera/libcameraservice/api2/CameraDeviceClient.h
-index 06b9562..6bb64d6 100644
+index d1a2f001aa..c95bb4a470 100644
 --- a/services/camera/libcameraservice/api2/CameraDeviceClient.h
 +++ b/services/camera/libcameraservice/api2/CameraDeviceClient.h
-@@ -328,7 +328,6 @@ private:
+@@ -331,7 +331,6 @@ private:
      static const int32_t REQUEST_ID_NONE = -1;
  
      int32_t mRequestIdCounter;
@@ -76,10 +76,10 @@ index 06b9562..6bb64d6 100644
      std::vector<std::string> mPhysicalCameraIds;
  
 diff --git a/services/camera/libcameraservice/device3/Camera3Device.cpp b/services/camera/libcameraservice/device3/Camera3Device.cpp
-index 48cc228..f10d41b 100644
+index 6fb7dfd71f..e55d724b9f 100644
 --- a/services/camera/libcameraservice/device3/Camera3Device.cpp
 +++ b/services/camera/libcameraservice/device3/Camera3Device.cpp
-@@ -438,6 +438,11 @@ ssize_t Camera3Device::getJpegBufferSize(const CameraMetadata &info, uint32_t wi
+@@ -441,6 +441,11 @@ ssize_t Camera3Device::getJpegBufferSize(const CameraMetadata &info, uint32_t wi
              (chosenMaxJpegResolution.width * chosenMaxJpegResolution.height);
      ssize_t jpegBufferSize = scaleFactor * (maxJpegBufferSize - kMinJpegBufferSize) +
              kMinJpegBufferSize;
@@ -92,7 +92,7 @@ index 48cc228..f10d41b 100644
  }
  
 diff --git a/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp b/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
-index b49f86c..7dde268 100644
+index b49f86c0e7..7dde268f07 100644
 --- a/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
 +++ b/services/camera/libcameraservice/utils/SessionConfigurationUtils.cpp
 @@ -150,7 +150,7 @@ int64_t euclidDistSquare(int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
@@ -179,7 +179,7 @@ index b49f86c..7dde268 100644
              if (!res.isOk())
                  return res;
 diff --git a/services/camera/libcameraservice/utils/SessionConfigurationUtils.h b/services/camera/libcameraservice/utils/SessionConfigurationUtils.h
-index 2bc55a8..a127c7b 100644
+index 2bc55a88bb..a127c7bdcb 100644
 --- a/services/camera/libcameraservice/utils/SessionConfigurationUtils.h
 +++ b/services/camera/libcameraservice/utils/SessionConfigurationUtils.h
 @@ -86,7 +86,7 @@ int64_t euclidDistSquare(int32_t x0, int32_t y0, int32_t x1, int32_t y1);
@@ -210,5 +210,5 @@ index 2bc55a8..a127c7b 100644
  StreamConfigurationPair getStreamConfigurationPair(const CameraMetadata &metadata);
  
 -- 
-2.7.4
+2.40.1
 

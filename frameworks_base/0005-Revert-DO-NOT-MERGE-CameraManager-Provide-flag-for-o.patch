@@ -1,0 +1,455 @@
+From b930d06f7a370ca4ac8b19b799cea0fb594b44cf Mon Sep 17 00:00:00 2001
+From: Khalvat-M <mmba313@gmail.com>
+Date: Wed, 22 Mar 2023 18:48:03 +0330
+Subject: [PATCH 05/23] Revert "DO NOT MERGE CameraManager: Provide flag for
+ overriding camera output to portrait."
+
+This reverts commit ddc70c75f35de7be6752b9138574445216c3aa0c.
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
+---
+ core/api/test-current.txt                     |   1 -
+ core/java/android/hardware/Camera.java        |  23 +--
+ .../hardware/camera2/CameraManager.java       |  43 +-----
+ core/jni/android_hardware_Camera.cpp          | 144 ++++++++++++------
+ .../integration/CameraBinderTest.java         |   9 +-
+ .../integration/CameraDeviceBinderTest.java   |   5 +-
+ 6 files changed, 110 insertions(+), 115 deletions(-)
+
+diff --git a/core/api/test-current.txt b/core/api/test-current.txt
+index 7046a2cd395f..14bf5320a438 100644
+--- a/core/api/test-current.txt
++++ b/core/api/test-current.txt
+@@ -1140,7 +1140,6 @@ package android.hardware.camera2 {
+   public final class CameraManager {
+     method public String[] getCameraIdListNoLazy() throws android.hardware.camera2.CameraAccessException;
+     method @RequiresPermission(allOf={android.Manifest.permission.SYSTEM_CAMERA, android.Manifest.permission.CAMERA}) public void openCamera(@NonNull String, int, @NonNull java.util.concurrent.Executor, @NonNull android.hardware.camera2.CameraDevice.StateCallback) throws android.hardware.camera2.CameraAccessException;
+-    field public static final long OVERRIDE_FRONT_CAMERA_APP_COMPAT = 250678880L; // 0xef10e60L
+   }
+ 
+   public abstract static class CameraManager.AvailabilityCallback {
+diff --git a/core/java/android/hardware/Camera.java b/core/java/android/hardware/Camera.java
+index 2fbcf5bfaf52..7193b93dba7f 100644
+--- a/core/java/android/hardware/Camera.java
++++ b/core/java/android/hardware/Camera.java
+@@ -29,7 +29,6 @@ import android.annotation.SdkConstant;
+ import android.annotation.SdkConstant.SdkConstantType;
+ import android.app.ActivityThread;
+ import android.app.AppOpsManager;
+-import android.app.compat.CompatChanges;
+ import android.compat.annotation.UnsupportedAppUsage;
+ import android.content.Context;
+ import android.content.res.Resources;
+@@ -37,7 +36,6 @@ import android.graphics.ImageFormat;
+ import android.graphics.Point;
+ import android.graphics.Rect;
+ import android.graphics.SurfaceTexture;
+-import android.hardware.camera2.CameraManager;
+ import android.media.AudioAttributes;
+ import android.media.IAudioService;
+ import android.os.Build;
+@@ -324,14 +322,6 @@ public class Camera {
+      */
+     public native static int _getNumberOfCameras();
+ 
+-    private static final boolean sLandscapeToPortrait =
+-            SystemProperties.getBoolean(CameraManager.LANDSCAPE_TO_PORTRAIT_PROP, false);
+-
+-    private static boolean shouldOverrideToPortrait() {
+-        return CompatChanges.isChangeEnabled(CameraManager.OVERRIDE_FRONT_CAMERA_APP_COMPAT)
+-                && sLandscapeToPortrait;
+-    }
+-
+     /**
+      * Returns the information about a particular camera.
+      * If {@link #getNumberOfCameras()} returns N, the valid id is 0 to N-1.
+@@ -344,9 +334,7 @@ public class Camera {
+         if (cameraId >= getNumberOfCameras()) {
+             throw new RuntimeException("Unknown camera ID");
+         }
+-        boolean overrideToPortrait = shouldOverrideToPortrait();
+-
+-        _getCameraInfo(cameraId, overrideToPortrait, cameraInfo);
++        _getCameraInfo(cameraId, cameraInfo);
+         IBinder b = ServiceManager.getService(Context.AUDIO_SERVICE);
+         IAudioService audioService = IAudioService.Stub.asInterface(b);
+         try {
+@@ -359,8 +347,7 @@ public class Camera {
+             Log.e(TAG, "Audio service is unavailable for queries");
+         }
+     }
+-    private native static void _getCameraInfo(int cameraId, boolean overrideToPortrait,
+-            CameraInfo cameraInfo);
++    private native static void _getCameraInfo(int cameraId, CameraInfo cameraInfo);
+ 
+     /**
+      * Information about a camera
+@@ -541,9 +528,8 @@ public class Camera {
+             mEventHandler = null;
+         }
+ 
+-        boolean overrideToPortrait = shouldOverrideToPortrait();
+         return native_setup(new WeakReference<Camera>(this), cameraId,
+-                ActivityThread.currentOpPackageName(), overrideToPortrait);
++                ActivityThread.currentOpPackageName());
+     }
+ 
+     /** used by Camera#open, Camera#open(int) */
+@@ -616,8 +602,7 @@ public class Camera {
+     }
+ 
+     @UnsupportedAppUsage
+-    private native int native_setup(Object cameraThis, int cameraId, String packageName,
+-            boolean overrideToPortrait);
++    private native int native_setup(Object cameraThis, int cameraId, String packageName);
+ 
+     private native final void native_release();
+ 
+diff --git a/core/java/android/hardware/camera2/CameraManager.java b/core/java/android/hardware/camera2/CameraManager.java
+index e8d33aa493e2..f4dd9b9a680f 100644
+--- a/core/java/android/hardware/camera2/CameraManager.java
++++ b/core/java/android/hardware/camera2/CameraManager.java
+@@ -23,10 +23,6 @@ import android.annotation.RequiresPermission;
+ import android.annotation.SystemApi;
+ import android.annotation.SystemService;
+ import android.annotation.TestApi;
+-import android.app.compat.CompatChanges;
+-import android.compat.annotation.ChangeId;
+-import android.compat.annotation.Disabled;
+-import android.compat.annotation.Overridable;
+ import android.content.Context;
+ import android.content.pm.PackageManager;
+ import android.graphics.Point;
+@@ -108,24 +104,6 @@ public final class CameraManager {
+             "android.permission.CAMERA_OPEN_CLOSE_LISTENER";
+     private final boolean mHasOpenCloseListenerPermission;
+ 
+-    /**
+-     * Force camera output to be rotated to portrait orientation on landscape cameras.
+-     * Many apps do not handle this situation and display stretched images otherwise.
+-     * @hide
+-     */
+-    @ChangeId
+-    @Overridable
+-    @Disabled
+-    @TestApi
+-    public static final long OVERRIDE_FRONT_CAMERA_APP_COMPAT = 250678880L;
+-
+-    /**
+-     * System property for allowing the above
+-     * @hide
+-     */
+-    public static final String LANDSCAPE_TO_PORTRAIT_PROP =
+-            "camera.enable_landscape_to_portrait";
+-
+     /**
+      * @hide
+      */
+@@ -560,8 +538,7 @@ public final class CameraManager {
+             for (String physicalCameraId : physicalCameraIds) {
+                 CameraMetadataNative physicalCameraInfo =
+                         cameraService.getCameraCharacteristics(physicalCameraId,
+-                                mContext.getApplicationInfo().targetSdkVersion,
+-                                /*overrideToPortrait*/false);
++                                mContext.getApplicationInfo().targetSdkVersion);
+                 StreamConfiguration[] configs = physicalCameraInfo.get(
+                         CameraCharacteristics.
+                                 SCALER_PHYSICAL_CAMERA_MULTI_RESOLUTION_STREAM_CONFIGURATIONS);
+@@ -620,9 +597,8 @@ public final class CameraManager {
+             try {
+                 Size displaySize = getDisplaySize();
+ 
+-                boolean overrideToPortrait = shouldOverrideToPortrait();
+                 CameraMetadataNative info = cameraService.getCameraCharacteristics(cameraId,
+-                        mContext.getApplicationInfo().targetSdkVersion, overrideToPortrait);
++                        mContext.getApplicationInfo().targetSdkVersion);
+                 try {
+                     info.setCameraId(Integer.parseInt(cameraId));
+                 } catch (NumberFormatException e) {
+@@ -739,12 +715,9 @@ public final class CameraManager {
+                         ICameraService.ERROR_DISCONNECTED,
+                         "Camera service is currently unavailable");
+                 }
+-
+-                boolean overrideToPortrait = shouldOverrideToPortrait();
+                 cameraUser = cameraService.connectDevice(callbacks, cameraId,
+-                    mContext.getOpPackageName(), mContext.getAttributionTag(), uid,
+-                    oomScoreOffset, mContext.getApplicationInfo().targetSdkVersion,
+-                    overrideToPortrait);
++                    mContext.getOpPackageName(),  mContext.getAttributionTag(), uid,
++                    oomScoreOffset, mContext.getApplicationInfo().targetSdkVersion);
+             } catch (ServiceSpecificException e) {
+                 if (e.errorCode == ICameraService.ERROR_DEPRECATED_HAL) {
+                     throw new AssertionError("Should've gone down the shim path");
+@@ -1172,11 +1145,6 @@ public final class CameraManager {
+         return CameraManagerGlobal.get().getTorchStrengthLevel(cameraId);
+     }
+ 
+-    private static boolean shouldOverrideToPortrait() {
+-        return CompatChanges.isChangeEnabled(OVERRIDE_FRONT_CAMERA_APP_COMPAT)
+-                && CameraManagerGlobal.sLandscapeToPortrait;
+-    }
+-
+     /**
+      * A callback for camera devices becoming available or unavailable to open.
+      *
+@@ -1623,9 +1591,6 @@ public final class CameraManager {
+         public static final boolean sCameraServiceDisabled =
+                 SystemProperties.getBoolean("config.disable_cameraservice", false);
+ 
+-        public static final boolean sLandscapeToPortrait =
+-                SystemProperties.getBoolean(LANDSCAPE_TO_PORTRAIT_PROP, false);
+-
+         public static CameraManagerGlobal get() {
+             return gCameraManager;
+         }
+diff --git a/core/jni/android_hardware_Camera.cpp b/core/jni/android_hardware_Camera.cpp
+index d0e5211504f8..d51d0df88f01 100644
+--- a/core/jni/android_hardware_Camera.cpp
++++ b/core/jni/android_hardware_Camera.cpp
+@@ -529,8 +529,9 @@ static jint android_hardware_Camera_getNumberOfCameras(JNIEnv *env, jobject thiz
+     return Camera::getNumberOfCameras();
+ }
+ 
+-static void android_hardware_Camera_getCameraInfo(JNIEnv *env, jobject thiz, jint cameraId,
+-                                                  jboolean overrideToPortrait, jobject info_obj) {
++static void android_hardware_Camera_getCameraInfo(JNIEnv *env, jobject thiz,
++    jint cameraId, jobject info_obj)
++{
+     CameraInfo cameraInfo;
+     if (cameraId >= Camera::getNumberOfCameras() || cameraId < 0) {
+         ALOGE("%s: Unknown camera ID %d", __FUNCTION__, cameraId);
+@@ -538,7 +539,7 @@ static void android_hardware_Camera_getCameraInfo(JNIEnv *env, jobject thiz, jin
+         return;
+     }
+ 
+-    status_t rc = Camera::getCameraInfo(cameraId, overrideToPortrait, &cameraInfo);
++    status_t rc = Camera::getCameraInfo(cameraId, &cameraInfo);
+     if (rc != NO_ERROR) {
+         jniThrowRuntimeException(env, "Fail to get camera info");
+         return;
+@@ -554,9 +555,9 @@ static void android_hardware_Camera_getCameraInfo(JNIEnv *env, jobject thiz, jin
+ }
+ 
+ // connect to camera service
+-static jint android_hardware_Camera_native_setup(JNIEnv *env, jobject thiz, jobject weak_this,
+-                                                 jint cameraId, jstring clientPackageName,
+-                                                 jboolean overrideToPortrait) {
++static jint android_hardware_Camera_native_setup(JNIEnv *env, jobject thiz,
++    jobject weak_this, jint cameraId, jstring clientPackageName)
++{
+     // Convert jstring to String16
+     const char16_t *rawClientName = reinterpret_cast<const char16_t*>(
+         env->GetStringChars(clientPackageName, NULL));
+@@ -566,9 +567,8 @@ static jint android_hardware_Camera_native_setup(JNIEnv *env, jobject thiz, jobj
+                             reinterpret_cast<const jchar*>(rawClientName));
+ 
+     int targetSdkVersion = android_get_application_target_sdk_version();
+-    sp<Camera> camera =
+-            Camera::connect(cameraId, clientName, Camera::USE_CALLING_UID, Camera::USE_CALLING_PID,
+-                            targetSdkVersion, overrideToPortrait);
++    sp<Camera> camera = Camera::connect(cameraId, clientName, Camera::USE_CALLING_UID,
++                                        Camera::USE_CALLING_PID, targetSdkVersion);
+     if (camera == NULL) {
+         return -EACCES;
+     }
+@@ -596,7 +596,7 @@ static jint android_hardware_Camera_native_setup(JNIEnv *env, jobject thiz, jobj
+ 
+     // Update default display orientation in case the sensor is reverse-landscape
+     CameraInfo cameraInfo;
+-    status_t rc = Camera::getCameraInfo(cameraId, overrideToPortrait, &cameraInfo);
++    status_t rc = Camera::getCameraInfo(cameraId, &cameraInfo);
+     if (rc != NO_ERROR) {
+         ALOGE("%s: getCameraInfo error: %d", __FUNCTION__, rc);
+         return rc;
+@@ -1051,43 +1051,93 @@ static int32_t android_hardware_Camera_getAudioRestriction(
+ //-------------------------------------------------
+ 
+ static const JNINativeMethod camMethods[] = {
+-        {"_getNumberOfCameras", "()I", (void *)android_hardware_Camera_getNumberOfCameras},
+-        {"_getCameraInfo", "(IZLandroid/hardware/Camera$CameraInfo;)V",
+-         (void *)android_hardware_Camera_getCameraInfo},
+-        {"native_setup", "(Ljava/lang/Object;ILjava/lang/String;Z)I",
+-         (void *)android_hardware_Camera_native_setup},
+-        {"native_release", "()V", (void *)android_hardware_Camera_release},
+-        {"setPreviewSurface", "(Landroid/view/Surface;)V",
+-         (void *)android_hardware_Camera_setPreviewSurface},
+-        {"setPreviewTexture", "(Landroid/graphics/SurfaceTexture;)V",
+-         (void *)android_hardware_Camera_setPreviewTexture},
+-        {"setPreviewCallbackSurface", "(Landroid/view/Surface;)V",
+-         (void *)android_hardware_Camera_setPreviewCallbackSurface},
+-        {"startPreview", "()V", (void *)android_hardware_Camera_startPreview},
+-        {"_stopPreview", "()V", (void *)android_hardware_Camera_stopPreview},
+-        {"previewEnabled", "()Z", (void *)android_hardware_Camera_previewEnabled},
+-        {"setHasPreviewCallback", "(ZZ)V", (void *)android_hardware_Camera_setHasPreviewCallback},
+-        {"_addCallbackBuffer", "([BI)V", (void *)android_hardware_Camera_addCallbackBuffer},
+-        {"native_autoFocus", "()V", (void *)android_hardware_Camera_autoFocus},
+-        {"native_cancelAutoFocus", "()V", (void *)android_hardware_Camera_cancelAutoFocus},
+-        {"native_takePicture", "(I)V", (void *)android_hardware_Camera_takePicture},
+-        {"native_setParameters", "(Ljava/lang/String;)V",
+-         (void *)android_hardware_Camera_setParameters},
+-        {"native_getParameters", "()Ljava/lang/String;",
+-         (void *)android_hardware_Camera_getParameters},
+-        {"reconnect", "()V", (void *)android_hardware_Camera_reconnect},
+-        {"lock", "()V", (void *)android_hardware_Camera_lock},
+-        {"unlock", "()V", (void *)android_hardware_Camera_unlock},
+-        {"startSmoothZoom", "(I)V", (void *)android_hardware_Camera_startSmoothZoom},
+-        {"stopSmoothZoom", "()V", (void *)android_hardware_Camera_stopSmoothZoom},
+-        {"setDisplayOrientation", "(I)V", (void *)android_hardware_Camera_setDisplayOrientation},
+-        {"_enableShutterSound", "(Z)Z", (void *)android_hardware_Camera_enableShutterSound},
+-        {"_startFaceDetection", "(I)V", (void *)android_hardware_Camera_startFaceDetection},
+-        {"_stopFaceDetection", "()V", (void *)android_hardware_Camera_stopFaceDetection},
+-        {"enableFocusMoveCallback", "(I)V",
+-         (void *)android_hardware_Camera_enableFocusMoveCallback},
+-        {"setAudioRestriction", "(I)V", (void *)android_hardware_Camera_setAudioRestriction},
+-        {"getAudioRestriction", "()I", (void *)android_hardware_Camera_getAudioRestriction},
++  { "_getNumberOfCameras",
++    "()I",
++    (void *)android_hardware_Camera_getNumberOfCameras },
++  { "_getCameraInfo",
++    "(ILandroid/hardware/Camera$CameraInfo;)V",
++    (void*)android_hardware_Camera_getCameraInfo },
++  { "native_setup",
++    "(Ljava/lang/Object;ILjava/lang/String;)I",
++    (void*)android_hardware_Camera_native_setup },
++  { "native_release",
++    "()V",
++    (void*)android_hardware_Camera_release },
++  { "setPreviewSurface",
++    "(Landroid/view/Surface;)V",
++    (void *)android_hardware_Camera_setPreviewSurface },
++  { "setPreviewTexture",
++    "(Landroid/graphics/SurfaceTexture;)V",
++    (void *)android_hardware_Camera_setPreviewTexture },
++  { "setPreviewCallbackSurface",
++    "(Landroid/view/Surface;)V",
++    (void *)android_hardware_Camera_setPreviewCallbackSurface },
++  { "startPreview",
++    "()V",
++    (void *)android_hardware_Camera_startPreview },
++  { "_stopPreview",
++    "()V",
++    (void *)android_hardware_Camera_stopPreview },
++  { "previewEnabled",
++    "()Z",
++    (void *)android_hardware_Camera_previewEnabled },
++  { "setHasPreviewCallback",
++    "(ZZ)V",
++    (void *)android_hardware_Camera_setHasPreviewCallback },
++  { "_addCallbackBuffer",
++    "([BI)V",
++    (void *)android_hardware_Camera_addCallbackBuffer },
++  { "native_autoFocus",
++    "()V",
++    (void *)android_hardware_Camera_autoFocus },
++  { "native_cancelAutoFocus",
++    "()V",
++    (void *)android_hardware_Camera_cancelAutoFocus },
++  { "native_takePicture",
++    "(I)V",
++    (void *)android_hardware_Camera_takePicture },
++  { "native_setParameters",
++    "(Ljava/lang/String;)V",
++    (void *)android_hardware_Camera_setParameters },
++  { "native_getParameters",
++    "()Ljava/lang/String;",
++    (void *)android_hardware_Camera_getParameters },
++  { "reconnect",
++    "()V",
++    (void*)android_hardware_Camera_reconnect },
++  { "lock",
++    "()V",
++    (void*)android_hardware_Camera_lock },
++  { "unlock",
++    "()V",
++    (void*)android_hardware_Camera_unlock },
++  { "startSmoothZoom",
++    "(I)V",
++    (void *)android_hardware_Camera_startSmoothZoom },
++  { "stopSmoothZoom",
++    "()V",
++    (void *)android_hardware_Camera_stopSmoothZoom },
++  { "setDisplayOrientation",
++    "(I)V",
++    (void *)android_hardware_Camera_setDisplayOrientation },
++  { "_enableShutterSound",
++    "(Z)Z",
++    (void *)android_hardware_Camera_enableShutterSound },
++  { "_startFaceDetection",
++    "(I)V",
++    (void *)android_hardware_Camera_startFaceDetection },
++  { "_stopFaceDetection",
++    "()V",
++    (void *)android_hardware_Camera_stopFaceDetection},
++  { "enableFocusMoveCallback",
++    "(I)V",
++    (void *)android_hardware_Camera_enableFocusMoveCallback},
++  { "setAudioRestriction",
++    "(I)V",
++    (void *)android_hardware_Camera_setAudioRestriction},
++  { "getAudioRestriction",
++    "()I",
++    (void *)android_hardware_Camera_getAudioRestriction},
+ };
+ 
+ struct field {
+diff --git a/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java b/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java
+index 2b7bcbee79fd..a2eae2c9579a 100644
+--- a/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java
++++ b/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraBinderTest.java
+@@ -85,8 +85,7 @@ public class CameraBinderTest extends AndroidTestCase {
+     public void testCameraInfo() throws Exception {
+         for (int cameraId = 0; cameraId < mUtils.getGuessedNumCameras(); ++cameraId) {
+ 
+-            CameraInfo info = mUtils.getCameraService().getCameraInfo(cameraId,
+-                    /*overrideToPortrait*/false);
++            CameraInfo info = mUtils.getCameraService().getCameraInfo(cameraId);
+             assertTrue("Facing was not set for camera " + cameraId, info.info.facing != -1);
+             assertTrue("Orientation was not set for camera " + cameraId,
+                     info.info.orientation != -1);
+@@ -160,8 +159,7 @@ public class CameraBinderTest extends AndroidTestCase {
+                     .connect(dummyCallbacks, cameraId, clientPackageName,
+                             ICameraService.USE_CALLING_UID,
+                             ICameraService.USE_CALLING_PID,
+-                            getContext().getApplicationInfo().targetSdkVersion,
+-                            /*overrideToPortrait*/false);
++                            getContext().getApplicationInfo().targetSdkVersion);
+             assertNotNull(String.format("Camera %s was null", cameraId), cameraUser);
+ 
+             Log.v(TAG, String.format("Camera %s connected", cameraId));
+@@ -266,8 +264,7 @@ public class CameraBinderTest extends AndroidTestCase {
+                         dummyCallbacks, String.valueOf(cameraId),
+                         clientPackageName, clientAttributionTag,
+                         ICameraService.USE_CALLING_UID, 0 /*oomScoreOffset*/,
+-                        getContext().getApplicationInfo().targetSdkVersion,
+-                        /*overrideToPortrait*/false);
++                        getContext().getApplicationInfo().targetSdkVersion);
+             assertNotNull(String.format("Camera %s was null", cameraId), cameraUser);
+ 
+             Log.v(TAG, String.format("Camera %s connected", cameraId));
+diff --git a/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraDeviceBinderTest.java b/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraDeviceBinderTest.java
+index 9d09dcc5c440..0890346db198 100644
+--- a/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraDeviceBinderTest.java
++++ b/media/tests/MediaFrameworkTest/src/com/android/mediaframeworktest/integration/CameraDeviceBinderTest.java
+@@ -244,8 +244,7 @@ public class CameraDeviceBinderTest extends AndroidTestCase {
+ 
+         mCameraUser = mUtils.getCameraService().connectDevice(mMockCb, mCameraId,
+                 clientPackageName, clientAttributionTag, ICameraService.USE_CALLING_UID,
+-                /*oomScoreOffset*/0, getContext().getApplicationInfo().targetSdkVersion,
+-                /*overrideToPortrait*/false);
++                /*oomScoreOffset*/0, getContext().getApplicationInfo().targetSdkVersion);
+         assertNotNull(String.format("Camera %s was null", mCameraId), mCameraUser);
+         mHandlerThread = new HandlerThread(TAG);
+         mHandlerThread.start();
+@@ -418,7 +417,7 @@ public class CameraDeviceBinderTest extends AndroidTestCase {
+     @SmallTest
+     public void testCameraCharacteristics() throws RemoteException {
+         CameraMetadataNative info = mUtils.getCameraService().getCameraCharacteristics(mCameraId,
+-                getContext().getApplicationInfo().targetSdkVersion, /*overrideToPortrait*/false);
++                getContext().getApplicationInfo().targetSdkVersion);
+ 
+         assertFalse(info.isEmpty());
+         assertNotNull(info.get(CameraCharacteristics.SCALER_AVAILABLE_FORMATS));
+-- 
+2.40.1
+

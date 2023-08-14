@@ -1,0 +1,29 @@
+From 742894b2e1e7dcc71a5b74ec80bf0ff418699587 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 5 Aug 2023 16:59:05 +0200
+Subject: [PATCH 01/23] Revert "CameraManager: Swap propertyName / packageName
+ in call to getProperty()"
+
+This reverts commit 12c74fb19056f4566ebf0b8e0286787caed7540a.
+---
+ core/java/android/hardware/camera2/CameraManager.java | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/core/java/android/hardware/camera2/CameraManager.java b/core/java/android/hardware/camera2/CameraManager.java
+index 3e5fee84b7be..6ee1c0ad65c3 100644
+--- a/core/java/android/hardware/camera2/CameraManager.java
++++ b/core/java/android/hardware/camera2/CameraManager.java
+@@ -1190,8 +1190,8 @@ public final class CameraManager {
+             PackageManager packageManager = context.getPackageManager();
+ 
+             try {
+-                return packageManager.getProperty(PROPERTY_COMPAT_OVERRIDE_LANDSCAPE_TO_PORTRAIT,
+-                        context.getOpPackageName()).getBoolean();
++                return packageManager.getProperty(context.getOpPackageName(),
++                            PROPERTY_COMPAT_OVERRIDE_LANDSCAPE_TO_PORTRAIT).getBoolean();
+             } catch (PackageManager.NameNotFoundException e) {
+                 // No such property
+             }
+-- 
+2.40.1
+

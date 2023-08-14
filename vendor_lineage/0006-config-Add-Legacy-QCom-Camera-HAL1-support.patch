@@ -1,0 +1,166 @@
+From 061a1f41508ff7513fb40123b821ab9169e89cea Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 5 Nov 2022 18:19:50 +0100
+Subject: [PATCH 6/6] config: Add Legacy (QCom) Camera HAL1 support
+
+This effectively reverted the following commits:
+- config: Remove TARGET_SPECIFIC_CAMERA_PARAMETER_LIBRARY 1cfc6cb
+- config: Remove TARGET_HAS_LEGACY_CAMERA_HAL1 829f975
+- config: Remove TARGET_USES_QCOM_BSP_LEGACY" 89fd58c
+- config: Remove TARGET_CAMERA_BOOTTIME_TIMESTAMP ed8e192
+
+Change-Id: Ic61e46451ccd63330ca74628c62652047589d13f
+Change-Id: If19685f28fc9c3dd2a1d6c6a1f32ee4b12104b82
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
+---
+ build/soong/Android.bp     | 103 +++++++++++++++++++++++++++++++++++++
+ config/BoardConfigSoong.mk |  19 +++++++
+ 2 files changed, 122 insertions(+)
+
+diff --git a/build/soong/Android.bp b/build/soong/Android.bp
+index 4a92ac70..ddf42c99 100644
+--- a/build/soong/Android.bp
++++ b/build/soong/Android.bp
+@@ -50,6 +50,109 @@ cc_library_headers {
+     recovery_available: true,
+ }
+ 
++// Legacy Camera HAL1
++soong_config_module_type {
++    name: "needs_camera_boottime",
++    module_type: "cc_defaults",
++    config_namespace: "lineageGlobalVars",
++    bool_variables: ["needs_camera_boottime"],
++    properties: ["cppflags"],
++}
++
++needs_camera_boottime {
++    name: "needs_camera_boottime_defaults",
++    soong_config_variables: {
++        needs_camera_boottime: {
++            cppflags: ["-DTARGET_CAMERA_BOOTTIME_TIMESTAMP"],
++        },
++    },
++}
++
++soong_config_module_type {
++    name: "no_cameraserver",
++    module_type: "cc_defaults",
++    config_namespace: "lineageGlobalVars",
++    bool_variables: ["has_legacy_camera_hal1"],
++    properties: [
++        "cppflags",
++    ],
++}
++
++no_cameraserver {
++    name: "no_cameraserver_defaults",
++    soong_config_variables: {
++        has_legacy_camera_hal1: {
++            cppflags: [
++                "-DNO_CAMERA_SERVER",
++                "-Wno-overloaded-virtual",
++            ],
++        },
++    },
++}
++
++soong_config_module_type {
++    name: "camera_in_mediaserver",
++    module_type: "cc_defaults",
++    config_namespace: "lineageGlobalVars",
++    bool_variables: ["has_legacy_camera_hal1"],
++    properties: [
++        "overrides",
++        "shared_libs",
++    ],
++}
++
++camera_in_mediaserver {
++    name: "camera_in_mediaserver_defaults",
++    defaults: ["no_cameraserver_defaults"],
++    soong_config_variables: {
++        has_legacy_camera_hal1: {
++            overrides: ["cameraserver"],
++            shared_libs: [
++                "android.hardware.camera.common@1.0",
++                "android.hardware.camera.device@3.4",
++                "android.hardware.camera.provider@2.6",
++                "android.hardware.camera.provider@2.7",
++                "libcameraservice",
++                "libgui",
++            ],
++        },
++    },
++}
++
++soong_config_module_type {
++    name: "camera_parameter_library",
++    module_type: "cc_defaults",
++    config_namespace: "lineageGlobalVars",
++    value_variables: ["uses_camera_parameter_lib"],
++    properties: ["whole_static_libs"],
++}
++
++camera_parameter_library {
++    name: "camera_parameter_library_defaults",
++    soong_config_variables: {
++        uses_camera_parameter_lib: {
++            whole_static_libs: ["%s"],
++        },
++    },
++}
++
++soong_config_module_type {
++    name: "stagefright_qcom_legacy",
++    module_type: "cc_defaults",
++    config_namespace: "lineageQcomVars",
++    bool_variables: ["uses_qcom_bsp_legacy"],
++    properties: ["cppflags"],
++}
++
++stagefright_qcom_legacy {
++    name: "stagefright_qcom_legacy_defaults",
++    soong_config_variables: {
++        uses_qcom_bsp_legacy: {
++            cppflags: ["-DQCOM_BSP_LEGACY"],
++        },
++    },
++}
++
+ // Target platform agnostic config modules
+ soong_config_module_type {
+     name: "aapt_version_code",
+diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
+index 3ce995c5..1859d06e 100644
+--- a/config/BoardConfigSoong.mk
++++ b/config/BoardConfigSoong.mk
+@@ -63,6 +63,25 @@ SOONG_CONFIG_lineageQcomVars += \
+     qcom_display_headers_namespace
+ endif
+ 
++# Soong Camera HAL1 related configuration
++SOONG_CONFIG_lineageGlobalVars += \
++    needs_camera_boottime \
++    has_legacy_camera_hal1 \
++    uses_camera_parameter_lib
++
++SOONG_CONFIG_lineageGlobalVars_needs_camera_boottime := $(TARGET_CAMERA_BOOTTIME_TIMESTAMP)
++SOONG_CONFIG_lineageGlobalVars_has_legacy_camera_hal1 := $(TARGET_HAS_LEGACY_CAMERA_HAL1)
++
++TARGET_SPECIFIC_CAMERA_PARAMETER_LIBRARY ?= libcamera_parameters
++SOONG_CONFIG_lineageGlobalVars_uses_camera_parameter_lib := $(TARGET_SPECIFIC_CAMERA_PARAMETER_LIBRARY)
++
++# Soong Qcom Camera HAL1 related configuration
++SOONG_CONFIG_lineageQcomVars += \
++    uses_qcom_bsp_legacy
++
++SOONG_CONFIG_lineageQcomVars_uses_qcom_bsp_legacy := $(TARGET_USES_QCOM_BSP_LEGACY)
++
++
+ # Soong bool variables
+ SOONG_CONFIG_lineageGlobalVars_gralloc_handle_has_custom_content_md_reserved_size := $(TARGET_GRALLOC_HANDLE_HAS_CUSTOM_CONTENT_MD_RESERVED_SIZE)
+ SOONG_CONFIG_lineageGlobalVars_gralloc_handle_has_reserved_size := $(TARGET_GRALLOC_HANDLE_HAS_RESERVED_SIZE)
+-- 
+2.40.1
+

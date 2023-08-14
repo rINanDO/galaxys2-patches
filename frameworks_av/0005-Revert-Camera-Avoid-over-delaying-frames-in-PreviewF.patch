@@ -1,17 +1,19 @@
-From 36a5ddfe9a7cd9418da6a7fa8905f9e947df5830 Mon Sep 17 00:00:00 2001
+From c23421c68b6db44effad47ba2342920493fb2681 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Fri, 12 May 2023 22:58:45 +0200
-Subject: [PATCH 05/39] Revert "Camera: Avoid over-delaying frames in
+Subject: [PATCH 05/47] Revert "Camera: Avoid over-delaying frames in
  PreviewFrameSpacer"
 
 This reverts commit 4b35b1d1d5b20c8181305408e27f45a35dd553fa.
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
- services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp | 8 +++-----
- services/camera/libcameraservice/device3/PreviewFrameSpacer.h   | 1 -
+ .../libcameraservice/device3/PreviewFrameSpacer.cpp       | 8 +++-----
+ .../camera/libcameraservice/device3/PreviewFrameSpacer.h  | 1 -
  2 files changed, 3 insertions(+), 6 deletions(-)
 
 diff --git a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
-index 83caa00..b3cb178 100644
+index 83caa006ad..b3cb17857f 100644
 --- a/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
 +++ b/services/camera/libcameraservice/device3/PreviewFrameSpacer.cpp
 @@ -69,9 +69,7 @@ bool PreviewFrameSpacer::threadLoop() {
@@ -38,7 +40,7 @@ index 83caa00..b3cb178 100644
      queueBufferToClientLocked(buffer, currentTime);
      return true;
 diff --git a/services/camera/libcameraservice/device3/PreviewFrameSpacer.h b/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
-index f46de3d..cb9690c 100644
+index f46de3d88a..cb9690cf63 100644
 --- a/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
 +++ b/services/camera/libcameraservice/device3/PreviewFrameSpacer.h
 @@ -86,7 +86,6 @@ class PreviewFrameSpacer : public Thread {
@@ -50,5 +52,5 @@ index f46de3d..cb9690c 100644
  
  }; //namespace camera3
 -- 
-2.7.4
+2.40.1
 
