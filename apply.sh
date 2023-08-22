@@ -91,6 +91,7 @@ git am --signoff < "$PATCHESDIR/hardware_lineage_interfaces/0005-camera-Fix-buil
 git am --signoff < "$PATCHESDIR/hardware_lineage_interfaces/0006-Revert-power-Remove-1.0-HIDL.patch"
 git am --signoff < "$PATCHESDIR/hardware_lineage_interfaces/0007-Revert-biometrics-Deprecate-inscreen-HAL.patch"
 git am --signoff < "$PATCHESDIR/hardware_lineage_interfaces/0008-Revert-power-Deprecate-lineage-power-HAL.patch"
+git am --signoff < "$PATCHESDIR/hardware_lineage_interfaces/0009-lineage-interfaces-add-batterylifeextender-HAL.patch" 
 
 echo
 echo "======= frameworks/base =========="
@@ -204,6 +205,19 @@ echo "======= frameworks/libs/net =========="
 cd "$ANDROIDDIR/frameworks/libs/net"
 git checkout $LOSBRANCH
 git am --signoff < "$PATCHESDIR/frameworks_libs_net/0001-BpfMap-Don-t-abort-when-eBPF-is-not-available.patch"
+
+echo
+echo "======= packages/apps/Settings =========="
+cd "$ANDROIDDIR/packages/apps/Settings"
+git checkout $LOSBRANCH
+git am --signoff < "$PATCHESDIR/packages_apps_Settings/0001-Settings-add-Protect-battery-toggle.patch"
+
+
+echo
+echo "======= device/lineage/sepolicy =========="
+cd "$ANDROIDDIR/device/lineage/sepolicy"
+git checkout $LOSBRANCH
+git am --signoff < "$PATCHESDIR/device_lineage_sepolicy/0001-sepolicy-add-hal_lineage_batterylifeextender.patch"
 
 
 cd $PATCHESDIR
