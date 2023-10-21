@@ -1,7 +1,7 @@
-From 0dd842cef26a4becc618faa066bd24cc6b3d508a Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Sat, 5 Aug 2023 17:28:03 +0200
-Subject: [PATCH 14/47] Revert "CameraService: Update rotate and crop
+From 2c3b80a5c066191cb3c76b2968c71fed5089e932 Mon Sep 17 00:00:00 2001
+From: khalvat-M <mmba313@gmail.com>
+Date: Thu, 22 Jun 2023 10:14:28 +0330
+Subject: [PATCH 14/45] Revert "CameraService: Update rotate and crop
  dynamically on fold/unfold."
 
 This reverts commit c809976b6fa66ba9b4952d05ea550af96319624c.
@@ -326,5 +326,5 @@ index 0a6a6f73b0..c7f8fa1497 100644
      for (const auto& msg : msgs) {
          camera3::notify(states, msg);
 -- 
-2.40.1
+2.37.2
 

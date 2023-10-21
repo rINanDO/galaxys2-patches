@@ -1,11 +1,9 @@
-From f098813286d9bab5fbcb0b83db5c6944648afa50 Mon Sep 17 00:00:00 2001
+From e7057f9b1284ab8e55547a67d4d07262232e717d Mon Sep 17 00:00:00 2001
 From: z3DD3r <z3dd3r@gmail.com>
 Date: Fri, 9 Dec 2022 22:52:04 +0300
-Subject: [PATCH 06/47] Revert "Camera: Reduce latency for dejittering"
+Subject: [PATCH 06/45] Revert "Camera: Reduce latency for dejittering"
 
 This reverts commit 35bd3553b06468c8d77adecca498ff0a0d194d41.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../device3/Camera3OutputStream.cpp                | 14 ++++----------
  .../libcameraservice/device3/Camera3OutputStream.h |  2 +-
@@ -95,5 +93,5 @@ index cb9690cf63..e165768b97 100644
  
  }; //namespace camera3
 -- 
-2.40.1
+2.37.2
 

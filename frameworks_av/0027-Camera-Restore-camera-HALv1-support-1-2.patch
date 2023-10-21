@@ -1,7 +1,7 @@
-From 1a14e65b7b36d298755489bee4e38f61fc315cec Mon Sep 17 00:00:00 2001
+From d29ce95a45b0acceeba3878014d52469e56f269c Mon Sep 17 00:00:00 2001
 From: Kyle Harrison <khwebmail@gmail.com>
 Date: Thu, 28 Oct 2021 13:54:35 +0100
-Subject: [PATCH 27/47] Camera: Restore camera HALv1 support [1/2]
+Subject: [PATCH 27/45] Camera: Restore camera HALv1 support [1/2]
 
 Revert "Camera: remove the camera device version check during statusCallback"
 This reverts commit b8259798dc04226eb09114527cb124060fbf335b.
@@ -19,8 +19,6 @@ Change-Id: I4f1f505be8aaf97f5c68856806823c529a5d5ec9
  Conflicts:
 	services/camera/libcameraservice/CameraService.cpp
 	services/camera/libcameraservice/CameraService.h
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  camera/Camera.cpp                             |   57 +
  .../aidl/android/hardware/ICameraService.aidl |   16 +-
@@ -3859,5 +3857,5 @@ index 0000000000..e519b04cdd
 +
 +#endif
 -- 
-2.40.1
+2.37.2
 

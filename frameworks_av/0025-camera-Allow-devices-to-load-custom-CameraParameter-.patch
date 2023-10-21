@@ -1,7 +1,7 @@
-From e961cf651d6c9090e6e51d5a123be8ca4a0cff8e Mon Sep 17 00:00:00 2001
+From 226a3010dcb659d56331d73974f2dc84f82eaede Mon Sep 17 00:00:00 2001
 From: Pig <pig.priv@gmail.com>
 Date: Thu, 15 Oct 2020 08:44:20 +0800
-Subject: [PATCH 25/47] camera: Allow devices to load custom CameraParameter
+Subject: [PATCH 25/45] camera: Allow devices to load custom CameraParameter
  code
 
 * Some devices need additional code to load their cameras. Add a hook
@@ -15,7 +15,6 @@ Credit to Rashed Abdel-Tawab for original product variable implementation
 Change-Id: Iec667af2f0bfdb41f14df342cb128908244d7af0
 Signed-off-by: Pranav Vashi <neobuddy89@gmail.com>
 Signed-off-by: Joey Huab <joey@evolution-x.org>
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  camera/Android.bp | 12 +++++++++++-
  1 file changed, 11 insertions(+), 1 deletion(-)
@@ -58,5 +57,5 @@ index 994df62e33..1a2d2a82af 100644
  filegroup {
      name: "libcamera_client_aidl",
 -- 
-2.40.1
+2.37.2
 

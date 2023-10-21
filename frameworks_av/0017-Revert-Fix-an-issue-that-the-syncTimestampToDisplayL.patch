@@ -1,12 +1,10 @@
-From 3ffa79c95cd02a781d900aa76b61142649339b43 Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Fri, 12 May 2023 23:01:39 +0200
-Subject: [PATCH 17/47] Revert "Fix an issue that the
+From ff1b6719394fe29486068084f5c14cfdf1c26172 Mon Sep 17 00:00:00 2001
+From: Khalvat-M <mmba313@gmail.com>
+Date: Wed, 22 Mar 2023 14:58:02 +0330
+Subject: [PATCH 17/45] Revert "Fix an issue that the
  syncTimestampToDisplayLocked incorrect"
 
 This reverts commit 1c0042b52fcaf018b9b5988c01c69009be0baf82.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../camera/libcameraservice/device3/Camera3OutputStream.cpp    | 3 +--
  1 file changed, 1 insertion(+), 2 deletions(-)
@@ -26,5 +24,5 @@ index 478c9fdd83..141a8ae06b 100644
              minDiff = std::abs(vsyncTime.expectedPresentationTime - idealPresentT);
          }
 -- 
-2.40.1
+2.37.2
 

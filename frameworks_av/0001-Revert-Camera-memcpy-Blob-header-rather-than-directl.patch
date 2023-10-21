@@ -1,12 +1,10 @@
-From f0bdd7a797605ddf6490887242d9592abb52817d Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Fri, 12 May 2023 22:56:54 +0200
-Subject: [PATCH 01/47] Revert "Camera: memcpy Blob header rather than directly
+From bd2455ee0512df8c9db648705eb09b42ce6b6560 Mon Sep 17 00:00:00 2001
+From: Khalvat-M <mmba313@gmail.com>
+Date: Wed, 22 Mar 2023 18:57:53 +0330
+Subject: [PATCH 01/45] Revert "Camera: memcpy Blob header rather than directly
  writing fields"
 
 This reverts commit dc519093e8ece9e2f587151fea4fde5d67da08a5.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../libcameraservice/api2/HeicCompositeStream.cpp      | 10 ++++------
  1 file changed, 4 insertions(+), 6 deletions(-)
@@ -34,5 +32,5 @@ index 237ce5e5e1..54cc27aebf 100644
      res = native_window_set_buffers_timestamp(mOutputSurface.get(), inputFrame.timestamp);
      if (res != OK) {
 -- 
-2.40.1
+2.37.2
 

@@ -1,7 +1,7 @@
-From fa006a892a68904b40de23e555a7e6b8866abdef Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Sat, 5 Aug 2023 17:24:14 +0200
-Subject: [PATCH 10/47] Revert "CameraService: Disable overrideToPortrait for
+From ad980cc03ba023a1dcf85d2f55cf36bc28bf72b9 Mon Sep 17 00:00:00 2001
+From: khalvat-M <mmba313@gmail.com>
+Date: Thu, 22 Jun 2023 10:08:44 +0330
+Subject: [PATCH 10/45] Revert "CameraService: Disable overrideToPortrait for
  dumpsys media.camera."
 
 This reverts commit 925abedb3a2517879c79532ed347e7b113719171.
@@ -42,5 +42,5 @@ index b617cdca75..a929a51a1b 100644
          }
      }
 -- 
-2.40.1
+2.37.2
 

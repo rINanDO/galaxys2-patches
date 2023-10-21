@@ -1,12 +1,10 @@
-From 94d3748768f23e8053e1d5413efe46eea3762b10 Mon Sep 17 00:00:00 2001
+From 0fc1d7029f68b386826bcb99c8e5add14def5e3f Mon Sep 17 00:00:00 2001
 From: z3DD3r <z3dd3r@gmail.com>
 Date: Fri, 9 Dec 2022 22:52:25 +0300
-Subject: [PATCH 19/47] Revert "Camera: Avoid latency accumulation when syncing
+Subject: [PATCH 19/45] Revert "Camera: Avoid latency accumulation when syncing
  preview to vsync"
 
 This reverts commit 696e4da718391c11b5742369dfa12d4a65900520.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../device3/Camera3Device.cpp                 |  40 +++----
  .../libcameraservice/device3/Camera3Device.h  |  14 +--
@@ -586,5 +584,5 @@ index 2b4f8a1155..5c97f0eb82 100644
      for (const auto& msg : msgs) {
          camera3::notify(states, msg);
 -- 
-2.40.1
+2.37.2
 

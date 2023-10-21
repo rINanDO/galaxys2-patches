@@ -1,7 +1,7 @@
-From 91132a914b9356f4edd877f833b3cb086f2cb77c Mon Sep 17 00:00:00 2001
+From c8fbc098cafb5b04dcc074bae82d2fc20a55849a Mon Sep 17 00:00:00 2001
 From: Yaroslav Zviezda <acroreiser@gmail.com>
 Date: Thu, 20 Oct 2022 23:25:13 +0300
-Subject: [PATCH 22/47] [2/2] libcameraservice: massive revert to Android 12
+Subject: [PATCH 22/45] [2/2] libcameraservice: massive revert to Android 12
  state.
 
    Needed to restore HAL1.
@@ -25774,5 +25774,5 @@ index 2936531cd2..c23abb6067 100644
      std::map<int, StreamStats> mStatsMap;
  };
 -- 
-2.40.1
+2.37.2
 

@@ -1,15 +1,13 @@
-From 2d00ae241ea54d2612dc04577a748d85dfda523a Mon Sep 17 00:00:00 2001
+From 3db6d097c6934306bbd72cad0e9be6259a38da46 Mon Sep 17 00:00:00 2001
 From: Yaroslav Zviezda <acroreiser@gmail.com>
 Date: Thu, 20 Oct 2022 23:25:13 +0300
-Subject: [PATCH 21/47] libcameraservice: reset to
+Subject: [PATCH 21/45] [1/2] libcameraservice: reset to
  a0a10c95a363a0df93da678b1eb84f0aa5c137f7
 
 Change-Id: Idde9fd3385deff5f4917636f336cb87b8d310227
 
  Conflicts:
 	services/camera/libcameraservice/common/Camera2ClientBase.cpp
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  camera/CaptureResult.cpp                      |  9 +-
  camera/include/camera/CaptureResult.h         | 15 +--
@@ -702,5 +700,5 @@ index 9ded15d948..088d6fef63 100644
  
      // A ring buffer for tracking the last kMaxMonitorEvents metadata changes
 -- 
-2.40.1
+2.37.2
 

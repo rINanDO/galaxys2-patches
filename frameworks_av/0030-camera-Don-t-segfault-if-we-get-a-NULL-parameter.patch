@@ -1,13 +1,11 @@
-From 30dfbd70a56383d76640e6098fc6d581391a4b05 Mon Sep 17 00:00:00 2001
+From 7d2189f3d35169361333f44f5f16cc41e8279f5b Mon Sep 17 00:00:00 2001
 From: Steve Kondik <shade@chemlab.org>
 Date: Wed, 1 May 2013 02:58:11 -0700
-Subject: [PATCH 30/47] camera: Don't segfault if we get a NULL parameter
+Subject: [PATCH 30/45] camera: Don't segfault if we get a NULL parameter
 
  * Values end up NULL on some drivers, don't crash.
 
 Change-Id: Ic897dbd4629cf3af98c85f93be202c382dde806b
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  camera/CameraParameters.cpp | 3 +++
  1 file changed, 3 insertions(+)
@@ -27,5 +25,5 @@ index e95c91cb98..99befa7968 100644
      if (strchr(key, '=') || strchr(key, ';')) {
          //XXX ALOGE("Key \"%s\"contains invalid character (= or ;)", key);
 -- 
-2.40.1
+2.37.2
 

@@ -1,7 +1,7 @@
-From 3870b6e68564d8b3bb44ffe807852fef6a5188a1 Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Sat, 5 Aug 2023 17:35:43 +0200
-Subject: [PATCH 18/47] Revert "Camera: Add adb shell cmd to override stream
+From 9b8555f7429de7ef373e65d8d88e3d3e764d0b00 Mon Sep 17 00:00:00 2001
+From: khalvat-M <mmba313@gmail.com>
+Date: Thu, 22 Jun 2023 10:20:25 +0330
+Subject: [PATCH 18/45] Revert "Camera: Add adb shell cmd to override stream
  use case"
 
 This reverts commit abe5ea1b0bdca448713ecd0fb06e3a64d81822ea.
@@ -479,5 +479,5 @@ index 4baa7e8298..dbc6fe1514 100644
  
  // Helper class to organize a synchronized mapping of stream IDs to stream instances
 -- 
-2.40.1
+2.37.2
 

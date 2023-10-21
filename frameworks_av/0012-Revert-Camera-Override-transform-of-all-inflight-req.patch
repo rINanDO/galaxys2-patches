@@ -1,7 +1,7 @@
-From d899a0332acecc00d83b4e837e42112a684b2e81 Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Sat, 5 Aug 2023 17:26:20 +0200
-Subject: [PATCH 12/47] Revert "Camera: Override transform of all inflight
+From d5f94674a3decfaf990b192a0666de757cb251f9 Mon Sep 17 00:00:00 2001
+From: khalvat-M <mmba313@gmail.com>
+Date: Thu, 22 Jun 2023 10:11:45 +0330
+Subject: [PATCH 12/45] Revert "Camera: Override transform of all inflight
  requests"
 
 This reverts commit 747be7e691945671a0bb1e2f4c9278c036cb34e3.
@@ -41,5 +41,5 @@ index 5021f297c8..792756ab61 100644
                                          "(%d)", __FUNCTION__, strerror(-ret), ret);
                              }
 -- 
-2.40.1
+2.37.2
 

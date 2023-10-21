@@ -1,14 +1,12 @@
-From d8ddd731ea86e915261cd3f40acfd4375a92381f Mon Sep 17 00:00:00 2001
+From f4520c1a46d6ceb85836a205dcaa7e3c30994884 Mon Sep 17 00:00:00 2001
 From: Susmitha Gummalla <vgummall@codeaurora.org>
 Date: Tue, 29 Apr 2014 12:18:30 -0700
-Subject: [PATCH 39/47] Camera: Add support for preview frame fd
+Subject: [PATCH 39/45] Camera: Add support for preview frame fd
 
 -Add support for receiving dataCallback with fd/buffer as frame buffer
 
 CRs-fixed: 654901
 Change-Id: I5c16e560f1e209a6ab4afa4f3437602b02992b9b
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  camera/ICameraClient.cpp | 15 ++++++++++++---
  1 file changed, 12 insertions(+), 3 deletions(-)
@@ -47,5 +45,5 @@ index bef2ea0acd..be82ff4ec6 100644
              return NO_ERROR;
          } break;
 -- 
-2.40.1
+2.37.2
 

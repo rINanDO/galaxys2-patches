@@ -1,12 +1,10 @@
-From 64bdc88052291453bf98e539858e66257d99a587 Mon Sep 17 00:00:00 2001
+From 460ef98c7d2257994e3bee975cebd0b45b7c050f Mon Sep 17 00:00:00 2001
 From: z3DD3r <z3dd3r@gmail.com>
 Date: Fri, 9 Dec 2022 22:52:15 +0300
-Subject: [PATCH 07/47] Revert "Camera: Avoid dequeue too many buffers from
+Subject: [PATCH 07/45] Revert "Camera: Avoid dequeue too many buffers from
  buffer queue"
 
 This reverts commit c235270ed552cbbe1df31cf3862f913872fab38a.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../device3/Camera3IOStreamBase.cpp           | 14 +-----
  .../device3/Camera3IOStreamBase.h             | 10 ----
@@ -303,5 +301,5 @@ index 67f42b45e3..0439501733 100644
      mLastCameraReadoutTime = bufferHolder.readoutTimestamp;
  }
 -- 
-2.40.1
+2.37.2
 

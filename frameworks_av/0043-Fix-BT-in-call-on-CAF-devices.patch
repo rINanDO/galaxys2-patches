@@ -1,7 +1,7 @@
-From bcabe1a7e5b42c4ac90124c86e7239de90373324 Mon Sep 17 00:00:00 2001
+From 9b16c005e2cb962148fc7757f993332b7f6ab384 Mon Sep 17 00:00:00 2001
 From: Pierre-Hugues Husson <phh@phh.me>
 Date: Mon, 5 Aug 2019 18:09:50 +0200
-Subject: [PATCH 43/47] Fix BT in-call on CAF devices
+Subject: [PATCH 43/45] Fix BT in-call on CAF devices
 
 See https://github.com/phhusson/treble_experimentations/issues/374
 
@@ -11,8 +11,6 @@ from primary output and telephony to BT SCO.
 Add it if we detect telephony and bt sco, but no such route.
 
 Change-Id: Ifea0f88276ec9a0811f3cb1973c4b06f2c82077b
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../managerdefinitions/src/Serializer.cpp     | 93 +++++++++++++++++++
  1 file changed, 93 insertions(+)
@@ -129,5 +127,5 @@ index d446e9667b..2f0ce75e47 100644
  
      for (const xmlNode *children = cur->xmlChildrenNode; children != NULL;
 -- 
-2.40.1
+2.37.2
 

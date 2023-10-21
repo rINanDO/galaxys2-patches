@@ -1,11 +1,9 @@
-From 45b3935bb81ce52390f9d14a864664e9dfb870a7 Mon Sep 17 00:00:00 2001
+From 80520e8d7c9636a85028c1df653f6b5f47133f14 Mon Sep 17 00:00:00 2001
 From: Ethan Chen <intervigil@gmail.com>
 Date: Sun, 3 Jan 2016 14:09:23 -0800
-Subject: [PATCH 31/47] libstagefright: Support YVU420SemiPlanar camera format
+Subject: [PATCH 31/45] libstagefright: Support YVU420SemiPlanar camera format
 
 Change-Id: I631ba6267b3769d9da498329a39ac89c609be6d8
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  media/libstagefright/CameraSource.cpp | 4 ++++
  1 file changed, 4 insertions(+)
@@ -26,5 +24,5 @@ index 38267ba5ae..91a7b231a1 100644
           "CameraSource::getColorFormat", colorFormat);
  
 -- 
-2.40.1
+2.37.2
 

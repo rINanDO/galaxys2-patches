@@ -1,12 +1,10 @@
-From e3ac62b1db4497b8ec1102d78e005ab94504f288 Mon Sep 17 00:00:00 2001
+From 93338fae75323dd77fcf181662f03451f44e0305 Mon Sep 17 00:00:00 2001
 From: Khalvat-M <mmba313@gmail.com>
 Date: Wed, 11 Jan 2023 06:50:13 +0330
-Subject: [PATCH 04/47] Revert "Camera: Skip stream size check for whitelisted
+Subject: [PATCH 04/45] Revert "Camera: Skip stream size check for whitelisted
  apps"
 
 This reverts commit 781a5b3d1d7386287b4a3adfc3f98dfd48e550fe.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../api2/CameraDeviceClient.cpp               | 14 ++-----
  .../api2/CameraDeviceClient.h                 |  1 -
@@ -210,5 +208,5 @@ index 2bc55a88bb..a127c7bdcb 100644
  StreamConfigurationPair getStreamConfigurationPair(const CameraMetadata &metadata);
  
 -- 
-2.40.1
+2.37.2
 

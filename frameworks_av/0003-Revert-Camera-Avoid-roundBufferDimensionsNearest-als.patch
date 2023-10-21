@@ -1,12 +1,10 @@
-From 265b813b8b43dea55954668c65ed79f3b0e8324d Mon Sep 17 00:00:00 2001
+From 00b96c7d1f09490d7ef05d8424a8e44231fd752a Mon Sep 17 00:00:00 2001
 From: Khalvat-M <mmba313@gmail.com>
 Date: Wed, 11 Jan 2023 06:49:29 +0330
-Subject: [PATCH 03/47] Revert "Camera: Avoid roundBufferDimensionsNearest also
+Subject: [PATCH 03/45] Revert "Camera: Avoid roundBufferDimensionsNearest also
  for HAL_PIXEL_FORMAT_BLOB"
 
 This reverts commit 893516da239eb44b90a2654ab53ed6d27d74d86c.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../libcameraservice/utils/SessionConfigurationUtils.cpp   | 7 +++----
  1 file changed, 3 insertions(+), 4 deletions(-)
@@ -31,5 +29,5 @@ index eb45fbec26..b49f86c0e7 100644
          bestWidth  = width;
          bestHeight = height;
 -- 
-2.40.1
+2.37.2
 

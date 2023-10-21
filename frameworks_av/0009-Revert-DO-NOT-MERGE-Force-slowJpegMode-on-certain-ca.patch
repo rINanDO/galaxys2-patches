@@ -1,7 +1,7 @@
-From 5c96a180fef2b426c8e0dc493225ff0446a9636c Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Sat, 5 Aug 2023 17:22:58 +0200
-Subject: [PATCH 09/47] Revert "DO NOT MERGE Force slowJpegMode on certain
+From 651d43fd43827aaff19dd92752a9001b26b5dcea Mon Sep 17 00:00:00 2001
+From: Khalvat-M <mmba313@gmail.com>
+Date: Wed, 21 Jun 2023 08:55:58 +0330
+Subject: [PATCH 09/45] Revert "DO NOT MERGE Force slowJpegMode on certain
  camera1 apps"
 
 This reverts commit 4094e1f16644c84c31866c33cf84a0441247ba07.
@@ -361,5 +361,5 @@ index 120d43de82..09f8eb601a 100644
          if (!rc.isOk()) {
              // camera not connected
 -- 
-2.40.1
+2.37.2
 

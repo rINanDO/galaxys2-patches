@@ -1,12 +1,10 @@
-From 39316cd87611809b476f3a9789ec09594a88fff9 Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Fri, 12 May 2023 22:56:56 +0200
-Subject: [PATCH 02/47] Revert "Camera: Fix missing physical camera
+From 30fe083ef7c6422864a9c6454acb326444f595ed Mon Sep 17 00:00:00 2001
+From: Khalvat-M <mmba313@gmail.com>
+Date: Wed, 22 Mar 2023 18:58:53 +0330
+Subject: [PATCH 02/45] Revert "Camera: Fix missing physical camera
  availability callback"
 
 This reverts commit 3d316f37cc755289bdfd8a4c70d9e36a40e7e64d.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../camera/libcameraservice/CameraService.cpp | 11 +--
  .../common/CameraProviderManager.cpp          | 57 ++++++++----
@@ -371,5 +369,5 @@ index 2f55defd75..e9f6979573 100644
 -        << "Unavailable physical camera Ids not set properly.";
 -}
 -- 
-2.40.1
+2.37.2
 

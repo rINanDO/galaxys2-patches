@@ -1,7 +1,7 @@
-From b64d6bf3c2500157bf5024388de9f2042f132224 Mon Sep 17 00:00:00 2001
+From b3e02d9d9ff08bbb0c68e6422651a2d13b377df8 Mon Sep 17 00:00:00 2001
 From: Milos Ratkovic <milosr@gmail.com>
 Date: Mon, 8 Jan 2018 00:23:58 +0100
-Subject: [PATCH 35/47] libstagefright: use 64-bit usage for
+Subject: [PATCH 35/45] libstagefright: use 64-bit usage for
  native_window_set_usage
 
 Since Android 8.1 native_window_set_usage has changed to use 64-bit int
@@ -16,8 +16,6 @@ Original 64-bit usage commit:
 https://android.googlesource.com/platform/frameworks/native/+/cb496acbe593326e8d5d563847067d02b2df40ec
 
 Change-Id: Ic38cbb41997df9f5a77b276ba77e90a59cb5ae8d
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  media/libstagefright/SurfaceUtils.cpp | 7 ++++---
  1 file changed, 4 insertions(+), 3 deletions(-)
@@ -48,5 +46,5 @@ index f526e056d4..47cfbb817c 100644
      return NO_ERROR;
  }
 -- 
-2.40.1
+2.37.2
 

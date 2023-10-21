@@ -1,12 +1,10 @@
-From 27f24da205519d4f44af8dbaa123d358cdc64f7a Mon Sep 17 00:00:00 2001
+From 6f9c85fe249f9952e54c72390cf8ed44ea168ad3 Mon Sep 17 00:00:00 2001
 From: z3DD3r <z3dd3r@gmail.com>
 Date: Fri, 9 Dec 2022 22:53:49 +0300
-Subject: [PATCH 20/47] Revert "Add disable/enable camera service watchdog
+Subject: [PATCH 20/45] Revert "Add disable/enable camera service watchdog
  feature"
 
 This reverts commit 74cd373d6a9d5539ea9856b50f1c316ddc580d78.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../camera/libcameraservice/CameraService.cpp | 27 ----------
  .../camera/libcameraservice/CameraService.h   |  9 ----
@@ -400,5 +398,5 @@ index 3c5cb78f6c..f927b4da0a 100644
      wp<camera3::StatusTracker> getStatusTracker() { return mStatusTracker; }
  
 -- 
-2.40.1
+2.37.2
 

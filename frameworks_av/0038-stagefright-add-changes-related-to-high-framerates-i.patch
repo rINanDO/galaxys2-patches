@@ -1,7 +1,7 @@
-From e379563ace9323371c98c21d8a852fd6682f7402 Mon Sep 17 00:00:00 2001
+From a316f080b551c5db921b734f0cb59fc58a9590ca Mon Sep 17 00:00:00 2001
 From: Paras Nagda <pnagda@codeaurora.org>
 Date: Fri, 4 May 2018 16:13:15 +0530
-Subject: [PATCH 38/47] stagefright: add changes related to high-framerates in
+Subject: [PATCH 38/45] stagefright: add changes related to high-framerates in
  CameraSource
 
 Below changes are squashed with this change.
@@ -31,7 +31,6 @@ Conflicts:
 
 Change-Id: I079d880252992b94bd78ac43aed732f5000175d3
 Signed-off-by: Volodymyr Zhdanov <wight554@gmail.com>
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../libmediaplayerservice/StagefrightRecorder.cpp  |  3 ++-
  media/libstagefright/CameraSource.cpp              | 14 +++++++++++++-
@@ -130,5 +129,5 @@ index e0a6eb3a57..a00a1786ae 100644
      }
      return false;
 -- 
-2.40.1
+2.37.2
 

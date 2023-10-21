@@ -1,12 +1,10 @@
-From 4665b47e09dc55af28d018985d4710db05ed8876 Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Fri, 12 May 2023 23:01:32 +0200
-Subject: [PATCH 16/47] Revert "DO NOT MERGE libcameraservice: Provide flag for
+From ba3013e5c6a1a075feb180611fb9fa58578a7ddd Mon Sep 17 00:00:00 2001
+From: Khalvat-M <mmba313@gmail.com>
+Date: Wed, 22 Mar 2023 14:50:28 +0330
+Subject: [PATCH 16/45] Revert "DO NOT MERGE libcameraservice: Provide flag for
  overriding camera output to portrait."
 
 This reverts commit 3560b7e9373b54f8662d3f3f0df9c2c3b35a4c33.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  camera/Android.bp                             |  1 -
  camera/Camera.cpp                             |  4 +-
@@ -1649,5 +1647,5 @@ index 09f8eb601a..97d7bf48d4 100644
              continue;
          }
 -- 
-2.40.1
+2.37.2
 

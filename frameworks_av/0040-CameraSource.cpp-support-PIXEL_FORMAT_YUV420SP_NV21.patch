@@ -1,11 +1,9 @@
-From 599a734a4635258e56c70b76b70310bc0832eb5b Mon Sep 17 00:00:00 2001
+From 4aff5f1c6e100f743576b0b65049c325234bd3c6 Mon Sep 17 00:00:00 2001
 From: html6405 <peter.schelchshorn@mhs-solutions.at>
 Date: Wed, 23 Feb 2022 16:14:39 +0100
-Subject: [PATCH 40/47] CameraSource.cpp: support PIXEL_FORMAT_YUV420SP_NV21.
+Subject: [PATCH 40/45] CameraSource.cpp: support PIXEL_FORMAT_YUV420SP_NV21.
 
 Change-Id: I7371858daf962f13b60158e8bfb231c426be6a45
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  media/libstagefright/CameraSource.cpp | 9 ++++++++-
  1 file changed, 8 insertions(+), 1 deletion(-)
@@ -45,5 +43,5 @@ index 1ae4c08f9f..d187a76e83 100644
  }
  
 -- 
-2.40.1
+2.37.2
 

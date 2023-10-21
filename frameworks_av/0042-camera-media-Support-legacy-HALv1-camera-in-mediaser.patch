@@ -1,7 +1,7 @@
-From 142a04fd2648891be3635d85ddd6697957080bd2 Mon Sep 17 00:00:00 2001
+From b62eb0d4c7bc3b0fb8e338a221aa3d5c47f190e4 Mon Sep 17 00:00:00 2001
 From: Simon Shields <keepcalm444@gmail.com>
 Date: Thu, 6 Oct 2016 20:25:32 +1100
-Subject: [PATCH 42/47] camera/media: Support legacy HALv1 camera in
+Subject: [PATCH 42/45] camera/media: Support legacy HALv1 camera in
  mediaserver
 
 Pre 7.0 camera HALv1 can not share its video buffers
@@ -41,7 +41,6 @@ mediaserver: Update HALv1 dependencies for 9.0.0
 
 Change-Id: Ib6bb8a4e9ef18606c64e2dff13504d2eeaac13b1
 Signed-off-by: Adrian DC <radian.dc@gmail.com>
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  media/mediaserver/Android.bp                       |  3 +++
  media/mediaserver/main_mediaserver.cpp             | 12 ++++++++++++
@@ -153,5 +152,5 @@ index d17c87320c..768d5a79b0 100644
      // If sensor privacy is enabled then prevent access to the camera
      if (mSensorPrivacyPolicy->isSensorPrivacyEnabled()) {
 -- 
-2.40.1
+2.37.2
 

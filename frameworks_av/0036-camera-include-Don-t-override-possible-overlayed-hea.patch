@@ -1,7 +1,7 @@
-From 84fd94f3150f5f1869f6e0b6b2c60576bc7c3038 Mon Sep 17 00:00:00 2001
+From 8458248ea726e72b8e859876cdf9fa493a5009ad Mon Sep 17 00:00:00 2001
 From: Bruno Martins <bgcngm@gmail.com>
 Date: Sat, 23 Sep 2017 18:29:21 +0100
-Subject: [PATCH 36/47] camera: include: Don't override possible overlayed
+Subject: [PATCH 36/45] camera: include: Don't override possible overlayed
  header
 
  * If targets define a specific header path, then let it be the case
@@ -10,8 +10,6 @@ Subject: [PATCH 36/47] camera: include: Don't override possible overlayed
  * This only became an issue since O due to moved camera headers (commit e2b43843fd12783188edd2c54188ea8d26864788).
 
 Change-Id: I6bf7d1da7448d71f7821d40501db971f837781db
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  camera/include/camera/CameraParameters2.h | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
@@ -30,5 +28,5 @@ index f691cd6ea0..5fae079376 100644
  namespace android {
  
 -- 
-2.40.1
+2.37.2
 

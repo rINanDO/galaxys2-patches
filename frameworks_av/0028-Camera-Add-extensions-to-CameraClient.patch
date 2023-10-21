@@ -1,7 +1,7 @@
-From 341e7ef0d5d10d2287f3c5b9f389c7d4d2a325a0 Mon Sep 17 00:00:00 2001
+From c0e39ec487c9588e46bea12f7f7a38ecd1e13292 Mon Sep 17 00:00:00 2001
 From: Shuzhen Wang <shuzhenw@codeaurora.org>
 Date: Wed, 8 Jul 2015 15:47:46 -0700
-Subject: [PATCH 28/47] Camera: Add extensions to CameraClient
+Subject: [PATCH 28/45] Camera: Add extensions to CameraClient
 
 This change includes the following gerrits:
 
@@ -36,8 +36,6 @@ This change includes the following gerrits:
   Cherrypicked from 25bd97f5ec30e7942c3b1fdc96115da6028736f0
 
 Change-Id: Ie930d20c962593e40a0767f9cf7d4385df8e2561
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../libcameraservice/api1/CameraClient.cpp    | 33 +++++++++++++++++--
  .../libcameraservice/api1/CameraClient.h      |  3 ++
@@ -130,5 +128,5 @@ index 20e320a00b..c94bec559f 100644
  
  }
 -- 
-2.40.1
+2.37.2
 

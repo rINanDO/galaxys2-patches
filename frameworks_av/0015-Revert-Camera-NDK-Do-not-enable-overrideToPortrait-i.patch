@@ -1,7 +1,7 @@
-From a0c762f4b0935dea7eeb32c4f778c9656a042430 Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Sat, 5 Aug 2023 17:28:23 +0200
-Subject: [PATCH 15/47] Revert "Camera NDK: Do not enable overrideToPortrait in
+From e27d78b7845eb5fd3613927bd6904e2d36d20847 Mon Sep 17 00:00:00 2001
+From: khalvat-M <mmba313@gmail.com>
+Date: Thu, 22 Jun 2023 10:17:35 +0330
+Subject: [PATCH 15/45] Revert "Camera NDK: Do not enable overrideToPortrait in
  ACameraManager"
 
 This reverts commit 45ec7c2e4c749bbd5933f1a5e855f7513a975332.
@@ -32,5 +32,5 @@ index 02047ae506..23d90ccf4a 100644
      if (!serviceRet.isOk()) {
          ALOGE("%s: connect camera device failed: %s", __FUNCTION__, serviceRet.toString8().string());
 -- 
-2.40.1
+2.37.2
 

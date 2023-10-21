@@ -1,12 +1,10 @@
-From c23421c68b6db44effad47ba2342920493fb2681 Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Fri, 12 May 2023 22:58:45 +0200
-Subject: [PATCH 05/47] Revert "Camera: Avoid over-delaying frames in
+From a24edcf5846b61fb4feece9ec1e9da145df4c2af Mon Sep 17 00:00:00 2001
+From: Khalvat-M <mmba313@gmail.com>
+Date: Wed, 22 Mar 2023 14:38:39 +0330
+Subject: [PATCH 05/45] Revert "Camera: Avoid over-delaying frames in
  PreviewFrameSpacer"
 
 This reverts commit 4b35b1d1d5b20c8181305408e27f45a35dd553fa.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  .../libcameraservice/device3/PreviewFrameSpacer.cpp       | 8 +++-----
  .../camera/libcameraservice/device3/PreviewFrameSpacer.h  | 1 -
@@ -52,5 +50,5 @@ index f46de3d88a..cb9690cf63 100644
  
  }; //namespace camera3
 -- 
-2.40.1
+2.37.2
 

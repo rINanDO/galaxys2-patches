@@ -1,11 +1,9 @@
-From bf492ff8ad83b37d591b69619ea234f83ff55998 Mon Sep 17 00:00:00 2001
+From da360911dd2351c8cf2d192632f5e6650d1e3370 Mon Sep 17 00:00:00 2001
 From: TARKZiM <tom8476oo@gmail.com>
 Date: Sat, 12 Feb 2022 18:41:32 +0800
-Subject: [PATCH 24/47] libaudiohal: Bring back 2.0 HAL
+Subject: [PATCH 24/45] libaudiohal: Bring back 2.0 HAL
 
 Change-Id: I1800712582df740db9f60d29e22cda18c4895a96
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  media/libaudiohal/Android.bp                  |  1 +
  media/libaudiohal/FactoryHalHidl.cpp          |  5 ++--
@@ -149,5 +147,5 @@ index 4069a6bdbd..b86de107e2 100644
  #if MAJOR_VERSION == 7 && MINOR_VERSION == 1
              ret = factory->openDevice_7_1(
 -- 
-2.40.1
+2.37.2
 

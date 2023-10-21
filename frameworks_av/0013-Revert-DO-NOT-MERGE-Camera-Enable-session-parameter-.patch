@@ -1,7 +1,7 @@
-From c6ff1aa25e7d9820ac46d8c2421924ed01a3d5f5 Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Sat, 5 Aug 2023 17:27:29 +0200
-Subject: [PATCH 13/47] Revert "DO NOT MERGE Camera: Enable session parameter
+From d81b73656bee437bd9e68d6d786f70781aaac9b1 Mon Sep 17 00:00:00 2001
+From: khalvat-M <mmba313@gmail.com>
+Date: Thu, 22 Jun 2023 10:13:03 +0330
+Subject: [PATCH 13/45] Revert "DO NOT MERGE Camera: Enable session parameter
  handling for Rotate&Crop"
 
 This reverts commit b9f8381c7c4e7dc07ba7cf778f6cd24b55b28005.
@@ -244,5 +244,5 @@ index e6073a94d4..cd214f623f 100644
      // Current active physical id of the logical multi-camera, if any
      std::string mActivePhysicalId;
 -- 
-2.40.1
+2.37.2
 

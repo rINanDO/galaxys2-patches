@@ -1,7 +1,7 @@
-From 1873c69bc9f1b1086fa9e8bf412e895a356ec4f9 Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Sat, 5 Aug 2023 17:26:00 +0200
-Subject: [PATCH 11/47] Revert "Turn off overrideToPortrait where not needed."
+From ee8e5f3af5b7978f29d461ed90b493ac25e0e37e Mon Sep 17 00:00:00 2001
+From: khalvat-M <mmba313@gmail.com>
+Date: Thu, 22 Jun 2023 10:10:14 +0330
+Subject: [PATCH 11/45] Revert "Turn off overrideToPortrait where not needed."
 
 This reverts commit 7b14d5e6c4387c5d4ec5cf61be57ba4bf61d29af.
 ---
@@ -129,5 +129,5 @@ index fc063aba66..259e8a5666 100644
      HStatus status = HStatus::NO_ERROR;
      if (!serviceRet.isOk()) {
 -- 
-2.40.1
+2.37.2
 

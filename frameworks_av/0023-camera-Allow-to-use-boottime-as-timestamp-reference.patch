@@ -1,7 +1,7 @@
-From 7cd5217d030d8b53863ce0e04a946539744a8bc0 Mon Sep 17 00:00:00 2001
+From e5db9539d532cfda8af92ff97e57dab6f262a321 Mon Sep 17 00:00:00 2001
 From: maxwen <max.weninger@gmail.com>
 Date: Tue, 9 Oct 2018 13:52:55 +0200
-Subject: [PATCH 23/47] camera: Allow to use boottime as timestamp reference
+Subject: [PATCH 23/45] camera: Allow to use boottime as timestamp reference
 
 * Some /mad/ HALs use boottime clock without reporting
   timestamp source as realtime
@@ -10,8 +10,6 @@ Subject: [PATCH 23/47] camera: Allow to use boottime as timestamp reference
 [SebaUbuntu] Edit for Soong conditional
 
 Change-Id: I56b623a1c2b58ca8a6287783d938fb665de201df
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  services/camera/libcameraservice/Android.bp                | 3 +++
  services/camera/libcameraservice/device3/Camera3Device.cpp | 5 +++++
@@ -48,5 +46,5 @@ index 1d47ef2301..654baee540 100644
      camera_metadata_entry partialResultsCount =
              mDeviceInfo.find(ANDROID_REQUEST_PARTIAL_RESULT_COUNT);
 -- 
-2.40.1
+2.37.2
 

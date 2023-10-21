@@ -1,12 +1,10 @@
-From 47ada6dca7f420226625e05b8d33e0870e46a62c Mon Sep 17 00:00:00 2001
-From: Dominggoes Isakh <drjisakh@gmail.com>
-Date: Fri, 12 May 2023 23:00:43 +0200
-Subject: [PATCH 08/47] Revert "Camera: Fix parameter misalignment in
+From fa542283c00f2252a020e2f53ef7ce72fa884bc2 Mon Sep 17 00:00:00 2001
+From: Khalvat-M <mmba313@gmail.com>
+Date: Wed, 22 Mar 2023 14:48:20 +0330
+Subject: [PATCH 08/45] Revert "Camera: Fix parameter misalignment in
  getDeviceVersion"
 
 This reverts commit f221e8dd72c325f15437ed4ba32916393e587461.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  services/camera/libcameraservice/CameraService.cpp | 5 ++---
  1 file changed, 2 insertions(+), 3 deletions(-)
@@ -28,5 +26,5 @@ index f12498173c..4b6c63b2b1 100644
              ALOGE("%s: Unable to get camera device \"%s\" facing", __FUNCTION__, cameraId.c_str());
              return;
 -- 
-2.40.1
+2.37.2
 

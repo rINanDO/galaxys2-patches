@@ -1,11 +1,9 @@
-From 2f46a7dd6efcf40e466d6c3ee1c5f8d78ab2e8df Mon Sep 17 00:00:00 2001
+From cf2c6164193064e8a6bc54b6366971cf3ea90d36 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Tue, 2 Nov 2021 09:43:53 +0100
-Subject: [PATCH 26/47] Revert "Camera: Remove old recording path support"
+Subject: [PATCH 26/45] Revert "Camera: Remove old recording path support"
 
 This reverts commit b8ed8efe811cf64d4afb190fb1f522a29be27bcf.
-
-Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  camera/Android.bp                             |   1 +
  camera/Camera.cpp                             |  70 ++-
@@ -1648,5 +1646,5 @@ index 3c311cff00..533e33b4ce 100644
      CameraSourceTimeLapse &operator=(const CameraSourceTimeLapse &);
  };
 -- 
-2.40.1
+2.37.2
 
