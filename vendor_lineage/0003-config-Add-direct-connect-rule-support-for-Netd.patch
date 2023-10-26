@@ -1,4 +1,4 @@
-From 75c2fa4c910501e62ba5e37e26ca659830c69823 Mon Sep 17 00:00:00 2001
+From 469fe13030eb1188dcc1509ee0c13708bb4536d4 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Sat, 5 Nov 2022 20:51:20 +0100
 Subject: [PATCH 3/6] config: Add direct connect rule support for Netd
@@ -11,10 +11,10 @@ Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
  2 files changed, 22 insertions(+)
 
 diff --git a/build/soong/Android.bp b/build/soong/Android.bp
-index 74adabe2..b4bd33ed 100644
+index 07d4cc3e..7d98a841 100644
 --- a/build/soong/Android.bp
 +++ b/build/soong/Android.bp
-@@ -360,3 +360,21 @@ surfaceflinger_qcom_extensions {
+@@ -377,3 +377,21 @@ surfaceflinger_qcom_extensions {
          },
      },
  }
@@ -37,10 +37,10 @@ index 74adabe2..b4bd33ed 100644
 +    },
 +}
 diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
-index 426da64b..afe33482 100644
+index 7cb0150a..de4df162 100644
 --- a/config/BoardConfigSoong.mk
 +++ b/config/BoardConfigSoong.mk
-@@ -109,3 +109,7 @@ SOONG_CONFIG_lineageQcomVars_qcom_display_headers_namespace := vendor/qcom/opens
+@@ -112,3 +112,7 @@ SOONG_CONFIG_lineageQcomVars_qcom_display_headers_namespace := vendor/qcom/opens
  else
  SOONG_CONFIG_lineageQcomVars_qcom_display_headers_namespace := $(QCOM_SOONG_NAMESPACE)/display
  endif
@@ -49,5 +49,5 @@ index 426da64b..afe33482 100644
 +SOONG_CONFIG_lineageGlobalVars += needs_netd_direct_connect_rule
 +SOONG_CONFIG_lineageGlobalVars_needs_netd_direct_connect_rule := $(TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE)
 -- 
-2.40.1
+2.37.2
 

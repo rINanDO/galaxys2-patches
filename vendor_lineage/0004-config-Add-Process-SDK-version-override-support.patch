@@ -1,4 +1,4 @@
-From 90ca6820a1039ce80d3de86bf25243b77defac3e Mon Sep 17 00:00:00 2001
+From 2b94bde30f1691f99d3d5fc18710f3a8e129942e Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Sat, 5 Nov 2022 20:58:54 +0100
 Subject: [PATCH 4/6] config: Add Process SDK version override support
@@ -12,10 +12,10 @@ Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
  2 files changed, 21 insertions(+)
 
 diff --git a/build/soong/Android.bp b/build/soong/Android.bp
-index b4bd33ed..66d3f235 100644
+index 7d98a841..6228d7e9 100644
 --- a/build/soong/Android.bp
 +++ b/build/soong/Android.bp
-@@ -378,3 +378,21 @@ needs_netd_direct_connect_rule {
+@@ -395,3 +395,21 @@ needs_netd_direct_connect_rule {
          },
      },
  }
@@ -38,10 +38,10 @@ index b4bd33ed..66d3f235 100644
 +    },
 +}
 diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
-index afe33482..195b4804 100644
+index de4df162..8308a083 100644
 --- a/config/BoardConfigSoong.mk
 +++ b/config/BoardConfigSoong.mk
-@@ -113,3 +113,6 @@ endif
+@@ -116,3 +116,6 @@ endif
  # Soong legacy value variables
  SOONG_CONFIG_lineageGlobalVars += needs_netd_direct_connect_rule
  SOONG_CONFIG_lineageGlobalVars_needs_netd_direct_connect_rule := $(TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE)
@@ -49,5 +49,5 @@ index afe33482..195b4804 100644
 +SOONG_CONFIG_lineageGlobalVars += target_process_sdk_version_override
 +SOONG_CONFIG_lineageGlobalVars_target_process_sdk_version_override := $(TARGET_PROCESS_SDK_VERSION_OVERRIDE)
 -- 
-2.40.1
+2.37.2
 

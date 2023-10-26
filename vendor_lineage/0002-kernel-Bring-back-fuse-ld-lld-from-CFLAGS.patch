@@ -1,4 +1,4 @@
-From ecc69254ab0fcbd3dc6f7ef7c28f68697e2e6387 Mon Sep 17 00:00:00 2001
+From adcdba0fffc2cd22798a953eb079cabc32fbbf7d Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Fri, 4 Nov 2022 21:20:37 +0100
 Subject: [PATCH 2/6] kernel: Bring back -fuse-ld=lld from CFLAGS
@@ -12,7 +12,7 @@ Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
  1 file changed, 1 insertion(+)
 
 diff --git a/config/BoardConfigKernel.mk b/config/BoardConfigKernel.mk
-index f584046a..f4cf4b8e 100644
+index 4c2a268d..55ba8302 100644
 --- a/config/BoardConfigKernel.mk
 +++ b/config/BoardConfigKernel.mk
 @@ -165,6 +165,7 @@ ifneq ($(KERNEL_NO_GCC), true)
@@ -24,5 +24,5 @@ index f584046a..f4cf4b8e 100644
      ifeq ($(KERNEL_ARCH),arm64)
          # Add 32-bit GCC to PATH so that arm-linux-androidkernel-as is available for CONFIG_COMPAT_VDSO
 -- 
-2.40.1
+2.37.2
 

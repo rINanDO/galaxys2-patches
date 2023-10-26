@@ -1,4 +1,4 @@
-From efe357e2bafbdcd182cbb10942d48ea670fb8f6c Mon Sep 17 00:00:00 2001
+From dac9160859b92b2a67bfeb4195192a9bf0cc8eb7 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Sat, 5 Nov 2022 21:06:14 +0100
 Subject: [PATCH 5/6] config: Override memfd backport support
@@ -11,10 +11,10 @@ Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
  2 files changed, 21 insertions(+)
 
 diff --git a/build/soong/Android.bp b/build/soong/Android.bp
-index 66d3f235..4a92ac70 100644
+index 6228d7e9..5abc5a6c 100644
 --- a/build/soong/Android.bp
 +++ b/build/soong/Android.bp
-@@ -396,3 +396,21 @@ target_process_sdk_version_overrides {
+@@ -413,3 +413,21 @@ target_process_sdk_version_overrides {
          },
      },
  }
@@ -37,10 +37,10 @@ index 66d3f235..4a92ac70 100644
 +    },
 +}
 diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
-index 195b4804..3ce995c5 100644
+index 8308a083..4b3ea556 100644
 --- a/config/BoardConfigSoong.mk
 +++ b/config/BoardConfigSoong.mk
-@@ -116,3 +116,6 @@ SOONG_CONFIG_lineageGlobalVars_needs_netd_direct_connect_rule := $(TARGET_NEEDS_
+@@ -119,3 +119,6 @@ SOONG_CONFIG_lineageGlobalVars_needs_netd_direct_connect_rule := $(TARGET_NEEDS_
  
  SOONG_CONFIG_lineageGlobalVars += target_process_sdk_version_override
  SOONG_CONFIG_lineageGlobalVars_target_process_sdk_version_override := $(TARGET_PROCESS_SDK_VERSION_OVERRIDE)
@@ -48,5 +48,5 @@ index 195b4804..3ce995c5 100644
 +SOONG_CONFIG_lineageGlobalVars += has_memfd_backport
 +SOONG_CONFIG_lineageGlobalVars_has_memfd_backport := $(TARGET_HAS_MEMFD_BACKPORT)
 -- 
-2.40.1
+2.37.2
 

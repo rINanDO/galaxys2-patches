@@ -1,15 +1,17 @@
-From 4b9ecfae5ecc76c5941659f8a692abd90157f794 Mon Sep 17 00:00:00 2001
+From dab3ce7660be3873e8341b5d77043642e31c1d9d Mon Sep 17 00:00:00 2001
 From: ivanmeler <i_ivan@windowslive.com>
 Date: Tue, 23 Aug 2022 21:26:45 +0000
 Subject: [PATCH 1/3] Disable gpu service
 
 Just comment it out whole we cant use it
+
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
 ---
  services/gpuservice/gpuservice.rc | 1 +
  1 file changed, 1 insertion(+)
 
 diff --git a/services/gpuservice/gpuservice.rc b/services/gpuservice/gpuservice.rc
-index 0da8bd3..b5b2714 100644
+index 0da8bd3812..b5b271402d 100644
 --- a/services/gpuservice/gpuservice.rc
 +++ b/services/gpuservice/gpuservice.rc
 @@ -2,3 +2,4 @@ service gpu /system/bin/gpuservice
@@ -18,5 +20,5 @@ index 0da8bd3..b5b2714 100644
      group graphics readtracefs
 +    disabled
 -- 
-2.7.4
+2.37.2
 
