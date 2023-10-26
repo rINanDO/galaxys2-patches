@@ -201,7 +201,7 @@ git am --signoff --3way < "$PATCHESDIR/bionic/0003-Hack-Ignore-invalid-pthread_t
 echo
 echo "======= frameworks/libs/net =========="
 cd "$ANDROIDDIR/frameworks/libs/net"
-git checkout $LOSBRANCH
+git checkout $AOSPBRANCH
 git am --signoff --3way < "$PATCHESDIR/frameworks_libs_net/0001-BpfMap-Don-t-abort-when-eBPF-is-not-available.patch"
 
 echo
