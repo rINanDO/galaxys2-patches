@@ -13,7 +13,7 @@
   <project name="rinando/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9" path="prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9" remote="rinando" />
 
 <!-- Shared Samsung -->
-  <project name="rinando/android_hardware_samsung" path="hardware/samsung" remote="rinando" />
+  <project name="rinando/android_hardware_samsung" path="hardware/samsung" remote="rinando" revision="lineage-21.0" />
   <project name="rinando/proprietary_vendor_samsung" path="vendor/samsung" remote="rinando" />
 </manifest>
 
