@@ -1,4 +1,4 @@
-From 75c2fa4c910501e62ba5e37e26ca659830c69823 Mon Sep 17 00:00:00 2001
+From 092f6ca9df52b3065a23435006513dbadfc81791 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Sat, 5 Nov 2022 20:51:20 +0100
 Subject: [PATCH 3/6] config: Add direct connect rule support for Netd
@@ -11,10 +11,10 @@ Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
  2 files changed, 22 insertions(+)
 
 diff --git a/build/soong/Android.bp b/build/soong/Android.bp
-index 74adabe2..b4bd33ed 100644
+index 2029d7ec..8faf3357 100644
 --- a/build/soong/Android.bp
 +++ b/build/soong/Android.bp
-@@ -360,3 +360,21 @@ surfaceflinger_qcom_extensions {
+@@ -401,3 +401,21 @@ qti_vibrator_hal {
          },
      },
  }
@@ -37,17 +37,17 @@ index 74adabe2..b4bd33ed 100644
 +    },
 +}
 diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
-index 426da64b..afe33482 100644
+index 651d3372..93c2afdc 100644
 --- a/config/BoardConfigSoong.mk
 +++ b/config/BoardConfigSoong.mk
-@@ -109,3 +109,7 @@ SOONG_CONFIG_lineageQcomVars_qcom_display_headers_namespace := vendor/qcom/opens
- else
+@@ -117,3 +117,7 @@ else
  SOONG_CONFIG_lineageQcomVars_qcom_display_headers_namespace := $(QCOM_SOONG_NAMESPACE)/display
  endif
+ SOONG_CONFIG_lineageQcomVars_qti_vibrator_effect_lib := $(TARGET_QTI_VIBRATOR_EFFECT_LIB)
 +
 +# Soong legacy value variables
 +SOONG_CONFIG_lineageGlobalVars += needs_netd_direct_connect_rule
 +SOONG_CONFIG_lineageGlobalVars_needs_netd_direct_connect_rule := $(TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE)
 -- 
-2.40.1
+2.39.2
 

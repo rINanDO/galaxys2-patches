@@ -1,7 +1,7 @@
-From 5d141d39175b16155ac5a7f5e840e2f199601c0a Mon Sep 17 00:00:00 2001
+From aacd3e2acccfa0e4378d196eb44f75d4dfd12102 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Mon, 3 Jan 2022 01:01:03 +0100
-Subject: [PATCH] kernel: Add BOARD_CUSTOM_KERNEL_MK support
+Subject: [PATCH 1/6] kernel: Add BOARD_CUSTOM_KERNEL_MK support
 
 Allow KERNEL_OUT to be overriden for eg. building embedded uncompressed
 ramdisk before building the kernel.
@@ -13,10 +13,10 @@ Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
  1 file changed, 6 insertions(+)
 
 diff --git a/build/tasks/kernel.mk b/build/tasks/kernel.mk
-index af495d99..0e1b2eda 100644
+index eecb30b3..e1f93242 100644
 --- a/build/tasks/kernel.mk
 +++ b/build/tasks/kernel.mk
-@@ -415,8 +415,14 @@ KERNEL_RECOVERY_MODULES_OUT := $(TARGET_RECOVERY_ROOT_OUT)
+@@ -430,8 +430,14 @@ KERNEL_RECOVERY_MODULES_OUT := $(TARGET_RECOVERY_ROOT_OUT)
  $(recovery_uncompressed_ramdisk): $(TARGET_PREBUILT_INT_KERNEL)
  endif
  
@@ -32,5 +32,5 @@ index af495d99..0e1b2eda 100644
  $(KERNEL_CONFIG): $(KERNEL_OUT) $(ALL_KERNEL_DEFCONFIG_SRCS)
  	@echo "Building Kernel Config"
 -- 
-2.37.2
+2.39.2
 
