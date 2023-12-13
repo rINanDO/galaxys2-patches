@@ -217,10 +217,5 @@ cd "$ANDROIDDIR/device/lineage/sepolicy"
 git checkout $LOSBRANCH
 git am --signoff --3way < "$PATCHESDIR/device_lineage_sepolicy/0001-sepolicy-add-hal_lineage_batterylifeextender.patch"
 
-echo
-echo "======= prebuilts/clang/host/linux-x86 -- Fix for Ubuntu 23.10 --  ========"
-cd "$ANDROIDDIR/prebuilts/clang/host/linux-x86"
-git checkout $AOSP
-git am --signoff --3way < "$PATCHESDIR/prebuilts_clang_host_linux-x86/001-Symlink-to-checked-in-prebuilt-of-libncurses.so.5.patch"
 
 cd $PATCHESDIR
