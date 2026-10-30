@@ -240,6 +240,14 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   - libhwbinder logs an error instead of aborting when a process shrinks its
     thread pool, as `libbinder` does (`frameworks_native` 0001);
   - in the off-mode charger, the home button also wakes the screen.
+- **Legacy kernel fixes from gts210wifi** (`system_memory_lmkd`,
+  `frameworks_base` 0013, `system_core` 0007):
+  - lmkd no longer exits at every boot: with the kernel's low memory
+    killer it tried to start PSI monitoring when ActivityManager asked, and
+    this kernel has no PSI;
+  - `FileIntegrity` skips fs-verity, which this kernel lacks, instead of
+    logging a stack trace on every settings and permissions write;
+  - fast reboot on legacy devices too.
 
 ## LOS-20.0 patches that are no longer needed
 

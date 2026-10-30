@@ -1,0 +1,38 @@
+From 4b3784f9e3b78c467da20a75cec272f676be38ec Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 26 Oct 2026 16:44:05 +0100
+Subject: [PATCH] lmkd: ignore LMK_START_MONITORING with the in-kernel LMK
+
+ActivityManager sends LMK_START_MONITORING after boot. In in-kernel mode
+lmkd never registers PSI monitors, so monitors_initialized is false and
+it calls init_monitors(). Kernels with the in-kernel low memory killer
+usually have no PSI, so that fails and lmkd exits with status 1, to be
+restarted by init, on every boot.
+
+The kernel driver does the monitoring itself, so there is nothing to
+start.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Ibf24bcbb3b9544a6f9bd2375a9086cad825c0242
+---
+ lmkd.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/lmkd.cpp b/lmkd.cpp
+index b2cc335..f48c113 100644
+--- a/lmkd.cpp
++++ b/lmkd.cpp
+@@ -1589,6 +1589,10 @@ static void ctrl_command_handler(int dsock_idx) {
+         // Registration is needed only if it was skipped earlier.
+         if (monitors_initialized)
+             return;
++        // The in-kernel low memory killer does the monitoring itself, and
++        // kernels that have it usually lack PSI, so init_monitors() would fail.
++        if (use_inkernel_interface)
++            return;
+         if (!property_get_bool("sys.boot_completed", false)) {
+             ALOGE("LMK_START_MONITORING cannot be handled before boot completed");
+             return;
+-- 
+2.54.0
+
