@@ -1,0 +1,88 @@
+From 906dc7eadb5eeb4a2bfe1b391b2b740b8dd34d1f Mon Sep 17 00:00:00 2001
+From: Roopesh Rajashekharaiah Nataraja <roopeshr@codeaurora.org>
+Date: Tue, 23 Jan 2018 15:31:48 -0800
+Subject: [PATCH 7/9] Add inaddr.h header file
+
+Change-Id: Iad92c39fb729538cf51bf9d9037b15515104b453
+---
+ libc/include/arpa/inet.h    |  1 +
+ libc/include/bits/in_addr.h |  4 +---
+ libc/include/inaddr.h       | 36 ++++++++++++++++++++++++++++++++++++
+ 3 files changed, 38 insertions(+), 3 deletions(-)
+ create mode 100644 libc/include/inaddr.h
+
+diff --git a/libc/include/arpa/inet.h b/libc/include/arpa/inet.h
+index 246b43821..c7e684578 100644
+--- a/libc/include/arpa/inet.h
++++ b/libc/include/arpa/inet.h
+@@ -35,6 +35,7 @@
+ #include <netinet/in.h>
+ #include <stdint.h>
+ #include <sys/types.h>
++#include <inaddr.h>
+ 
+ __BEGIN_DECLS
+ 
+diff --git a/libc/include/bits/in_addr.h b/libc/include/bits/in_addr.h
+index 7a68c9b40..edaf05ea3 100644
+--- a/libc/include/bits/in_addr.h
++++ b/libc/include/bits/in_addr.h
+@@ -35,12 +35,10 @@
+ 
+ #include <sys/cdefs.h>
+ #include <stdint.h>
++#include <inaddr.h>
+ 
+ __BEGIN_DECLS
+ 
+-/** An integral type representing an IPv4 address. */
+-typedef uint32_t in_addr_t;
+-
+ /** A structure representing an IPv4 address. */
+ struct in_addr {
+   in_addr_t s_addr;
+diff --git a/libc/include/inaddr.h b/libc/include/inaddr.h
+new file mode 100644
+index 000000000..524addabf
+--- /dev/null
++++ b/libc/include/inaddr.h
+@@ -0,0 +1,36 @@
++/*
++ * Copyright (C) 2017 The Android Open Source Project
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *  * Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *  * Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in
++ *    the documentation and/or other materials provided with the
++ *    distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
++ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
++ * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
++ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
++ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
++ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
++ * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
++ * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
++ * SUCH DAMAGE.
++ */
++
++#ifndef _INADDR_H_
++#define _INADDR_H_
++
++#include <stdint.h>
++
++typedef uint32_t in_addr_t;
++
++#endif
+-- 
+2.54.0
+

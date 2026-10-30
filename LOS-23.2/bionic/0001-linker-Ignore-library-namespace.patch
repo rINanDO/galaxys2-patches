@@ -1,0 +1,28 @@
+From ccdcbe8c65a5ee033c199982202b7b782300a60b Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 24 Jan 2026 21:53:33 +0100
+Subject: [PATCH 1/9] linker: Ignore library namespace
+
+This hack will allow to access system libraries by vendor libraries.
+
+Change-Id: Ic676f19627a1a6a8c39decf22d29e97660acba33
+---
+ linker/linker.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/linker/linker.cpp b/linker/linker.cpp
+index 29e67ce3a..2594bcd68 100644
+--- a/linker/linker.cpp
++++ b/linker/linker.cpp
+@@ -1437,7 +1437,7 @@ static bool find_library_in_linked_namespace(const android_namespace_link_t& nam
+     LD_LOG(kLogDlopen,
+            "find_library_in_linked_namespace(ns=%s, task=%s): Not accessible (soname=%s)",
+            ns->get_name(), task->get_name(), soname.c_str());
+-    return false;
++    return true;
+   }
+ 
+   // if library is already loaded - return it
+-- 
+2.54.0
+

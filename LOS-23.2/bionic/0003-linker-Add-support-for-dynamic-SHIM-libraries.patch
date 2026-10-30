@@ -1,0 +1,437 @@
+From 6197c74a7d4c19cde8065260ef5c3bf5802cef03 Mon Sep 17 00:00:00 2001
+From: "Christopher R. Palmer" <crpalmer@gmail.com>
+Date: Sat, 8 Apr 2017 22:40:01 +0200
+Subject: [PATCH 3/9] linker: Add support for dynamic SHIM libraries
+
+Author: Christopher R. Palmer <crpalmer@gmail.com>
+Date:   Tue Nov 3 16:44:44 2015 -0500
+
+    linker: Add support for dynamic "shim" libs
+
+    Add a new environment variable
+
+    LD_SHIM_LIBS
+
+    that is a colon (":") separated list of vertical bar ("|") separated pairs.
+    The pairs are the name for a soinfo reference (executable or shared library)
+    followed by the name of the shim library to load.  For example:
+
+    LD_SHIM_LIBS=rmt_storage|libshim_ioprio.so:/system/lib/libicuuv.so|libshim_icu53.so
+
+    will instruct the linker to load the dynamic library libshim_ioprio.so
+    whenver rmt_storage is executed [*] and will load libshim_icu53.so whenever
+    any executable or other shared library links against /system/lib/libicuuv.so.
+
+    There are no restrictions against circular references.  In this example,
+    libshim_icu53.so can link against libicuuv.so which provides a simple and
+    convenient means of adding compatibility symbols.
+
+    [*] Note that the absolute path is not available to the linker and therefore
+    using the name of executables does depend on the invocation and therefore
+    should only be used if absolutely necessary.  That is, running
+    /system/bin/rmt_storage would not load any shim libs in this example because
+    it does not match the name of the invocation of the command.
+
+    If you have trouble determining the sonames being loaded, you can also set
+    the environment variable LD_DEBUG=1 which will cause additional information
+    to be logged to help trace the detection of the shim libs.
+
+    Change-Id: I0ef80fa466167f7bcb7dac90842bef1c3cf879b6
+
+Author: Christopher R. Palmer <crpalmer@gmail.com>
+Date:   Sun Nov 15 14:26:32 2015 -0500
+
+    linker: Fix the fact that shim libs do not properly call constructors
+
+    Change-Id: I34333e13443a154e675b853fa41442351bc4243a
+
+Author: Christopher R. Palmer <crpalmer@gmail.com>
+Date:   Tue Dec 1 07:10:36 2015 -0500
+
+    linker: Don't try to walk the g_active_shim_libs when doing dlsym
+
+    This is a bug in the original shim_lib implementation which was
+    doing the shim lib resolution both when loading the libraries
+    and when doing the dynamic symbol resolution.
+
+    Change-Id: Ib2df0498cf551b3bbd37d7c351410b9908eb1795
+
+Author: Christopher R. Palmer <crpalmer@gmail.com>
+Date:   Sun Nov 29 08:28:10 2015 -0500
+
+    linker: Reset the active shim libs each time we do a dlopen
+
+    We use the active libs to avoid recursively trying to load the
+    same library:
+
+    A -> shimlibs add B -> depends on A -> shimlibs add B -> ...
+
+    However, when we repeatedly dlopen the same library we need
+    to reset the active shim libs to avoid failing to add B the
+    second time we dlopen A.
+
+    Change-Id: I27580e3d6a53858e8bca025d6c85f981cffbea06
+
+Author: Danny Baumann <dannybaumann@web.de>
+Date:   Fri Dec 11 10:29:16 2015 +0100
+
+    Make shim lib load failure non-fatal.
+
+    Instead, print an appropriate warning message. Aborting symbol
+    resolution on shim lib load failure leads to weird symbol lookup
+    failures, because symbols in libraries referenced after the one loading
+    the shim won't be loaded anymore without a log message stating why that
+    happened.
+
+    Change-Id: Ic3ad7095ddae7ea1039cb6a18603d5cde8a16143
+
+Author: Christopher R. Palmer <crpalmer@gmail.com>
+Date:   Sat Dec 12 06:10:09 2015 -0500
+
+    bionic: Do not allow LD_SHIM_LIBS for setuid executables
+
+    That's really not safe...
+
+    Change-Id: If79af951830966fc21812cd0f60a8998a752a941
+
+Author: Christopher R. Palmer <crpalmer@gmail.com>
+Date:   Sun Feb 14 11:38:44 2016 -0500
+
+    bionic: linker: Load shim libs *before* the self-linked libs
+
+    By loading them earlier, this allows us to override a symbol in
+    a library that is being directly linked.
+
+    I believe this explains why some people have had problems shimming
+    one lib but when the changet he shim to be against a different
+    lib it magically works.
+
+    It also makes it possible to override some symbols that were
+    nearly impossible to override before this change.  For example, it is
+    pretty much impossible to override a symbol in libutils without
+    this change because it's loaded almost everywhere so no matter
+    where you try to place the shimming, it will be too late and
+    the other symbol will have priority.
+
+    In particularly, this is necessary to be able to correctly
+    shim the VectorImpl symbols for dlx.
+
+    Change-Id: I461ca416bc288e28035352da00fde5f34f8d9ffa
+
+Author: Chirayu Desai <chirayudesai1@gmail.com>
+Date:   Thu Aug 25 19:02:41 2016 +0530
+
+    linker: Update find_library call for shimlibs
+
+    commits 0cdef7e7f3c6837b56a969120d9098463d1df8d8
+    "Respect caller DT_RUNPATH in dlopen()."
+    and 42d5fcb9f494eb45de3b6bf759f4a18076e84728
+    "Introducing linker namespaces"
+    added new arguments to find_library, add them here.
+
+    Change-Id: I8f35a45b00d14f8b2ce01a0a96d2dc7759be04a6
+
+Author: Chippa-a <vusal1372@gmail.com>
+Date:   Sat Aug 27 14:56:30 2016 +0200
+
+    linker: Update LD_SHIM_LIBS parser function
+
+     * Upgrade the code using the same changes as
+        42d5fcb9f494eb45de3b6bf759f4a18076e84728
+        bda20e78f0f314dbbf0f0bbcf0740cf2d6a4b85e
+
+    Change-Id: Ic8be0871945bd9feccd0f94a6770f3cc78a70a0f
+
+Author: Danny Baumann <dannybaumann@web.de>
+Date:   Wed Sep 7 16:54:06 2016 +0200
+
+    Inject shim libs as if they were DT_NEEDED.
+
+    The previous separate approach had one flaw: If the shim lib requires
+    another lib that's already loaded, find_library_internal() would return
+    the previously loaded copy, but the later load action would fail as the
+    ELF reader map of the initial loading round was already discarded and
+    thus a new ElfReader instance for the soinfo instance was created, which
+    didn't know about the previous reading/loading state.
+
+    Change-Id: Ib224dbd35d114197097e3dee14a077cc9130fedb
+
+Author: jrior001 <jriordan001@gmail.com>
+Date:   Fri Oct 7 19:36:51 2016 -0400
+
+    linker: load shims prior to DT_NEEDED check
+
+    This allows shims to override existing symbols, not just
+    inject new symbols.
+
+    Change-Id: Ib9216bcc651d8d38999c593babb94d76dc1dbc95
+
+Author: Adrian DC <radian.dc@gmail.com>
+Date: Sat, 8 Apr 2017 22:40:01 +0200
+
+     * Adapt to latest AOSP Oreo bionic linker changes
+     * Additional header to avoid unused function
+
+    Change-Id: Ib9216bcc651d8d38999c593babb94d76dc1dbc95
+
+Author: Paul Keith <javelinanddart@gmail.com>
+Date:   Thu Feb 15 21:57:33 2018 +0100
+
+    linker: Move shims to TARGET_LD_SHIM_LIBS
+
+    * To reduce security exposure, let's set this at compile time,
+      and block off all the code unless the board flag is set
+
+    Change-Id: Ieec5f5d9e0f39a798fd48eae037ecffe9502474c
+
+Author: Nich <nctrenco@gmail.com>
+Date:   Fri Jun 8 09:48:17 2018 +0800
+
+    linker: Provide soinfo path of the shimmed binary
+
+    This is a forward port of part of the original change that was missed out
+    since the initial port of the shim logic to O.
+
+    Change-Id: I1f7ff98472cfef5cb2d2bcb303082784898cd0c6
+
+Author: Nich <nctrenco@gmail.com>
+Date:   Tue Jun 5 13:36:43 2018 +0800
+
+    linker: Remove unused find_libraries declaration
+
+    commit "Inject shim libs as if they were DT_NEEDED." removed references
+    to the forward declaration.
+
+    Change-Id: I5f1aaa3a96f2af3edef07d4ea4e204b586424631
+
+Author: Nich <nctrenco@gmail.com>
+Date:   Sun Jun 10 00:45:51 2018 +0800
+
+    linker: Make shim reference path absolute
+
+    This way, we can filter out non-existent binaries, and ensure we get
+    its absolute path before matching with get_realpath(). This for one
+    allows the use of symlinks in TARGET_LD_SHIM_LIBS.
+
+    Change-Id: I823815271b3257965534b6b87d8ea36ffb68bc08
+
+Author: Nich <nctrenco@gmail.com>
+Date:   Fri Jun 15 03:59:05 2018 +0800
+
+    linker: Ensure active matching pairs
+
+    Change-Id: I54c666b4560dbfb40839b0bf9132a7fd8d3ed2dd
+
+Author: Nich <nctrenco@gmail.com>
+Date:   Thu Jun 21 01:58:10 2018 +0800
+
+    linker: Don't involve shim in for_each_dt_needed
+
+    for_each_dt_needed may have other usages that shouldn't involve the
+    shim, for example, in the unloading of soinfos.
+
+    Change-Id: Id38de183d90c3f707767bdca032a5ea2bc82fde8
+
+Author: Jiyong Park <jiyong@google.com>
+Date:   Fri Jan 25 18:18:01 2019 +0900
+
+    Call realpath(3) only when the path is accessible for read
+
+    Suppress the SELinux denial log spam by not calling realpath(3) when the
+    path does not exist or is not accessible for read, and then not auditing
+    access(2) failure.
+
+    Change-Id: I729ecb8ea0bb581069eb849bae7cd28e6ab636cc
+
+Change-Id: Ic3ad7095ddae7ea1039cb6a18603d5cde8a16152
+Signed-off-by: Wang Han <416810799@qq.com>
+---
+ linker/Android.bp      |  6 ++--
+ linker/linker.cpp      | 71 ++++++++++++++++++++++++++++++++++++++++++
+ linker/linker.h        | 18 +++++++++++
+ linker/linker_main.cpp | 13 +++++++-
+ 4 files changed, 105 insertions(+), 3 deletions(-)
+
+diff --git a/linker/Android.bp b/linker/Android.bp
+index 5970dea6d..0ce5038df 100644
+--- a/linker/Android.bp
++++ b/linker/Android.bp
+@@ -76,8 +76,10 @@ cc_object {
+ // Configuration for the linker binary and any of its static libraries.
+ cc_defaults {
+     name: "linker_defaults",
+-
+-    cflags: linker_common_flags,
++    cflags: linker_common_flags
++        + select(soong_config_variable("bionic", "ld_shim_libs"), {
++           any @ flag_val: ["-DLD_SHIM_LIBS=" + flag_val],
++           default: []}),
+     asflags: linker_common_flags,
+ 
+     product_variables: {
+diff --git a/linker/linker.cpp b/linker/linker.cpp
+index 2594bcd68..671e5f2fe 100644
+--- a/linker/linker.cpp
++++ b/linker/linker.cpp
+@@ -700,6 +700,68 @@ enum walk_action_result_t : uint32_t {
+   kWalkSkip = 2
+ };
+ 
++#ifdef LD_SHIM_LIBS
++// g_ld_all_shim_libs maintains the references to memory as it used
++// in the soinfo structures and in the g_active_shim_libs list.
++
++static std::vector<ShimDescriptor> g_ld_all_shim_libs;
++
++// g_active_shim_libs are all shim libs that are still eligible
++// to be loaded.  We must remove a shim lib from the list before
++// we load the library to avoid recursive loops (load shim libA
++// for libB where libA also links against libB).
++static linked_list_t<const ShimDescriptor> g_active_shim_libs;
++
++static void reset_g_active_shim_libs(void) {
++  g_active_shim_libs.clear();
++  for (const auto& pair : g_ld_all_shim_libs) {
++    g_active_shim_libs.push_back(&pair);
++  }
++}
++
++void parse_LD_SHIM_LIBS(const char* path) {
++  g_ld_all_shim_libs.clear();
++  if (path != nullptr) {
++    for (const auto& pair : android::base::Split(path, ":")) {
++      std::vector<std::string> pieces = android::base::Split(pair, "|");
++      if (pieces.size() != 2) continue;
++      // If the path can be resolved, resolve it
++      char buf[PATH_MAX];
++      std::string resolved_path = pieces[0];
++      if (access(pieces[0].c_str(), R_OK) != 0) {
++        if (errno == ENOENT) {
++          // no need to test for non-existing path. skip.
++          continue;
++        }
++        // If not accessible, don't call realpath as it will just cause
++        // SELinux denial spam. Use the path unresolved.
++      } else if (realpath(pieces[0].c_str(), buf) != nullptr) {
++        resolved_path = buf;
++      }
++      auto desc = std::pair<std::string, std::string>(resolved_path, pieces[1]);
++      g_ld_all_shim_libs.push_back(desc);
++    }
++  }
++  reset_g_active_shim_libs();
++}
++
++std::vector<const ShimDescriptor*> shim_matching_pairs(const char* path) {
++  std::vector<const ShimDescriptor*> matched_pairs;
++
++  g_active_shim_libs.for_each([&](const ShimDescriptor* a_pair) {
++    if (a_pair->first == path) {
++      matched_pairs.push_back(a_pair);
++    }
++  });
++
++  g_active_shim_libs.remove_if([&](const ShimDescriptor* a_pair) {
++    return a_pair->first == path;
++  });
++
++  return matched_pairs;
++}
++#endif
++
+ // This function walks down the tree of soinfo dependencies
+ // in breadth-first order and
+ //   * calls action(soinfo* si) for each node, and
+@@ -1300,6 +1362,12 @@ static bool load_library(android_namespace_t* ns,
+   }
+ #endif
+ 
++#ifdef LD_SHIM_LIBS
++  for_each_matching_shim(realpath.c_str(), [&](const char* name) {
++    load_tasks->push_back(LoadTask::create(name, si, ns, task->get_readers_map()));
++  });
++#endif
++
+   for (const ElfW(Dyn)* d = elf_reader.dynamic(); d->d_tag != DT_NULL; ++d) {
+     if (d->d_tag == DT_NEEDED) {
+       const char* name = fix_dt_needed(elf_reader.get_string(d->d_un.d_val), elf_reader.name());
+@@ -2240,6 +2308,9 @@ void* do_dlopen(const char* name, int flags,
+     }
+   }
+   ProtectedDataGuard guard;
++#ifdef LD_SHIM_LIBS
++  reset_g_active_shim_libs();
++#endif
+   soinfo* si = find_library(ns, translated_name, flags, extinfo, caller);
+   loading_trace.End();
+ 
+diff --git a/linker/linker.h b/linker/linker.h
+index 80ee00d0e..ca9596f0a 100644
+--- a/linker/linker.h
++++ b/linker/linker.h
+@@ -43,6 +43,10 @@
+ #include "linker_logger.h"
+ #include "linker_soinfo.h"
+ 
++#ifdef LD_SHIM_LIBS
++#include "linker_debug.h"
++#endif
++
+ #include <string>
+ #include <vector>
+ 
+@@ -78,6 +82,20 @@ soinfo* find_containing_library(const void* p);
+ 
+ int open_executable(const char* path, off64_t* file_offset, std::string* realpath);
+ 
++#ifdef LD_SHIM_LIBS
++typedef std::pair<std::string, std::string> ShimDescriptor;
++void parse_LD_SHIM_LIBS(const char* path);
++std::vector<const ShimDescriptor*> shim_matching_pairs(const char* path);
++
++template<typename F>
++void for_each_matching_shim(const char* path, F action) {
++  if (path == nullptr) return;
++  for (const auto& one_pair : shim_matching_pairs(path)) {
++    action(one_pair->second.c_str());
++  }
++}
++#endif
++
+ void do_android_get_LD_LIBRARY_PATH(char*, size_t);
+ void do_android_update_LD_LIBRARY_PATH(const char* ld_library_path);
+ void* do_dlopen(const char* name,
+diff --git a/linker/linker_main.cpp b/linker/linker_main.cpp
+index ce1337c51..24e265577 100644
+--- a/linker/linker_main.cpp
++++ b/linker/linker_main.cpp
+@@ -431,6 +431,11 @@ static ElfW(Addr) linker_main(KernelArgumentBlock& args, const char* exe_to_load
+   parse_LD_LIBRARY_PATH(ldpath_env);
+   parse_LD_PRELOAD(ldpreload_env);
+ 
++#ifdef LD_SHIM_LIBS
++  // Read from TARGET_LD_SHIM_LIBS
++  parse_LD_SHIM_LIBS(LD_SHIM_LIBS);
++#endif
++
+   std::vector<android_namespace_t*> namespaces = init_default_namespaces(exe_info.path.c_str());
+ 
+   if (!si->prelink_image()) __linker_cannot_link(g_argv[0]);
+@@ -456,7 +461,13 @@ static ElfW(Addr) linker_main(KernelArgumentBlock& args, const char* exe_to_load
+     ++ld_preloads_count;
+   }
+ 
+-  for (const ElfW(Dyn)* d = si->dynamic; d->d_tag != DT_NULL; ++d) {
++#ifdef LD_SHIM_LIBS
++  for_each_matching_shim(si->get_realpath(), [&](const char* name) {
++    needed_library_name_list.push_back(name);
++  });
++#endif
++
++for (const ElfW(Dyn)* d = si->dynamic; d->d_tag != DT_NULL; ++d) {
+     if (d->d_tag == DT_NEEDED) {
+       const char* name = fix_dt_needed(si->get_string(d->d_un.d_val), si->get_realpath());
+       needed_library_name_list.push_back(name);
+-- 
+2.54.0
+

@@ -113,6 +113,20 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   `$(call soong_config_set_bool,netd,direct_connect_rule,true)`; in LOS-20.0
   this was `TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE` plus a `vendor_lineage`
   patch.
+- **Old blobs and an old kernel in bionic** (`bionic`):
+  - per-process target SDK version override, so old blobs get the behavior
+    they were built for. In the device tree:
+    `$(call soong_config_set,bionic,sdk_version_overrides,...)`, which
+    replaces `TARGET_PROCESS_SDK_VERSION_OVERRIDE` (LOS-20.0 `bionic`
+    0001-0002 and `vendor_lineage` 0004);
+  - shim libraries loaded into specific blobs:
+    `$(call soong_config_set,bionic,ld_shim_libs,...)`, which replaces
+    `TARGET_LD_SHIM_LIBS`;
+  - pre-Android 9 mutex behavior, and the linker ignores library namespaces
+    for blobs that expect a flat one;
+  - no `MADV_WIPEONFORK` and no `renameat2`, which this kernel lacks;
+  - an invalid `pthread_t` passed by an old blob is logged instead of
+    aborting the process (LOS-20.0 `bionic` 0003).
 
 ## Status
 

@@ -1,0 +1,46 @@
+From e4c44b77d266ff6324502613349e802bd601eaa8 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 10 Dec 2019 22:34:55 +0100
+Subject: [PATCH 5/9] linker: Apply TARGET_PROCESS_SDK_VERSION_OVERRIDE on
+ dlopen
+
+Change-Id: I2d93f81315fcb67cc3fd102f45d9db8f84e2ff12
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
+---
+ linker/linker.cpp | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/linker/linker.cpp b/linker/linker.cpp
+index 40023ca9a..703cc5b52 100644
+--- a/linker/linker.cpp
++++ b/linker/linker.cpp
+@@ -3457,6 +3457,17 @@ bool soinfo::link_image(const SymbolLookupList& lookup_list, soinfo* local_group
+ 
+ #if !defined(__LP64__)
+   if (has_text_relocations) {
++#ifdef SDK_VERSION_OVERRIDES
++    int app_target_api_level = get_application_target_sdk_version();
++    for (const auto& entry : android::base::Split(SDK_VERSION_OVERRIDES, " ")) {
++      auto splitted = android::base::Split(entry, "=");
++      if (splitted.size() == 2 && splitted[0] == get_realpath()) {
++        app_target_api_level = static_cast<uint32_t>(std::stoul(splitted[1]));
++        LD_DEBUG(any, "\"%s\" has text relocations. Overriding sdk version %d to %d", get_realpath(), get_application_target_sdk_version(), app_target_api_level);
++        break;
++      }
++    }
++#endif
+     if (DL_ERROR_AFTER(23, "\"%s\" has text relocations", get_realpath())) {
+       return false;
+     }
+@@ -3833,7 +3844,7 @@ std::vector<android_namespace_t*> init_default_namespaces(const char* executable
+       break;
+     }
+   }
+-  DEBUG("Target SDK for %s = %d", executable_path, target_sdk);
++  LD_DEBUG(any, "Target SDK for %s = %d", executable_path, target_sdk);
+ #endif
+   set_application_target_sdk_version(target_sdk);
+ 
+-- 
+2.54.0
+

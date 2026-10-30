@@ -11,6 +11,7 @@
 # its `git format-patch` output into the matching patch directory.
 # ---------------------------------------------------------------------------
 PATCHED_REPOS=(
+    "bionic                           bionic"
     "packages/modules/Connectivity    packages_modules_Connectivity"
     "packages/modules/DnsResolver     packages_modules_DnsResolver"
     "packages/modules/NetworkStack    packages_modules_NetworkStack"
