@@ -1,0 +1,67 @@
+From 060844e5e763e33cd3eb74e8152bbf2fdb3645bd Mon Sep 17 00:00:00 2001
+From: Dmitrii <bankersenator@gmail.com>
+Date: Sun, 7 Dec 2025 20:12:58 +0000
+Subject: [PATCH 4/4] BLASTBufferQueue: Add epoll_pwait2 fallback for older
+ kernels
+
+The epoll_pwait2 syscall was introduced in Linux 5.11. Older kernels
+return ENOSYS when attempting to use this syscall, causing buffer
+release operations to fail.
+
+12-07 18:05:15.668  2095  2226 E BLASTBufferQueue: epoll_wait error while waiting for buffer release. errno=38 message='Function not implemented'
+12-07 18:05:15.668  2095  2226 E BLASTBufferQueue: epoll_wait error while waiting for buffer release. errno=38 message='Function not implemented'
+
+Test: Boot device with kernel < 5.11, verify no epoll errors
+
+Change-Id: I5998edd71c7eeb1e4de68326996ef37068b7512d
+Signed-off-by: Dmitrii <bankersenator@gmail.com>
+Signed-off-by: HDzungx <hdzungx@gmail.com>
+Signed-off-by: Stella Diaz <electi@yzu.moe>
+---
+ libs/gui/BLASTBufferQueue.cpp | 23 +++++++++++++++++++++--
+ 1 file changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/libs/gui/BLASTBufferQueue.cpp b/libs/gui/BLASTBufferQueue.cpp
+index 05fbc148d2..b0368dc138 100644
+--- a/libs/gui/BLASTBufferQueue.cpp
++++ b/libs/gui/BLASTBufferQueue.cpp
+@@ -79,6 +79,25 @@ timespec timespecFromNanos(nsecs_t duration) {
+ 
+ } // namespace
+ 
++inline int epoll_wait_with_timeout(int epfd, struct epoll_event* events, int maxevents,
++                                   const timespec* timeout) {
++    static bool useEpollWait = false;
++    if (!useEpollWait) {
++        int ret = epoll_pwait2(epfd, events, maxevents, timeout, nullptr);
++        if (ret == -1 && errno == ENOSYS) {
++            useEpollWait = true;
++        } else {
++            return ret;
++        }
++    }
++
++    int timeoutMs = -1;
++    if (timeout) {
++        timeoutMs = (timeout->tv_sec * 1000) + (timeout->tv_nsec / 1000000);
++    }
++    return epoll_wait(epfd, events, maxevents, timeoutMs);
++}
++
+ namespace android {
+ 
+ // Macros to include adapter info in log messages
+@@ -1467,8 +1486,8 @@ status_t BufferReleaseReader::readBlocking(ReleaseCallbackId& outId, sp<Fence>&
+     epoll_event event{};
+     int eventCount;
+     do {
+-        eventCount = epoll_pwait2(mEpollFd.get(), &event, 1 /*maxevents*/,
+-                                  timespec ? &(*timespec) : nullptr, nullptr /*sigmask*/);
++        eventCount = epoll_wait_with_timeout(mEpollFd.get(), &event, 1 /*maxevents*/,
++                                             timespec ? &(*timespec) : nullptr);
+     } while (eventCount == -1 && errno == EINTR);
+ 
+     if (eventCount == -1) {
+-- 
+2.54.0
+

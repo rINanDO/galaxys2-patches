@@ -173,6 +173,18 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   camera device it fixes no longer exists), and 0006-0008 (the Lineage power
   HAL 1.0 and the in-screen fingerprint HAL, which nothing in this device
   uses; the HIDL power HAL 1.0 is still in AOSP).
+- **frameworks/native** (`frameworks_native`), the same patches as
+  gts210wifi:
+  - `gpuservice` is disabled, because its GPU memory accounting needs BPF
+    (replaces LOS-20.0 0001);
+  - `libbinder` no longer aborts when it shrinks its thread pool (replaces
+    LOS-20.0 0002);
+  - `BLASTBufferQueue` falls back to `epoll_pwait` without
+    `epoll_pwait2`.
+
+  LOS-20.0 0003 (no installd timeouts) is obsolete: installd now waits
+  without a timeout when `pidfd_open` fails, which it always does on
+  Linux 3.0.
 - **Build and kernel** (`build_make`, `build_soong`, `system_linkerconfig`,
   `vendor_lineage`):
   - `BOARD_NO_RECOVERY_PATCH` (`build_make` 0001): recovery is part of the
