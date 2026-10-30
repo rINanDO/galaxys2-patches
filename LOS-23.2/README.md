@@ -209,6 +209,13 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   LOS-20.0 0003 (no installd timeouts) is obsolete: installd now waits
   without a timeout when `pidfd_open` fails, which it always does on
   Linux 3.0.
+- **adb over USB** (`packages_modules_adb`): adbd only does asynchronous
+  USB I/O, which this kernel's FunctionFS doesn't support. adbd now falls
+  back to the old blocking FunctionFS code when the first asynchronous read
+  fails, or uses it straight away with `ro.adb.nonblocking_ffs=false`.
+  The device side of the old USB transport is built into adbd only,
+  because the adb host has its own USB transport now. (gts210wifi
+  backports FunctionFS AIO to its kernel instead.)
 - **Build and kernel** (`build_make`, `build_soong`, `system_linkerconfig`,
   `vendor_lineage`):
   - `BOARD_NO_RECOVERY_PATCH` (`build_make` 0001): recovery is part of the

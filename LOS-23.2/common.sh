@@ -22,6 +22,7 @@ PATCHED_REPOS=(
     "frameworks/native                frameworks_native"
     "hardware/libhardware_legacy      hardware_libhardware_legacy"
     "hardware/lineage/interfaces      hardware_lineage_interfaces"
+    "packages/modules/adb             packages_modules_adb"
     "packages/modules/Connectivity    packages_modules_Connectivity"
     "packages/modules/DnsResolver     packages_modules_DnsResolver"
     "packages/modules/NetworkStack    packages_modules_NetworkStack"
