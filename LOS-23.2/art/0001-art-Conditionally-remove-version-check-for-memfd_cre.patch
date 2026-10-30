@@ -1,0 +1,100 @@
+From 84a5c0e0d6f9bd61e126cf141202b0dd54440a30 Mon Sep 17 00:00:00 2001
+From: Nicholas Lim <nicknitewolf@lineageos.org>
+Date: Tue, 24 Sep 2019 19:59:46 +0800
+Subject: [PATCH] art: Conditionally remove version check for memfd_create()
+
+ * This check is redundant as devices that lack
+   the memfd_create syscall will fail to boot
+   regardless of the check.
+
+This conditionally reverts commit 51f89d9.
+
+Change-Id: Ife2cebde713e14bd787f48628092650866e2ac09
+(cherry picked from commit dd1d9ba1851d96a8d4f55cd8e983fcee1519d953)
+---
+ libartbase/Android.bp    | 8 +++++++-
+ libartbase/base/memfd.cc | 7 ++++++-
+ libartbase/base/memfd.h  | 3 +--
+ 3 files changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/libartbase/Android.bp b/libartbase/Android.bp
+index f47e28a2c2..f93a46aa96 100644
+--- a/libartbase/Android.bp
++++ b/libartbase/Android.bp
+@@ -26,7 +26,9 @@ package {
+ 
+ cc_defaults {
+     name: "libartbase_defaults",
+-    defaults: ["art_defaults"],
++    defaults: [
++        "art_defaults",
++    ],
+     host_supported: true,
+     srcs: [
+         "arch/instruction_set.cc",
+@@ -66,6 +68,10 @@ cc_defaults {
+             ],
+         },
+     },
++    cflags: select(soong_config_variable("art", "has_memfd_backport"), {
++        "true": ["-DHAS_MEMFD_BACKPORT"],
++        default: [],
++    }),
+     target: {
+         android: {
+             srcs: [
+diff --git a/libartbase/base/memfd.cc b/libartbase/base/memfd.cc
+index f965a08780..9659713d82 100644
+--- a/libartbase/base/memfd.cc
++++ b/libartbase/base/memfd.cc
+@@ -17,12 +17,16 @@
+ #include "memfd.h"
+ 
+ #include <errno.h>
++#if !defined(HAS_MEMFD_BACKPORT)
+ #include <stdio.h>
++#endif
+ #if !defined(_WIN32)
+ #include <fcntl.h>
+ #include <sys/mman.h>
+ #include <sys/syscall.h>
++#if !defined(HAS_MEMFD_BACKPORT)
+ #include <sys/utsname.h>
++#endif
+ #include <unistd.h>
+ #endif
+ 
+@@ -36,6 +40,7 @@ namespace art {
+ #if defined(__linux__)
+ 
+ int memfd_create(const char* name, unsigned int flags) {
++#if !defined(HAS_MEMFD_BACKPORT)
+   // Check kernel version supports memfd_create(). Some older kernels segfault executing
+   // memfd_create() rather than returning ENOSYS (b/116769556).
+   static constexpr int kRequiredMajor = 3;
+@@ -49,7 +54,7 @@ int memfd_create(const char* name, unsigned int flags) {
+     errno = ENOSYS;
+     return -1;
+   }
+-
++#endif
+   return syscall(__NR_memfd_create, name, flags);
+ }
+ 
+diff --git a/libartbase/base/memfd.h b/libartbase/base/memfd.h
+index b304005cab..ccb5baa334 100644
+--- a/libartbase/base/memfd.h
++++ b/libartbase/base/memfd.h
+@@ -27,8 +27,7 @@
+ 
+ namespace art {
+ 
+-// Call memfd(2) if available on platform and return result. This call also makes a kernel version
+-// check for safety on older kernels (b/116769556)..
++// Call memfd(2) if available on platform and return result.
+ int memfd_create(const char* name, unsigned int flags);
+ 
+ // Return whether the kernel supports sealing future writes of a memfd.
+-- 
+2.54.0
+

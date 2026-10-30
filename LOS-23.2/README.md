@@ -127,6 +127,14 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   - no `MADV_WIPEONFORK` and no `renameat2`, which this kernel lacks;
   - an invalid `pthread_t` passed by an old blob is logged instead of
     aborting the process (LOS-20.0 `bionic` 0003).
+- **memfd backport** (`art`, `external_perfetto`, `frameworks_base`): the
+  kernel has a `memfd_create` backport, but ART and perfetto refuse to use
+  it on a kernel older than 3.17. Set
+  `$(call soong_config_set,art,has_memfd_backport,true)` in the device
+  tree; this replaces `TARGET_HAS_MEMFD_BACKPORT` (LOS-20.0 `art`,
+  `external_perfetto` and `vendor_lineage` 0005). Bitmaps sent to other
+  processes keep using ashmem, because the legacy memfd broke apps such as
+  YouTube ("Could not copy bitmap to parcel blob").
 
 ## Status
 

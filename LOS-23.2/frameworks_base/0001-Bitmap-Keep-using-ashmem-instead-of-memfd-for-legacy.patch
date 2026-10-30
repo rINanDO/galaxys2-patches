@@ -1,0 +1,113 @@
+From 4fee45db0ec3c8608d26bcf5b932324f04d7ab64 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 25 Jan 2026 12:44:07 +0100
+Subject: [PATCH] Bitmap: Keep using ashmem instead of memfd for legacy devices
+
+This has been introduced by
+https://github.com/LineageOS/android_frameworks_base/commit/de43e5f17af1265737631ab80dc595317b1be325
+
+But breaks YouTube, YellowBrick with the following error:
+01-25 11:14:13.208 11745 11745 D AndroidRuntime: Shutting down VM
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: FATAL EXCEPTION: main
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: Process: com.google.android.youtube, PID: 11745
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: java.lang.RuntimeException: Could not copy bitmap to parcel blob.
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.graphics.Bitmap.nativeWriteToParcel(Native Method)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.graphics.Bitmap.writeToParcel(Bitmap.java:2462)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Parcel.writeParcelable(Parcel.java:2863)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Parcel.writeValue(Parcel.java:2764)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Parcel.writeValue(Parcel.java:2641)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Parcel.writeArrayMapInternal(Parcel.java:1505)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.BaseBundle.writeToParcelInner(BaseBundle.java:1871)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Bundle.writeToParcel(Bundle.java:1557)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Parcel.writeBundle(Parcel.java:1574)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.media.MediaMetadata.writeToParcel(MediaMetadata.java:559)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Parcel.writeTypedObject(Parcel.java:2482)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.media.session.ISession$Stub$Proxy.setMetadata(ISession.java:523)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.media.session.MediaSession.setMetadata(MediaSession.java:523)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at fh.j(PG:171)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at anpd.run(PG:680)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Handler.handleCallback(Handler.java:1041)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:103)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Looper.dispatchMessage(Looper.java:315)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Looper.loopOnce(Looper.java:251)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:349)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:9041)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+01-25 11:14:13.208 11745 11745 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:929)
+
+Change-Id: Ie55906e6433eacc22c7de387eb9099bdfec1bfd7
+---
+ libs/hwui/jni/Bitmap.cpp | 52 ++++++++++------------------------------
+ 1 file changed, 12 insertions(+), 40 deletions(-)
+
+diff --git a/libs/hwui/jni/Bitmap.cpp b/libs/hwui/jni/Bitmap.cpp
+index 1d4576156d51..29862d0fea4c 100644
+--- a/libs/hwui/jni/Bitmap.cpp
++++ b/libs/hwui/jni/Bitmap.cpp
+@@ -782,50 +782,22 @@ static binder_status_t writeBlob(AParcel* parcel, uint64_t bitmapId, const SkBit
+         // Create new ashmem region with read/write priv
+         auto ashmemId = Bitmap::getAshmemId("writeblob", bitmapId,
+                                             bitmap.width(), bitmap.height(), size);
+-        base::unique_fd fd;
+-
+-        if (com::android::graphics::hwui::flags::bitmap_use_memfd()) {
+-            fd.reset(syscall(__NR_memfd_create, ashmemId.c_str(), MFD_CLOEXEC | MFD_ALLOW_SEALING));
+-            if (fd.get() < 0) {
+-                return STATUS_NO_MEMORY;
+-            }
+-
+-            ssize_t written = write(fd.get(), data, size);
+-            if (written != size) {
+-                return STATUS_NO_MEMORY;
+-            }
+-
+-            if (fcntl(fd, F_ADD_SEALS,
+-                      // Disallow growing / shrinking.
+-                      F_SEAL_GROW | F_SEAL_SHRINK
+-                      // If immutable, disallow writing.
+-                      // Use F_SEAL_FUTURE_WRITE instead of F_SEAL_WRITE to work around a bug in
+-                      // pre-6.7 kernels.
+-                      // There are no writable mappings made prior to this, so both seals are
+-                      // functionally equivalent.
+-                      // See: b/409846908#comment39
+-                      | (immutable ? F_SEAL_FUTURE_WRITE : 0))) {
+-                return STATUS_UNKNOWN_ERROR;
+-            }
++        base::unique_fd fd(ashmem_create_region(ashmemId.c_str(), size));
++        if (fd.get() < 0) {
++            return STATUS_NO_MEMORY;
++        }
+ 
+-        } else {
+-            fd.reset(ashmem_create_region(ashmemId.c_str(), size));
+-            if (fd.get() < 0) {
++        {
++            void* dest = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0);
++            if (dest == MAP_FAILED) {
+                 return STATUS_NO_MEMORY;
+             }
++            memcpy(dest, data, size);
++            munmap(dest, size);
++        }
+ 
+-            {
+-                void* dest = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0);
+-                if (dest == MAP_FAILED) {
+-                    return STATUS_NO_MEMORY;
+-                }
+-                memcpy(dest, data, size);
+-                munmap(dest, size);
+-            }
+-
+-            if (immutable && ashmem_set_prot_region(fd.get(), PROT_READ) < 0) {
+-                return STATUS_UNKNOWN_ERROR;
+-            }
++        if (immutable && ashmem_set_prot_region(fd.get(), PROT_READ) < 0) {
++            return STATUS_UNKNOWN_ERROR;
+         }
+ 
+         // Workaround b/149851140 in AParcel_writeParcelFileDescriptor
+-- 
+2.54.0
+

@@ -11,7 +11,10 @@
 # its `git format-patch` output into the matching patch directory.
 # ---------------------------------------------------------------------------
 PATCHED_REPOS=(
+    "art                              art"
     "bionic                           bionic"
+    "external/perfetto                external_perfetto"
+    "frameworks/base                  frameworks_base"
     "packages/modules/Connectivity    packages_modules_Connectivity"
     "packages/modules/DnsResolver     packages_modules_DnsResolver"
     "packages/modules/NetworkStack    packages_modules_NetworkStack"
