@@ -110,7 +110,7 @@ patches are the same as in gts210wifi-patches LOS-23.2.
 - **Mobile data with the Samsung RIL** (`system_netd` 0004): netd can add a
   rule for the kernel's directly-connected routes, without which IPv4 mobile
   data has no default route. Enable it in the device tree with
-  `$(call soong_config_set_bool,netd,direct_connect_rule,true)`; in LOS-20.0
+  `$(call soong_config_set,netd,direct_connect_rule,true)`; in LOS-20.0
   this was `TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE` plus a `vendor_lineage`
   patch.
 - **Old blobs and an old kernel in bionic** (`bionic`):
@@ -121,7 +121,8 @@ patches are the same as in gts210wifi-patches LOS-23.2.
     0001-0002 and `vendor_lineage` 0004);
   - shim libraries loaded into specific blobs:
     `$(call soong_config_set,bionic,ld_shim_libs,...)`, which replaces
-    `TARGET_LD_SHIM_LIBS`;
+    `TARGET_LD_SHIM_LIBS`. The linker splits the entries on `:`, not on
+    spaces, so join them with `$(subst $(space),:,...)`;
   - pre-Android 9 mutex behavior, and the linker ignores library namespaces
     for blobs that expect a flat one;
   - no `MADV_WIPEONFORK` and no `renameat2`, which this kernel lacks;
@@ -144,7 +145,7 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   `system_core` 0005, `device_lineage_sepolicy`): the camera blob only
   speaks the HAL v1 API, which AOSP removed. These are the gts210wifi
   patches that restore HALv1 in cameraserver (or, with
-  `$(call soong_config_set_bool,camera_hal1,no_cameraserver,true)`, in
+  `$(call soong_config_set,camera_hal1,no_cameraserver,true)`, in
   mediaserver), the old recording path, the camera extensions and formats,
   and the HALv1 sepolicy. They replace the LOS-20.0 `frameworks_av`
   0001-0022 and camera reverts in `frameworks_base`, and
