@@ -13,6 +13,8 @@
 PATCHED_REPOS=(
     "art                              art"
     "bionic                           bionic"
+    "build/make                       build_make"
+    "build/soong                      build_soong"
     "device/lineage/sepolicy          device_lineage_sepolicy"
     "external/perfetto                external_perfetto"
     "frameworks/av                    frameworks_av"
@@ -24,7 +26,9 @@ PATCHED_REPOS=(
     "packages/modules/NetworkStack    packages_modules_NetworkStack"
     "system/bpf                       system_bpf"
     "system/core                      system_core"
+    "system/linkerconfig              system_linkerconfig"
     "system/netd                      system_netd"
+    "vendor/lineage                   vendor_lineage"
 )
 
 PATCHES_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"

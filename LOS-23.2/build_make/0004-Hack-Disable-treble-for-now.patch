@@ -1,0 +1,28 @@
+From daba2c95bcf60d5c402a3ab0575057ebe7db1ab3 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 11 Dec 2025 21:32:44 +0100
+Subject: [PATCH 4/6] Hack: Disable treble for now
+
+Change-Id: Id3b51a36d08ef8c86b3d2a82608f338b58600d4a
+---
+ core/config.mk | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/core/config.mk b/core/config.mk
+index 46dddb0882..193be41008 100644
+--- a/core/config.mk
++++ b/core/config.mk
+@@ -774,8 +774,8 @@ endif
+     PRODUCT_COMPATIBLE_PROPERTY
+ 
+ # TODO: remove all code referencing these, and remove override variables
+-PRODUCT_FULL_TREBLE := true
+-PRODUCT_TREBLE_LINKER_NAMESPACES := true
++PRODUCT_FULL_TREBLE := false
++PRODUCT_TREBLE_LINKER_NAMESPACES := false
+ PRODUCT_ENFORCE_VINTF_MANIFEST := true
+ 
+ # TODO(b/114488870): disallow PRODUCT_FULL_TREBLE_OVERRIDE from being used.
+-- 
+2.54.0
+

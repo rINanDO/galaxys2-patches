@@ -1,0 +1,27 @@
+From 3f7e8c1f5b3a4b04d0e304edd30b3be4a1c450a3 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 16 Jul 2025 09:21:25 -0400
+Subject: [PATCH 3/6] Hack: Only warn for link_type_error
+
+Change-Id: Ic230c7534fc6e991811a05d32bf4e97dc343d1f5
+---
+ core/main.mk | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/core/main.mk b/core/main.mk
+index 617b036d0d..41c2b9f8b8 100644
+--- a/core/main.mk
++++ b/core/main.mk
+@@ -837,8 +837,7 @@ endef
+ # $(1): the prefix of the module doing the linking
+ # $(2): the prefix of the linked module
+ define link-type-error
+-$(shell $(call echo-error,$($(1).MAKEFILE),"$(call link-type-name,$(1)) ($($(1).TYPE)) can not link against $(call link-type-name,$(2)) ($(3))"))\
+-$(eval link_type_error := true)
++$(shell $(call echo-warning,$($(1).MAKEFILE),"$(call link-type-name,$(1)) ($($(1).TYPE)) can not link against $(call link-type-name,$(2)) ($(3))"))
+ endef
+ 
+ link-type-missing :=
+-- 
+2.54.0
+

@@ -173,6 +173,26 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   camera device it fixes no longer exists), and 0006-0008 (the Lineage power
   HAL 1.0 and the in-screen fingerprint HAL, which nothing in this device
   uses; the HIDL power HAL 1.0 is still in AOSP).
+- **Build and kernel** (`build_make`, `build_soong`, `system_linkerconfig`,
+  `vendor_lineage`):
+  - `BOARD_NO_RECOVERY_PATCH` (`build_make` 0001): recovery is part of the
+    kernel image, so there is no recovery image to patch from the boot
+    image, and the OTA no longer requires one;
+  - `BOARD_CUSTOM_KERNEL_MK` (`vendor_lineage` 0001): `galaxys2-common`'s
+    `shkernel.mk` builds the uncompressed ramdisk before the kernel, which
+    embeds it;
+  - `-fuse-ld=lld` in the kernel's `HOSTCFLAGS` (`vendor_lineage` 0002),
+    because Linux 3.0 links its host programs with `HOSTCFLAGS` only;
+  - from gts210wifi: no Treble (`build_make` 0004 and
+    `system_linkerconfig`), uncompressed APEXes, `link_type_error` as a
+    warning, `TARGET_SPECIFIC_HEADER_PATH` (`build_make` 0005 and
+    `build_soong`), which `galaxys2-common` and `i9100` use, and the
+    automatic kernel header library.
+
+  The kernel is LZMA-compressed; `lzma` comes from
+  `prebuilts/tools-lineage`, so the gts210wifi xz patches aren't needed.
+  The LOS-20.0 `vendor_lineage` 0003-0006 are replaced by Soong config
+  variables (see above).
 
 ## Status
 

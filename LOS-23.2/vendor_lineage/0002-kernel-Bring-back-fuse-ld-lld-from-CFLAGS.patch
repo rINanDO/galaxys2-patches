@@ -1,0 +1,33 @@
+From 14b55d63525fca458692d02fcb45863ef9065f4c Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Fri, 30 Oct 2026 18:37:43 +0100
+Subject: [PATCH 2/2] kernel: Bring back -fuse-ld=lld from CFLAGS
+
+This has been removed in 9ec1fed.
+
+[Ported to LineageOS 23.2: HOSTCFLAGS is now set on the same line as
+HOSTLDFLAGS, so add the flag there instead of adding a second
+HOSTCFLAGS, which would override the include paths.]
+
+Change-Id: I9cf004bf1da8d86ea6e7c6769cbf000ee3cb5a23
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
+---
+ config/BoardConfigKernel.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/config/BoardConfigKernel.mk b/config/BoardConfigKernel.mk
+index 3d9fc0c6..9badf9a4 100644
+--- a/config/BoardConfigKernel.mk
++++ b/config/BoardConfigKernel.mk
+@@ -220,7 +220,7 @@ ifneq ($(KERNEL_NO_GCC), true)
+         endif
+     endif
+ 
+-    KERNEL_MAKE_FLAGS += HOSTCFLAGS="-I/usr/include -I/usr/include/x86_64-linux-gnu" HOSTLDFLAGS="-L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -fuse-ld=lld"
++    KERNEL_MAKE_FLAGS += HOSTCFLAGS="-I/usr/include -I/usr/include/x86_64-linux-gnu -fuse-ld=lld" HOSTLDFLAGS="-L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -fuse-ld=lld"
+ 
+     ifeq ($(KERNEL_ARCH),arm64)
+         # Add 32-bit GCC to PATH so that arm-linux-androidkernel-as is available for CONFIG_COMPAT_VDSO
+-- 
+2.54.0
+
