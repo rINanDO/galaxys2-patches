@@ -1,0 +1,118 @@
+From 19cf7bb13c5415b556d7d5f7502f34f3ea610814 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 21 Sep 2025 09:47:01 -0400
+Subject: [PATCH 09/15] Revert "Cleanup the
+ IPCLIENT_ACCEPT_IPV6_LINK_LOCAL_DNS_VERSION flag."
+
+This reverts commit fb13d312b3b60bbfebeee0ccb66dcd65ff888263.
+---
+ src/android/net/ip/IpClientLinkObserver.java  | 10 +++++++++-
+ .../networkstack/util/NetworkStackUtils.java  |  8 ++++++++
+ .../net/ip/IpClientIntegrationTestCommon.java | 19 +++++++++++++++++--
+ 3 files changed, 34 insertions(+), 3 deletions(-)
+
+diff --git a/src/android/net/ip/IpClientLinkObserver.java b/src/android/net/ip/IpClientLinkObserver.java
+index 386dd0073..e373abef7 100644
+--- a/src/android/net/ip/IpClientLinkObserver.java
++++ b/src/android/net/ip/IpClientLinkObserver.java
+@@ -30,6 +30,7 @@ import static com.android.net.module.util.netlink.NetlinkConstants.RTN_UNICAST;
+ import static com.android.net.module.util.netlink.NetlinkConstants.RTPROT_KERNEL;
+ import static com.android.net.module.util.netlink.NetlinkConstants.RTPROT_RA;
+ import static com.android.net.module.util.netlink.NetlinkConstants.RT_SCOPE_UNIVERSE;
++import static com.android.networkstack.util.NetworkStackUtils.IPCLIENT_ACCEPT_IPV6_LINK_LOCAL_DNS_VERSION;
+ 
+ import android.app.AlarmManager;
+ import android.content.Context;
+@@ -270,6 +271,11 @@ public class IpClientLinkObserver {
+         });
+     }
+ 
++    private boolean isIpv6LinkLocalDnsAccepted() {
++        return mDependencies.isFeatureNotChickenedOut(mContext,
++                IPCLIENT_ACCEPT_IPV6_LINK_LOCAL_DNS_VERSION);
++    }
++
+     private void maybeLog(String operation, String iface, LinkAddress address) {
+         if (DBG) {
+             Log.d(mTag, operation + ": " + address + " on " + iface
+@@ -545,7 +551,9 @@ public class IpClientLinkObserver {
+     private void processRdnssOption(StructNdOptRdnss opt) {
+         final String[] addresses = new String[opt.servers.length];
+         for (int i = 0; i < opt.servers.length; i++) {
+-            final Inet6Address addr = InetAddressUtils.withScopeId(opt.servers[i], mIfindex);
++            final Inet6Address addr = isIpv6LinkLocalDnsAccepted()
++                    ? InetAddressUtils.withScopeId(opt.servers[i], mIfindex)
++                    : opt.servers[i];
+             addresses[i] = addr.getHostAddress();
+         }
+         updateInterfaceDnsServerInfo(opt.header.lifetime, addresses);
+diff --git a/src/com/android/networkstack/util/NetworkStackUtils.java b/src/com/android/networkstack/util/NetworkStackUtils.java
+index 232a99681..abcebaf67 100755
+--- a/src/com/android/networkstack/util/NetworkStackUtils.java
++++ b/src/com/android/networkstack/util/NetworkStackUtils.java
+@@ -222,6 +222,14 @@ public class NetworkStackUtils {
+     public static final String IPCLIENT_IGNORE_LOW_RA_LIFETIME_VERSION =
+             "ipclient_ignore_low_ra_lifetime_version";
+ 
++    /**
++     * Experiment flag to check if an on-link IPv6 link local DNS is acceptable. The default flag
++     * value is true, just add this flag for A/B testing to see if this fix works as expected via
++     * experiment rollout.
++     */
++    public static final String IPCLIENT_ACCEPT_IPV6_LINK_LOCAL_DNS_VERSION =
++            "ipclient_accept_ipv6_link_local_dns_version";
++
+     /**
+      * Feature flag to send private DNS resolution queries and probes on a background thread.
+      */
+diff --git a/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java b/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
+index 8de64c61e..b03f040d8 100644
+--- a/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
++++ b/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
+@@ -2369,11 +2369,15 @@ public abstract class IpClientIntegrationTestCommon {
+         reset(mCb);
+     }
+ 
+-    private void runRaRdnssIpv6LinkLocalDnsTest() throws Exception {
++    private void runRaRdnssIpv6LinkLocalDnsTest(boolean isIpv6LinkLocalDnsAccepted)
++            throws Exception {
+         ProvisioningConfiguration config = new ProvisioningConfiguration.Builder()
+                 .withoutIpReachabilityMonitor()
+                 .withoutIPv4()
+                 .build();
++
++        setFeatureEnabled(NetworkStackUtils.IPCLIENT_ACCEPT_IPV6_LINK_LOCAL_DNS_VERSION,
++                isIpv6LinkLocalDnsAccepted /* default value */);
+         startIpClientProvisioning(config);
+ 
+         final ByteBuffer ra = buildRaPacket(TEST_IPV6_PREFIX,
+@@ -2387,7 +2391,7 @@ public abstract class IpClientIntegrationTestCommon {
+ 
+     @Test
+     public void testRaRdnss_Ipv6LinkLocalDns() throws Exception {
+-        runRaRdnssIpv6LinkLocalDnsTest();
++        runRaRdnssIpv6LinkLocalDnsTest(true /* isIpv6LinkLocalDnsAccepted */);
+         final ArgumentCaptor<LinkProperties> captor = ArgumentCaptor.forClass(LinkProperties.class);
+         verify(mCb, timeout(TEST_TIMEOUT_MS)).onProvisioningSuccess(captor.capture());
+         final LinkProperties lp = captor.getValue();
+@@ -2397,6 +2401,17 @@ public abstract class IpClientIntegrationTestCommon {
+         assertTrue(lp.isIpv6Provisioned());
+     }
+ 
++    @Test
++    public void testRaRdnss_disableIpv6LinkLocalDns() throws Exception {
++        runRaRdnssIpv6LinkLocalDnsTest(false /* isIpv6LinkLocalDnsAccepted */);
++        verify(mCb, timeout(TEST_TIMEOUT_MS)).onLinkPropertiesChange(argThat(lp -> {
++            return lp.hasGlobalIpv6Address()
++                    && lp.hasIpv6DefaultRoute()
++                    && !lp.hasIpv6DnsServer();
++        }));
++        verify(mCb, never()).onProvisioningSuccess(any());
++    }
++
+     private void expectNat64PrefixUpdate(InOrder inOrder, IpPrefix expected) throws Exception {
+         inOrder.verify(mCb, timeout(TEST_TIMEOUT_MS)).onLinkPropertiesChange(
+                 argThat(lp -> Objects.equals(expected, lp.getNat64Prefix())));
+-- 
+2.54.0
+

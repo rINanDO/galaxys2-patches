@@ -1,0 +1,457 @@
+From 4e91f6c96b95fb1e339524175331e49a39ef39fc Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 21 Sep 2025 09:56:08 -0400
+Subject: [PATCH 13/15] Revert "Cleanup the
+ IPCLIENT_PARSE_NETLINK_EVENTS_FORCE_DISABLE flag."
+
+This reverts commit 4256d055c509d1939fd3980eb8a5cc4f308035e5.
+
+Change-Id: I5ce877c5f2fec3d5f045c0a55a71247f15a4986c
+---
+ src/android/net/ip/IpClient.java              |  10 +-
+ src/android/net/ip/IpClientLinkObserver.java  |  78 ++++++++++-
+ .../networkstack/util/NetworkStackUtils.java  |   7 +
+ .../net/ip/IpClientIntegrationTestCommon.java | 121 +++++++++++++++---
+ .../unit/src/android/net/ip/IpClientTest.java |   7 +-
+ 5 files changed, 202 insertions(+), 21 deletions(-)
+
+diff --git a/src/android/net/ip/IpClient.java b/src/android/net/ip/IpClient.java
+index 710ecceb1..130801805 100644
+--- a/src/android/net/ip/IpClient.java
++++ b/src/android/net/ip/IpClient.java
+@@ -139,6 +139,13 @@ import android.net.dhcp6.Dhcp6PacketDispatcher;
+ import android.net.ip.IpClient.ApfShellCommands;
+ import android.net.ip.IpClientLinkObserver.IpClientNetlinkMonitor;
+ import android.net.ip.IpClientLinkObserver.IpClientNetlinkMonitor.INetlinkMessageProcessor;
++import android.net.ip.IpClient.ClearingIpAddressesState;
++import android.net.ip.IpClient.NudFailureQueryState;
++import android.net.ip.IpClient.PreconnectingState;
++import android.net.ip.IpClient.RunningState;
++import android.net.ip.IpClient.StartedState;
++import android.net.ip.IpClient.StoppedState;
++import android.net.ip.IpClient.StoppingState;
+ import android.net.ipmemorystore.OnNetworkEventCountRetrievedListener;
+ import android.net.ipmemorystore.Status;
+ import android.net.metrics.IpConnectivityLog;
+@@ -1084,8 +1091,9 @@ public class IpClient extends StateMachine {
+          */
+         public IpClientNetlinkMonitor makeIpClientNetlinkMonitor(Handler h, SharedLog log,
+                 String tag, int sockRcvbufSize, IpClientLinkObserver.Configuration config,
++                boolean isNetlinkEventParsingEnabled,
+                 INetlinkMessageProcessor p) {
+-            return new IpClientNetlinkMonitor(h, log, tag, sockRcvbufSize, config, p);
++            return new IpClientNetlinkMonitor(h, log, tag, sockRcvbufSize, config, isNetlinkEventParsingEnabled, p);
+         }
+ 
+         /**
+diff --git a/src/android/net/ip/IpClientLinkObserver.java b/src/android/net/ip/IpClientLinkObserver.java
+index 0f323d481..eecb4e1a8 100644
+--- a/src/android/net/ip/IpClientLinkObserver.java
++++ b/src/android/net/ip/IpClientLinkObserver.java
+@@ -31,6 +31,7 @@ import static com.android.net.module.util.netlink.NetlinkConstants.RTPROT_KERNEL
+ import static com.android.net.module.util.netlink.NetlinkConstants.RTPROT_RA;
+ import static com.android.net.module.util.netlink.NetlinkConstants.RT_SCOPE_UNIVERSE;
+ import static com.android.networkstack.util.NetworkStackUtils.IPCLIENT_ACCEPT_IPV6_LINK_LOCAL_DNS_VERSION;
++import static com.android.networkstack.util.NetworkStackUtils.IPCLIENT_PARSE_NETLINK_EVENTS_FORCE_DISABLE;
+ 
+ import android.app.AlarmManager;
+ import android.content.Context;
+@@ -206,6 +207,7 @@ public class IpClientLinkObserver implements NetworkObserver {
+     private final IpClient.Dependencies mDependencies;
+     private final String mClatInterfaceName;
+     private final IpClientNetlinkMonitor mNetlinkMonitor;
++    private final boolean mNetlinkEventParsingEnabled;
+     private final NetworkInformationShim mShim;
+     private final AlarmManager.OnAlarmListener mExpirePref64Alarm;
+     // Map of prefix in PIO with P flag and its preferred lifetime expiry in milliseconds since boot
+@@ -255,6 +257,8 @@ public class IpClientLinkObserver implements NetworkObserver {
+         mDnsServerRepository = new DnsServerRepository(config.minRdnssLifetime);
+         mAlarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+         mDependencies = deps;
++        mNetlinkEventParsingEnabled = deps.isFeatureNotChickenedOut(context,
++                IPCLIENT_PARSE_NETLINK_EVENTS_FORCE_DISABLE);
+         mNetlinkMonitor = deps.makeIpClientNetlinkMonitor(h, log, mTag,
+                 getSocketReceiveBufferSize(),
+                 config,
+@@ -309,6 +313,73 @@ public class IpClientLinkObserver implements NetworkObserver {
+         return size;
+     }
+ 
++    @Override
++    public void onInterfaceAdded(String iface) {
++        if (mNetlinkEventParsingEnabled) return;
++        maybeLog("interfaceAdded", iface);
++        if (mClatInterfaceName.equals(iface)) {
++            mCallback.onClatInterfaceStateUpdate(true /* add interface */);
++        }
++    }
++
++    @Override
++    public void onInterfaceRemoved(String iface) {
++        if (mNetlinkEventParsingEnabled) return;
++        maybeLog("interfaceRemoved", iface);
++        if (mClatInterfaceName.equals(iface)) {
++            mCallback.onClatInterfaceStateUpdate(false /* remove interface */);
++        } else if (mInterfaceName.equals(iface)) {
++            updateInterfaceRemoved();
++        }
++    }
++
++    @Override
++    public void onInterfaceLinkStateChanged(String iface, boolean state) {
++        if (mNetlinkEventParsingEnabled) return;
++        if (!mInterfaceName.equals(iface)) return;
++        maybeLog("interfaceLinkStateChanged", iface + (state ? " up" : " down"));
++        updateInterfaceLinkStateChanged(state);
++    }
++
++    @Override
++    public void onInterfaceAddressUpdated(LinkAddress address, String iface) {
++        if (mNetlinkEventParsingEnabled) return;
++        if (!mInterfaceName.equals(iface)) return;
++        maybeLog("addressUpdated", iface, address);
++        updateInterfaceAddress(address, true /* add address */);
++    }
++
++    @Override
++    public void onInterfaceAddressRemoved(LinkAddress address, String iface) {
++        if (mNetlinkEventParsingEnabled) return;
++        if (!mInterfaceName.equals(iface)) return;
++        maybeLog("addressRemoved", iface, address);
++        updateInterfaceAddress(address, false /* remove address */);
++    }
++
++    @Override
++    public void onRouteUpdated(RouteInfo route) {
++        if (mNetlinkEventParsingEnabled) return;
++        if (!mInterfaceName.equals(route.getInterface())) return;
++        maybeLog("routeUpdated", route);
++        updateInterfaceRoute(route, true /* add route */);
++    }
++
++    @Override
++    public void onRouteRemoved(RouteInfo route) {
++        if (mNetlinkEventParsingEnabled) return;
++        if (!mInterfaceName.equals(route.getInterface())) return;
++        maybeLog("routeRemoved", route);
++        updateInterfaceRoute(route, false /* remove route */);
++    }
++
++    @Override
++    public void onInterfaceDnsServerInfo(String iface, long lifetime, String[] addresses) {
++        if (mNetlinkEventParsingEnabled) return;
++        if (!mInterfaceName.equals(iface)) return;
++        updateInterfaceDnsServerInfo(lifetime, addresses);
++    }
++
+     private synchronized void updateInterfaceLinkStateChanged(boolean state) {
+         setInterfaceLinkStateLocked(state);
+     }
+@@ -458,9 +529,9 @@ public class IpClientLinkObserver implements NetworkObserver {
+                         | NetlinkConstants.RTMGRP_IPV6_ROUTE;
+ 
+         IpClientNetlinkMonitor(Handler h, SharedLog log, String tag, int sockRcvbufSize,
+-                IpClientLinkObserver.Configuration config, INetlinkMessageProcessor p) {
++                IpClientLinkObserver.Configuration config, boolean isNetlinkEventParsingEnabled, INetlinkMessageProcessor p) {
+             super(h, log, tag, OsConstants.NETLINK_ROUTE,
+-                    config.getFlaggedBindGroups() | NETLINK_MONITOR_BIND_GROUPS,
++                    config.getFlaggedBindGroups() | (!isNetlinkEventParsingEnabled ? NetlinkConstants.RTMGRP_ND_USEROPT : NETLINK_MONITOR_BIND_GROUPS),
+                     sockRcvbufSize);
+             mHandler = h;
+             mNetlinkMessageProcessor = p;
+@@ -555,6 +626,7 @@ public class IpClientLinkObserver implements NetworkObserver {
+     }
+ 
+     private void processRdnssOption(StructNdOptRdnss opt) {
++        if (!mNetlinkEventParsingEnabled) return;
+         final String[] addresses = new String[opt.servers.length];
+         for (int i = 0; i < opt.servers.length; i++) {
+             final Inet6Address addr = isIpv6LinkLocalDnsAccepted()
+@@ -602,6 +674,7 @@ public class IpClientLinkObserver implements NetworkObserver {
+     }
+ 
+     private void processRtNetlinkLinkMessage(RtNetlinkLinkMessage msg) {
++        if (!mNetlinkEventParsingEnabled) return;
+         // Check if receiving netlink link state update for clat interface.
+         final String ifname = msg.getInterfaceName();
+         final short nlMsgType = msg.getHeader().nlmsg_type;
+@@ -643,6 +716,7 @@ public class IpClientLinkObserver implements NetworkObserver {
+     }
+ 
+     private void processRtNetlinkAddressMessage(RtNetlinkAddressMessage msg) {
++        if (!mNetlinkEventParsingEnabled) return;
+         final StructIfaddrMsg ifaddrMsg = msg.getIfaddrHeader();
+         if (ifaddrMsg.index != mIfindex) return;
+ 
+diff --git a/src/com/android/networkstack/util/NetworkStackUtils.java b/src/com/android/networkstack/util/NetworkStackUtils.java
+index abcebaf67..181ffdd9c 100755
+--- a/src/com/android/networkstack/util/NetworkStackUtils.java
++++ b/src/com/android/networkstack/util/NetworkStackUtils.java
+@@ -260,6 +260,13 @@ public class NetworkStackUtils {
+     public static final String IPCLIENT_REPLACE_NETD_WITH_NETLINK_VERSION =
+             "ipclient_replace_netd_with_netlink_version";
+ 
++    /**
++     * Kill switch flag to disable the feature of parsing netlink events from kernel directly
++     * instead from netd aidl interface by flag push.
++     */
++    public static final String IPCLIENT_PARSE_NETLINK_EVENTS_FORCE_DISABLE =
++            "ipclient_parse_netlink_events_force_disable";
++
+     /**
+      * Experiment flag to enable Discovery of Designated Resolvers (DDR).
+      * This flag requires networkmonitor_async_privdns_resolution flag.
+diff --git a/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java b/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
+index 0165d645a..d4b492f41 100644
+--- a/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
++++ b/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
+@@ -234,6 +234,7 @@ import com.android.networkstack.metrics.NetworkQuirkMetrics;
+ import com.android.networkstack.packets.NeighborAdvertisement;
+ import com.android.networkstack.packets.NeighborSolicitation;
+ import com.android.networkstack.util.NetworkStackUtils;
++import com.android.server.NetworkObserver;
+ import com.android.server.NetworkStackService.NetworkStackServiceManager;
+ import com.android.testutils.CompatUtil;
+ import com.android.testutils.ConnectivityDiagnosticsCollector;
+@@ -252,6 +253,8 @@ import org.junit.Before;
+ import org.junit.Rule;
+ import org.junit.Test;
+ import org.junit.rules.TestName;
++import org.junit.runner.RunWith;
++import org.junit.runners.Parameterized;
+ import org.mockito.ArgumentCaptor;
+ import org.mockito.InOrder;
+ import org.mockito.Mock;
+@@ -294,6 +297,7 @@ import java.util.function.Predicate;
+  *
+  * Tests in this class can either be run with signature permissions, or with root access.
+  */
++@RunWith(Parameterized.class)
+ @SmallTest
+ public abstract class IpClientIntegrationTestCommon {
+     private static final String TAG = IpClientIntegrationTestCommon.class.getSimpleName();
+@@ -341,6 +345,17 @@ public abstract class IpClientIntegrationTestCommon {
+     @Rule
+     public final TestName mTestNameRule = new TestName();
+ 
++    // Indicate whether the flag of parsing netlink event is enabled or not. If it's disabled,
++    // integration test still covers the old codepath(i.e. using NetworkObserver), otherwise,
++    // test goes through the new codepath(i.e. processRtNetlinkxxx).
++    @Parameterized.Parameter(0)
++    public boolean mIsNetlinkEventParseEnabled;
++
++    @Parameterized.Parameters
++    public static Iterable<? extends Object> data() {
++        return Arrays.asList(Boolean.FALSE, Boolean.TRUE);
++    }
++
+     /**
+      * Indicates that a test requires signature permissions to run.
+      *
+@@ -770,11 +785,32 @@ public abstract class IpClientIntegrationTestCommon {
+ 
+     @Before
+     public void setUp() throws Exception {
+-        final String testMethodName = mTestNameRule.getMethodName();
++        // Suffix "[0]" or "[1]" is added to the end of test method name after running with
++        // Parameterized.class, that's intended behavior, to iterate each test method with the
++        // parameterize value. However, Class#getMethod() throws NoSuchMethodException when
++        // searching the target test method name due to this change. Just keep the original test
++        // method name to fix NoSuchMethodException, and find the correct annotation associated
++        // to test method.
++        final String testMethodName = mTestNameRule.getMethodName().split("\\[")[0];
+         final Method testMethod = IpClientIntegrationTestCommon.class.getMethod(testMethodName);
+         mIsSignatureRequiredTest = testMethod.getAnnotation(SignatureRequiredTest.class) != null;
+         assumeFalse(testSkipped());
+ 
++        // Depend on the parameterized value to enable/disable netlink message refactor flag.
++        // Make sure both of the old codepath(rely on the INetdUnsolicitedEventListener aidl)
++        // and new codepath(parse netlink event from kernel) will be executed.
++        //
++        // Note this must be called before making IpClient instance since MyNetlinkMontior ctor
++        // in IpClientLinkObserver will use mIsNetlinkEventParseEnabled to decide the proper
++        // bindGroups, otherwise, the parameterized value got from ArrayMap(integration test) is
++        // always false.
++        //
++        // Set feature kill switch flag with the parameterized value to keep running test cases on
++        // both code paths. Once we clean up the old code path (i.e.when the parameterized variable
++        // is false), then we can also delete this code.
++        setFeatureChickenedOut(NetworkStackUtils.IPCLIENT_PARSE_NETLINK_EVENTS_FORCE_DISABLE,
++                !mIsNetlinkEventParseEnabled);
++
+         // Enable replacement of netd usage with netlink in IpClient.
+         setFeatureEnabled(NetworkStackUtils.IPCLIENT_REPLACE_NETD_WITH_NETLINK_VERSION,
+                 true /* isIpClientReplaceNetdWithNetlinkEnabled */);
+@@ -2273,7 +2309,8 @@ public abstract class IpClientIntegrationTestCommon {
+     private boolean isStablePrivacyAddress(LinkAddress addr) {
+         // The Q netd does not understand the IFA_F_STABLE_PRIVACY flag.
+         // See r.android.com/1295670.
+-        final int flag = ShimUtils.isAtLeastR() ? IFA_F_STABLE_PRIVACY : 0;
++        final int flag = (mIsNetlinkEventParseEnabled || ShimUtils.isAtLeastR())
++                ? IFA_F_STABLE_PRIVACY : 0;
+         return addr.isGlobalPreferred() && hasFlag(addr, flag);
+     }
+ 
+@@ -2408,6 +2445,9 @@ public abstract class IpClientIntegrationTestCommon {
+ 
+     @Test
+     public void testRaRdnss_disableIpv6LinkLocalDns() throws Exception {
++        // Only run the test when the flag of parsing netlink events is enabled, feature flag
++        // "ipclient_accept_ipv6_link_local_dns" doesn't affect the legacy code.
++        assumeTrue(mIsNetlinkEventParseEnabled);
+         runRaRdnssIpv6LinkLocalDnsTest(false /* isIpv6LinkLocalDnsAccepted */);
+         verify(mCb, timeout(TEST_TIMEOUT_MS)).onLinkPropertiesChange(argThat(lp -> {
+             return lp.hasGlobalIpv6Address()
+@@ -2543,16 +2583,49 @@ public abstract class IpClientIntegrationTestCommon {
+         HandlerUtils.waitForIdle(mIpc.getHandler(), TEST_TIMEOUT_MS);
+     }
+ 
++    private void waitForAddressViaNetworkObserver(final String iface, final String addr1,
++            final String addr2, int prefixLength) throws Exception {
++        final CountDownLatch latch = new CountDownLatch(1);
++
++        // Add two IPv4 addresses to the specified interface, and proceed when the NetworkObserver
++        // has seen the second one. This ensures that every other NetworkObserver registered with
++        // mNetworkObserverRegistry - in particular, IpClient's - has seen the addition of the first
++        // address.
++        final LinkAddress trigger = new LinkAddress(addr2 + "/" + prefixLength);
++        NetworkObserver observer = new NetworkObserver() {
++            @Override
++            public void onInterfaceAddressUpdated(LinkAddress address, String ifName) {
++                if (ifName.equals(iface) && address.isSameAddressAs(trigger)) {
++                    latch.countDown();
++                }
++            }
++        };
++
++        mNetworkObserverRegistry.registerObserverForNonblockingCallback(observer);
++        try {
++            mNetd.interfaceAddAddress(iface, addr1, prefixLength);
++            mNetd.interfaceAddAddress(iface, addr2, prefixLength);
++            assertTrue("Trigger IP address " + addr2 + " not seen after " + TEST_TIMEOUT_MS + "ms",
++                    latch.await(TEST_TIMEOUT_MS, TimeUnit.MILLISECONDS));
++        } finally {
++            mNetworkObserverRegistry.unregisterObserver(observer);
++        }
++    }
++
+     private void addIpAddressAndWaitForIt(final String iface) throws Exception {
+         final String addr1 = "192.0.2.99";
+         final String addr2 = "192.0.2.3";
+         final int prefixLength = 26;
+ 
+-        // IpClient gets IP addresses directly from netlink instead of from netd, unnecessary
+-        // to rely on the NetworkObserver callbacks to confirm new added address update. Just
+-        // add the addresses directly and wait to see if IpClient has seen the address
+-        mNetd.interfaceAddAddress(iface, addr1, prefixLength);
+-        mNetd.interfaceAddAddress(iface, addr2, prefixLength);
++        if (!mIsNetlinkEventParseEnabled) {
++            waitForAddressViaNetworkObserver(iface, addr1, addr2, prefixLength);
++        } else {
++            // IpClient gets IP addresses directly from netlink instead of from netd, unnecessary
++            // to rely on the NetworkObserver callbacks to confirm new added address update. Just
++            // add the addresses directly and wait to see if IpClient has seen the address
++            mNetd.interfaceAddAddress(iface, addr1, prefixLength);
++            mNetd.interfaceAddAddress(iface, addr2, prefixLength);
++        }
+ 
+         // Wait for IpClient to process the addition of the address.
+         HandlerUtils.waitForIdle(mIpc.getHandler(), TEST_TIMEOUT_MS);
+@@ -5047,6 +5120,9 @@ public abstract class IpClientIntegrationTestCommon {
+     @Test
+     @SignatureRequiredTest(reason = "requires mock callback object")
+     public void testNetlinkSocketReceiveENOBUFS() throws Exception {
++        // Only run the test when the flag of parsing netlink events is enabled.
++        assumeTrue(mIsNetlinkEventParseEnabled);
++
+         ProvisioningConfiguration config = new ProvisioningConfiguration.Builder()
+                 .withoutIPv4()
+                 .build();
+@@ -5413,15 +5489,20 @@ public abstract class IpClientIntegrationTestCommon {
+ 
+         final long now = SystemClock.elapsedRealtime();
+         long when = 0;
+-        for (LinkAddress la : lp.getLinkAddresses()) {
+-            if (la.getAddress().isLinkLocalAddress()) {
+-                assertLinkAddressPermanentLifetime(la);
+-            } else if (la.isGlobalPreferred()) {
+-                when = now + 4500 * 1000; // preferred=4500s
+-                assertLinkAddressDeprecationTime(la, when);
+-                when = now + 7200 * 1000; // valid=7200s
+-                assertLinkAddressExpirationTime(la, when);
+-            }
++        // Only run the test when the flag of parsing netlink events is enabled, where the
++        // deprecationTime and expirationTime is set.
++        if (mIsNetlinkEventParseEnabled) {
++            final long now = SystemClock.elapsedRealtime();
++            long when = 0;
++            for (LinkAddress la : lp.getLinkAddresses()) {
++                if (la.getAddress().isLinkLocalAddress()) {
++                    assertLinkAddressPermanentLifetime(la);
++                } else if (la.isGlobalPreferred()) {
++                    when = now + 4500 * 1000; // preferred=4500s
++                    assertLinkAddressDeprecationTime(la, when);
++                    when = now + 7200 * 1000; // valid=7200s
++                    assertLinkAddressExpirationTime(la, when);
++                }
+         }
+     }
+ 
+@@ -6191,6 +6272,11 @@ public abstract class IpClientIntegrationTestCommon {
+     @Test
+     @EnableFlags(Flags.FLAG_IPCLIENT_POPULATE_LINK_ADDRESS_LIFETIME)
+     public void testPopulateLinkAddressLifetime() throws Exception {
++        // Only run the test when the flag of parsing netlink events is enabled to verify the
++        // code of setting deprecationTime/expirationTime added when IpClientLinkObserver sees
++        // the RTM_NEWADDR, and we are going to delete the dead old code path completely soon.
++        assumeTrue(mIsNetlinkEventParseEnabled);
++
+         final LinkProperties lp = doDualStackProvisioning();
+         final long now = SystemClock.elapsedRealtime();
+         long when = 0;
+@@ -6237,6 +6323,9 @@ public abstract class IpClientIntegrationTestCommon {
+     @Test
+     @EnableFlags(Flags.FLAG_IPCLIENT_POPULATE_LINK_ADDRESS_LIFETIME)
+     public void testPopulateLinkAddressLifetime_minimalLeaseDuration() throws Exception {
++        // Only run the test when the flag of parsing netlink events is enabled.
++        assumeTrue(mIsNetlinkEventParseEnabled);
++
+         final ProvisioningConfiguration cfg = new ProvisioningConfiguration.Builder()
+                 .withoutIPv6()
+                 .build();
+diff --git a/tests/unit/src/android/net/ip/IpClientTest.java b/tests/unit/src/android/net/ip/IpClientTest.java
+index 6f8798aff..a17590061 100644
+--- a/tests/unit/src/android/net/ip/IpClientTest.java
++++ b/tests/unit/src/android/net/ip/IpClientTest.java
+@@ -40,6 +40,7 @@ import static com.android.net.module.util.netlink.NetlinkConstants.RTN_UNICAST;
+ import static com.android.net.module.util.netlink.StructNlMsgHdr.NLM_F_ACK;
+ import static com.android.net.module.util.netlink.StructNlMsgHdr.NLM_F_REQUEST;
+ import static com.android.networkstack.util.NetworkStackUtils.APF_ENABLE;
++import static com.android.networkstack.util.NetworkStackUtils.IPCLIENT_PARSE_NETLINK_EVENTS_FORCE_DISABLE;
+ import static com.android.testutils.TestPermissionUtil.runAsShell;
+ 
+ import static org.junit.Assert.assertArrayEquals;
+@@ -238,8 +239,10 @@ public class IpClientTest {
+         when(mDependencies.getDeviceConfigPropertyInt(eq(CONFIG_SOCKET_RECV_BUFSIZE), anyInt()))
+                 .thenReturn(SOCKET_RECV_BUFSIZE);
+         when(mDependencies.makeIpClientNetlinkMonitor(
+-                any(), any(), any(), anyInt(), any(), any())).thenReturn(mNetlinkMonitor);
++                any(), any(), any(), anyInt(), any(), anyBoolean(), any())).thenReturn(mNetlinkMonitor);
+         when(mNetlinkMonitor.start()).thenReturn(true);
++        when(mDependencies.isFeatureNotChickenedOut(any(),
++                eq(IPCLIENT_PARSE_NETLINK_EVENTS_FORCE_DISABLE))).thenReturn(true);
+         when(mDependencies.makeDhcp6Client(any(), any(), any(), any(), any()))
+                 .thenReturn(mDhcp6Client);
+         when(mDependencies.getNetworkQuirkMetrics()).thenReturn(mQuirkMetrics);
+@@ -270,7 +273,7 @@ public class IpClientTest {
+         final ArgumentCaptor<INetlinkMessageProcessor> processorCaptor =
+                 ArgumentCaptor.forClass(INetlinkMessageProcessor.class);
+         verify(mDependencies).makeIpClientNetlinkMonitor(any(), any(), any(), anyInt(),
+-                any(), processorCaptor.capture());
++                any(), anyBoolean(), processorCaptor.capture());
+         mNetlinkMessageProcessor = processorCaptor.getValue();
+         reset(mObserverRegistry);
+         reset(mNetd);
+-- 
+2.54.0
+

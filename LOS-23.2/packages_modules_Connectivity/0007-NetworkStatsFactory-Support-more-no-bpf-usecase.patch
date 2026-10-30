@@ -1,0 +1,27 @@
+From f5113ae04c6c14d89dfd827ee6c92e3ca50ba25b Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 1 Mar 2026 17:39:19 +0100
+Subject: [PATCH 7/8] NetworkStatsFactory: Support more no bpf usecase
+
+Change-Id: Ib68d9999d5978698e7183f0289561a2fba51da52
+---
+ service-t/src/com/android/server/net/NetworkStatsFactory.java | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/service-t/src/com/android/server/net/NetworkStatsFactory.java b/service-t/src/com/android/server/net/NetworkStatsFactory.java
+index 0edc9bde7d..3156b487f3 100644
+--- a/service-t/src/com/android/server/net/NetworkStatsFactory.java
++++ b/service-t/src/com/android/server/net/NetworkStatsFactory.java
+@@ -126,7 +126,8 @@ public class NetworkStatsFactory {
+             final NetworkStats stats = new NetworkStats(SystemClock.elapsedRealtime(), 6);
+             final int ret = nativeReadNetworkStatsDev(stats);
+             if (ret != 0) {
+-                throw new IOException("Failed to parse bpf iface stats");
++                Log.wtf(TAG, "Failed to parse bpf iface stats");
++                return new NetworkStats(0, 0);
+             }
+             return stats;
+         }
+-- 
+2.51.0
+

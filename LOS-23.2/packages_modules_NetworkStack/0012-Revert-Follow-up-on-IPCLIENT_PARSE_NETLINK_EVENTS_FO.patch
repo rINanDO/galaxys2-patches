@@ -1,0 +1,30 @@
+From 6c99c5a25c518d5b2855786fdf527c81c3db18c2 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 21 Sep 2025 09:53:27 -0400
+Subject: [PATCH 12/15] Revert "Follow up on
+ IPCLIENT_PARSE_NETLINK_EVENTS_FORCE_DISABLE removal"
+
+This reverts commit a4a9d2cd08ad8849498881c02a65e9c8720d8de3.
+---
+ .../common/android/net/ip/IpClientIntegrationTestCommon.java | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java b/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
+index 8b984f904..0165d645a 100644
+--- a/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
++++ b/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
+@@ -2271,7 +2271,10 @@ public abstract class IpClientIntegrationTestCommon {
+     }
+ 
+     private boolean isStablePrivacyAddress(LinkAddress addr) {
+-        return addr.isGlobalPreferred() && hasFlag(addr, IFA_F_STABLE_PRIVACY);
++        // The Q netd does not understand the IFA_F_STABLE_PRIVACY flag.
++        // See r.android.com/1295670.
++        final int flag = ShimUtils.isAtLeastR() ? IFA_F_STABLE_PRIVACY : 0;
++        return addr.isGlobalPreferred() && hasFlag(addr, flag);
+     }
+ 
+     private LinkProperties doIpv6OnlyProvisioning() throws Exception {
+-- 
+2.54.0
+

@@ -11,6 +11,11 @@
 # its `git format-patch` output into the matching patch directory.
 # ---------------------------------------------------------------------------
 PATCHED_REPOS=(
+    "packages/modules/Connectivity    packages_modules_Connectivity"
+    "packages/modules/DnsResolver     packages_modules_DnsResolver"
+    "packages/modules/NetworkStack    packages_modules_NetworkStack"
+    "system/bpf                       system_bpf"
+    "system/netd                      system_netd"
 )
 
 PATCHES_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"

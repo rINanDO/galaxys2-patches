@@ -1,0 +1,197 @@
+From d17c1284a2d63b2d98167fae73e47b07b81ffb79 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 31 Jan 2026 16:31:10 +0100
+Subject: [PATCH 5/8] ConnectivityManager: Support no bpf usecase
+
+Change-Id: I9a91214ae25ff00807517808f9aeec6efbeb0108
+---
+ .../src/android/net/ConnectivityManager.java  |  3 ++
+ .../libs/libnetworkstats/BpfNetworkStats.cpp  | 32 +++++++++++++++++
+ .../server/net/NetworkStatsFactory.java       |  3 +-
+ .../server/net/NetworkStatsService.java       | 35 +++++++++++--------
+ ...id_server_connectivity_ClatCoordinator.cpp |  1 -
+ 5 files changed, 58 insertions(+), 16 deletions(-)
+
+diff --git a/framework/src/android/net/ConnectivityManager.java b/framework/src/android/net/ConnectivityManager.java
+index 1a07d33f07..25e2ccf96f 100644
+--- a/framework/src/android/net/ConnectivityManager.java
++++ b/framework/src/android/net/ConnectivityManager.java
+@@ -1776,6 +1776,9 @@ public class ConnectivityManager {
+             return mService.getNetworkInfo(networkType);
+         } catch (RemoteException e) {
+             throw e.rethrowFromSystemServer();
++        } catch (Throwable e) {
++            Log.e(TAG, "Unexpected error while calling getNetworkInfo", e);
++            return null;
+         }
+     }
+ 
+diff --git a/service-t/native/libs/libnetworkstats/BpfNetworkStats.cpp b/service-t/native/libs/libnetworkstats/BpfNetworkStats.cpp
+index ae8dbbe321..ac75cdfb71 100644
+--- a/service-t/native/libs/libnetworkstats/BpfNetworkStats.cpp
++++ b/service-t/native/libs/libnetworkstats/BpfNetworkStats.cpp
+@@ -115,6 +115,10 @@ int bpfGetUidStatsInternal(uid_t uid, StatsValue* stats,
+ 
+ int bpfGetUidStats(uid_t uid, StatsValue* stats) {
+     static BpfMapRO<uint32_t, StatsValue> appUidStatsMap(APP_UID_STATS_MAP_PATH);
++    if (!appUidStatsMap.isValid() || !appUidStatsMap.isOk()) {
++        ALOGE("get map fd failed: %s", strerror(errno));
++        return -errno;
++    }
+     return bpfGetUidStatsInternal(uid, stats, appUidStatsMap);
+ }
+ 
+@@ -169,6 +173,10 @@ int bpfGetIfaceStatsInternal(const char* iface, StatsValue* stats,
+ }
+ 
+ int bpfGetIfaceStats(const char* iface, StatsValue* stats) {
++    if (!getIfaceStatsMap().isValid() || !getIfaceStatsMap().isOk()) {
++        ALOGE("get map fd failed: %s", strerror(errno));
++        return -errno;
++    }
+     return bpfGetIfaceStatsInternal(iface, stats, getIfaceStatsMap(), ifindex2name);
+ }
+ 
+@@ -184,6 +192,10 @@ int bpfGetIfIndexStatsInternal(uint32_t ifindex, StatsValue* stats,
+ }
+ 
+ int bpfGetIfIndexStats(int ifindex, StatsValue* stats) {
++    if (!getIfaceStatsMap().isValid() || !getIfaceStatsMap().isOk()) {
++        ALOGE("get map fd failed: %s", strerror(errno));
++        return -errno;
++    }
+     return bpfGetIfIndexStatsInternal(ifindex, stats, getIfaceStatsMap());
+ }
+ 
+@@ -253,8 +265,24 @@ int parseBpfNetworkStatsDetailInternal(std::vector<stats_line>& lines,
+ 
+ int parseBpfNetworkStatsDetail(std::vector<stats_line>* lines) {
+     static BpfMapRO<uint32_t, uint32_t> configurationMap(CONFIGURATION_MAP_PATH);
++    if (!configurationMap.isValid() || !configurationMap.isOk()) {
++        ALOGE("get map fd failed: %s", strerror(errno));
++        return -errno;
++    }
++
+     static BpfMap<StatsKey, StatsValue> statsMapA(STATS_MAP_A_PATH);
++    if (!statsMapA.isValid() || !statsMapA.isOk()) {
++        ALOGE("get map fd failed: %s", strerror(errno));
++        return -errno;
++    }
++
+     static BpfMap<StatsKey, StatsValue> statsMapB(STATS_MAP_B_PATH);
++    if (!statsMapB.isValid() || !statsMapB.isOk()) {
++        ALOGE("get map fd failed: %s", strerror(errno));
++        return -errno;
++    }
++
++    if (!configurationMap.isOk()) return -1;
+     auto configuration = configurationMap.readValue(CURRENT_STATS_MAP_CONFIGURATION_KEY);
+     if (!configuration.ok()) {
+         ALOGE("Cannot read the old configuration from map: %s",
+@@ -316,6 +344,10 @@ int parseBpfNetworkStatsDevInternal(std::vector<stats_line>& lines,
+ }
+ 
+ int parseBpfNetworkStatsDev(std::vector<stats_line>* lines) {
++    if (!getIfaceStatsMap().isValid() || !getIfaceStatsMap().isOk()) {
++        ALOGE("get map fd failed: %s", strerror(errno));
++        return -errno;
++    }
+     return parseBpfNetworkStatsDevInternal(*lines, getIfaceStatsMap(), ifindex2name);
+ }
+ 
+diff --git a/service-t/src/com/android/server/net/NetworkStatsFactory.java b/service-t/src/com/android/server/net/NetworkStatsFactory.java
+index 7d48b71d75..0edc9bde7d 100644
+--- a/service-t/src/com/android/server/net/NetworkStatsFactory.java
++++ b/service-t/src/com/android/server/net/NetworkStatsFactory.java
+@@ -112,7 +112,8 @@ public class NetworkStatsFactory {
+             final NetworkStats stats = new NetworkStats(SystemClock.elapsedRealtime(), 0);
+             final int ret = nativeReadNetworkStatsDetail(stats);
+             if (ret != 0) {
+-                throw new IOException("Failed to parse network stats");
++                Log.wtf(TAG, "Failed to parse network stats");
++                return new NetworkStats(0, 0);
+             }
+             return stats;
+         }
+diff --git a/service-t/src/com/android/server/net/NetworkStatsService.java b/service-t/src/com/android/server/net/NetworkStatsService.java
+index c82955f44f..1affa2498e 100644
+--- a/service-t/src/com/android/server/net/NetworkStatsService.java
++++ b/service-t/src/com/android/server/net/NetworkStatsService.java
+@@ -453,12 +453,13 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
+      * mActiveUidCounterSet to avoid accessing kernel too frequently.
+      */
+     private SparseIntArray mActiveUidCounterSet = new SparseIntArray();
+-    private final IBpfMap<S32, U8> mUidCounterSetMap;
+-    private final IBpfMap<S64, CookieTagMapValue> mCookieTagMap;
+-    private final IBpfMap<StatsMapKey, StatsMapValue> mStatsMapA;
+-    private final IBpfMap<StatsMapKey, StatsMapValue> mStatsMapB;
+-    private final IBpfMap<S32, StatsMapValue> mAppUidStatsMap;
+-    private final IBpfMap<S32, StatsMapValue> mIfaceStatsMap;
++    private IBpfMap<S32, U8> mUidCounterSetMap = null;
++    private IBpfMap<S64, CookieTagMapValue> mCookieTagMap = null;
++    private IBpfMap<StatsMapKey, StatsMapValue> mStatsMapA = null;
++    private IBpfMap<StatsMapKey, StatsMapValue> mStatsMapB = null;
++    private IBpfMap<S32, StatsMapValue> mAppUidStatsMap = null;
++    private IBpfMap<S32, StatsMapValue> mIfaceStatsMap = null;
++
+ 
+     /** Data layer operation counters for splicing into other structures. */
+     private NetworkStats mUidOperations = new NetworkStats(0L, 10);
+@@ -676,12 +677,16 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
+                 mNetworkStatsSubscriptionsMonitor);
+         mLocationPermissionChecker = mDeps.makeLocationPermissionChecker(mContext);
+         mInterfaceMapHelper = mDeps.makeBpfInterfaceMapHelper();
+-        mUidCounterSetMap = mDeps.getUidCounterSetMap();
+-        mCookieTagMap = mDeps.getCookieTagMap();
+-        mStatsMapA = mDeps.getStatsMapA();
+-        mStatsMapB = mDeps.getStatsMapB();
+-        mAppUidStatsMap = mDeps.getAppUidStatsMap();
+-        mIfaceStatsMap = mDeps.getIfaceStatsMap();
++        try {
++            mUidCounterSetMap = mDeps.getUidCounterSetMap();
++            mCookieTagMap = mDeps.getCookieTagMap();
++            mStatsMapA = mDeps.getStatsMapA();
++            mStatsMapB = mDeps.getStatsMapB();
++            mAppUidStatsMap = mDeps.getAppUidStatsMap();
++            mIfaceStatsMap = mDeps.getIfaceStatsMap();
++        } catch(Throwable t) {
++            android.util.Log.e("PHH", "Failed creating bpf maps", t);
++        }
+         // To prevent any possible races, the flag is not allowed to change until rebooting.
+         mSupportEventLogger = mDeps.supportEventLogger(mContext);
+         mStoreTransportTypes =
+@@ -3269,7 +3274,8 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
+         try {
+             return mStatsFactory.readNetworkStatsSummaryXt();
+         } catch (IOException e) {
+-            throw new IllegalStateException(e);
++            Log.wtf(TAG, "problem readNetworkStatsSummaryXt", e);
++            return new NetworkStats(0, 0);
+         }
+     }
+ 
+@@ -3277,7 +3283,8 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
+         try {
+             return mStatsFactory.readNetworkStatsDetail(uid, ifaces, tag);
+         } catch (IOException e) {
+-            throw new IllegalStateException(e);
++            Log.wtf(TAG, "problem readNetworkStatsSummaryXt", e);
++            return new NetworkStats(0, 0);
+         }
+     }
+ 
+diff --git a/service/jni/com_android_server_connectivity_ClatCoordinator.cpp b/service/jni/com_android_server_connectivity_ClatCoordinator.cpp
+index 70991ebad3..18a819d490 100644
+--- a/service/jni/com_android_server_connectivity_ClatCoordinator.cpp
++++ b/service/jni/com_android_server_connectivity_ClatCoordinator.cpp
+@@ -132,7 +132,6 @@ static void verifyClatPerms() {
+ 
+ #undef V2
+ 
+-    if (fatal) abort();
+ }
+ 
+ #undef V
+-- 
+2.51.0
+

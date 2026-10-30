@@ -92,6 +92,28 @@ aborts that and resets the patched repos with `repo sync`.
   exynos4 HALs), and `lineage-20.0` for the kernel, the GCC 4.9 toolchain and
   `vendor/samsung` (the only branch with the i9100 blobs).
 
+## What the patches address
+
+The Galaxy S2 is a legacy device: a Linux 3.0 kernel, no Treble, and 2011
+blobs. LineageOS 23.2 has dropped much of the compatibility code they depend
+on. Most problems are shared with other legacy devices, so where possible the
+patches are the same as in gts210wifi-patches LOS-23.2.
+
+- **No BPF in the kernel** (`system_bpf`, `system_netd`,
+  `packages_modules_Connectivity`, `packages_modules_DnsResolver`,
+  `packages_modules_NetworkStack`): networking, traffic stats, DNS and the
+  network stack work without eBPF. The bpfloader no longer panics, and
+  NetworkStack gets link and TCP information without the netlink features
+  this kernel lacks. These replace the LOS-20.0 `system_bpf`, `system_netd`
+  0001, `packages_modules_Connectivity`, `packages_modules_NetworkStack` and
+  `frameworks_libs_net` patches (that library is part of Connectivity now).
+- **Mobile data with the Samsung RIL** (`system_netd` 0004): netd can add a
+  rule for the kernel's directly-connected routes, without which IPv4 mobile
+  data has no default route. Enable it in the device tree with
+  `$(call soong_config_set_bool,netd,direct_connect_rule,true)`; in LOS-20.0
+  this was `TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE` plus a `vendor_lineage`
+  patch.
+
 ## Status
 
 Work in progress: the LineageOS 20.0 patch set is being ported. The tree

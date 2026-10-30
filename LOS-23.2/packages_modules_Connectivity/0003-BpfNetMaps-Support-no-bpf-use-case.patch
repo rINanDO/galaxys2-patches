@@ -1,0 +1,292 @@
+From 9d027838bd869854b8e15127b6b7c9eb6a362c8c Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 31 Jan 2026 16:28:01 +0100
+Subject: [PATCH 3/8] BpfNetMaps: Support no bpf use case
+
+Change-Id: I98a0dfead5b329bc1fe0dcc58472c085854036c9
+---
+ .../src/com/android/server/BpfNetMaps.java    | 81 ++++++++++++++++---
+ 1 file changed, 72 insertions(+), 9 deletions(-)
+
+diff --git a/service/src/com/android/server/BpfNetMaps.java b/service/src/com/android/server/BpfNetMaps.java
+index a96819380c..4099e8e9db 100644
+--- a/service/src/com/android/server/BpfNetMaps.java
++++ b/service/src/com/android/server/BpfNetMaps.java
+@@ -115,6 +115,7 @@ public class BpfNetMaps {
+     private final Dependencies mDeps;
+     // Use legacy netd for releases before T.
+     private static boolean sInitialized = false;
++    private static final boolean hasBpf = false;
+ 
+     // Lock for sConfigurationMap entry for UID_RULES_CONFIGURATION_KEY.
+     // This entry is not accessed by others.
+@@ -223,7 +224,10 @@ public class BpfNetMaps {
+             return SingleWriterBpfMap.getSingleton(
+                     CONFIGURATION_MAP_PATH, S32.class, U32.class);
+         } catch (ErrnoException e) {
+-            throw new IllegalStateException("Cannot open netd configuration map", e);
++            if (hasBpf) {
++                throw new IllegalStateException("Cannot open netd configuration map", e);
++            }
++            return null;
+         }
+     }
+ 
+@@ -233,7 +237,10 @@ public class BpfNetMaps {
+             return SingleWriterBpfMap.getSingleton(
+                     UID_OWNER_MAP_PATH, S32.class, UidOwnerValue.class);
+         } catch (ErrnoException e) {
+-            throw new IllegalStateException("Cannot open uid owner map", e);
++            if (hasBpf) {
++                throw new IllegalStateException("Cannot open uid owner map", e);
++            }
++            return null;
+         }
+     }
+ 
+@@ -243,7 +250,10 @@ public class BpfNetMaps {
+             return SingleWriterBpfMap.getSingleton(
+                     UID_PERMISSION_MAP_PATH, S32.class, U8.class);
+         } catch (ErrnoException e) {
+-            throw new IllegalStateException("Cannot open uid permission map", e);
++            if (hasBpf) {
++                throw new IllegalStateException("Cannot open uid permission map", e);
++            }
++            return null;
+         }
+     }
+ 
+@@ -254,7 +264,10 @@ public class BpfNetMaps {
+             return new BpfMap<>(COOKIE_TAG_MAP_PATH,
+                     S64.class, CookieTagMapValue.class);
+         } catch (ErrnoException e) {
+-            throw new IllegalStateException("Cannot open cookie tag map", e);
++            if (hasBpf) {
++                throw new IllegalStateException("Cannot open cookie tag map", e);
++            }
++            return null;
+         }
+     }
+ 
+@@ -264,7 +277,10 @@ public class BpfNetMaps {
+             return SingleWriterBpfMap.getSingleton(
+                     DATA_SAVER_ENABLED_MAP_PATH, S32.class, U8.class);
+         } catch (ErrnoException e) {
+-            throw new IllegalStateException("Cannot open data saver enabled map", e);
++            if (hasBpf) {
++                throw new IllegalStateException("Cannot open data saver enabled map", e);
++            }
++            return null;
+         }
+     }
+ 
+@@ -274,7 +290,10 @@ public class BpfNetMaps {
+             return SingleWriterBpfMap.getSingleton(INGRESS_DISCARD_MAP_PATH,
+                     IngressDiscardKey.class, IngressDiscardValue.class);
+         } catch (ErrnoException e) {
+-            throw new IllegalStateException("Cannot open ingress discard map", e);
++            if (hasBpf) {
++                throw new IllegalStateException("Cannot open ingress discard map", e);
++            }
++            return null;
+         }
+     }
+ 
+@@ -284,7 +303,10 @@ public class BpfNetMaps {
+             return SingleWriterBpfMap.getSingleton(LOCAL_NET_BLOCKED_UID_MAP_PATH,
+                     U32.class, Bool.class);
+         } catch (ErrnoException e) {
+-            throw new IllegalStateException("Cannot open local_net_blocked_uid map", e);
++            if (hasBpf) {
++                throw new IllegalStateException("Cannot open local_net_blocked_uid map", e);
++            }       
++            return null;
+         }
+     }
+ 
+@@ -294,7 +316,10 @@ public class BpfNetMaps {
+             return SingleWriterBpfMap.getSingleton(LOCAL_NET_ACCESS_MAP_PATH,
+                     LocalNetAccessKey.class, Bool.class);
+         } catch (ErrnoException e) {
+-            throw new IllegalStateException("Cannot open local_net_access map", e);
++            if (hasBpf) {
++                throw new IllegalStateException("Cannot open local_net_access map", e);
++            }
++            return null;
+         }
+     }
+ 
+@@ -303,6 +328,9 @@ public class BpfNetMaps {
+         if (sConfigurationMap == null) {
+             sConfigurationMap = getConfigurationMap();
+         }
++
++        if (sConfigurationMap == null) return;
++
+         try {
+             sConfigurationMap.updateEntry(UID_RULES_CONFIGURATION_KEY,
+                     new U32(UID_RULES_DEFAULT_CONFIGURATION));
+@@ -474,11 +502,15 @@ public class BpfNetMaps {
+      NetworkStackUtils.isAtLeast25Q2 when it is moved to a static lib.
+      */
+     public static boolean isAtLeast25Q2() {
++        if (!hasBpf) return false;
++
+         return SdkLevel.isAtLeastB()  || (SdkLevel.isAtLeastV()
+                 && "Baklava".equals(Build.VERSION.CODENAME));
+     }
+ 
+     private void removeRule(final int uid, final long match, final String caller) {
++        if (sUidOwnerMap == null) return;
++
+         try {
+             synchronized (sUidOwnerMap) {
+                 final UidOwnerValue oldMatch = sUidOwnerMap.getValue(new S32(uid));
+@@ -506,6 +538,8 @@ public class BpfNetMaps {
+     }
+ 
+     private void addRule(final int uid, final long match, final int iif, final String caller) {
++        if (sUidOwnerMap == null) return;
++
+         if (match != IIF_MATCH && iif != 0) {
+             throw new ServiceSpecificException(EINVAL,
+                     "Non-interface match must have zero interface index");
+@@ -552,6 +586,8 @@ public class BpfNetMaps {
+     public void setChildChain(final int childChain, final boolean enable) {
+         throwIfPreT("setChildChain is not available on pre-T devices");
+ 
++        if (sConfigurationMap == null) return;
++
+         final long match = getMatchByFirewallChain(childChain);
+         try {
+             synchronized (sUidRulesConfigBpfMapLock) {
+@@ -577,6 +613,8 @@ public class BpfNetMaps {
+     @Deprecated
+     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+     public boolean isChainEnabled(final int childChain) {
++        if (sConfigurationMap == null) return false;
++
+         return BpfNetMapsUtils.isChainEnabled(sConfigurationMap, childChain);
+     }
+ 
+@@ -601,6 +639,8 @@ public class BpfNetMaps {
+     public void replaceUidChain(final int chain, final int[] uids) {
+         throwIfPreT("replaceUidChain is not available on pre-T devices");
+ 
++        if (sUidOwnerMap == null) return;
++
+         final long match;
+         try {
+             match = getMatchByFirewallChain(chain);
+@@ -838,6 +878,8 @@ public class BpfNetMaps {
+     public void swapActiveStatsMap() {
+         throwIfPreT("swapActiveStatsMap is not available on pre-T devices");
+ 
++        if (sConfigurationMap == null) return;
++
+         try {
+             synchronized (sCurrentStatsMapConfigLock) {
+                 final long config = sConfigurationMap.getValue(
+@@ -877,6 +919,7 @@ public class BpfNetMaps {
+             mNetd.trafficSetNetPermForUids(permissions, uids);
+             return;
+         }
++        if (sUidPermissionMap == null) return;
+ 
+         // Remove the entry if package is uninstalled or uid has only INTERNET permission.
+         if (permissions == TRAFFIC_PERMISSION_UNINSTALLED
+@@ -1066,6 +1109,8 @@ public class BpfNetMaps {
+      */
+     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+     public int getNetPermForUid(final int uid) {
++        if (sUidPermissionMap == null) return TRAFFIC_PERMISSION_INTERNET;
++
+         final int appId = UserHandle.getAppId(uid);
+         try {
+             // Key of uid permission map is appId
+@@ -1090,6 +1135,8 @@ public class BpfNetMaps {
+     public void setDataSaverEnabled(boolean enable) {
+         throwIfPreT("setDataSaverEnabled is not available on pre-T devices");
+ 
++        if (sDataSaverEnabledMap == null) return;
++
+         try {
+             final short config = enable ? DATA_SAVER_ENABLED : DATA_SAVER_DISABLED;
+             sDataSaverEnabledMap.updateEntry(DATA_SAVER_ENABLED_KEY, new U8(config));
+@@ -1108,6 +1155,9 @@ public class BpfNetMaps {
+     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+     public void setIngressDiscardRule(final InetAddress address, final String iface) {
+         throwIfPreT("setIngressDiscardRule is not available on pre-T devices");
++
++        if (sIngressDiscardMap == null) return;
++
+         final int ifIndex = mDeps.getIfIndex(iface);
+         if (ifIndex == 0) {
+             Log.e(TAG, "Failed to get if index, skip setting ingress discard rule for " + address
+@@ -1131,6 +1181,7 @@ public class BpfNetMaps {
+     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+     public void removeIngressDiscardRule(final InetAddress address) {
+         throwIfPreT("removeIngressDiscardRule is not available on pre-T devices");
++        if (sIngressDiscardMap == null) return;
+         try {
+             sIngressDiscardMap.deleteEntry(new IngressDiscardKey(address));
+         } catch (ErrnoException e) {
+@@ -1146,6 +1197,8 @@ public class BpfNetMaps {
+      */
+     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+     public int getUidNetworkingBlockedReasons(final int uid) {
++        if (sConfigurationMap == null) return 0;
++
+         return BpfNetMapsUtils.getUidNetworkingBlockedReasons(uid,
+                 sConfigurationMap, sUidOwnerMap, sDataSaverEnabledMap);
+     }
+@@ -1177,6 +1230,8 @@ public class BpfNetMaps {
+      */
+     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+     public boolean isUidNetworkingBlocked(final int uid, boolean isNetworkMetered) {
++        if (sConfigurationMap == null) return false;
++
+         return BpfNetMapsUtils.isUidNetworkingBlocked(uid, isNetworkMetered,
+                 sConfigurationMap, sUidOwnerMap, sDataSaverEnabledMap);
+     }
+@@ -1197,7 +1252,9 @@ public class BpfNetMaps {
+         // deletion. netd and skDestroyListener could delete CookieTagMap entry concurrently.
+         // So using Set to count the number of entry in the map.
+         Set<K> keySet = new ArraySet<>();
+-        map.forEach((k, v) -> keySet.add(k));
++        if (map != null) {
++            map.forEach((k, v) -> keySet.add(k));
++        }
+         return keySet.size();
+     }
+ 
+@@ -1245,6 +1302,8 @@ public class BpfNetMaps {
+ 
+     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+     private void dumpOwnerMatchConfig(final IndentingPrintWriter pw) {
++        if (sConfigurationMap == null) return;
++
+         try {
+             final long match = sConfigurationMap.getValue(UID_RULES_CONFIGURATION_KEY).val;
+             pw.println("current ownerMatch configuration: " + match + " " + matchToString(match));
+@@ -1254,6 +1313,8 @@ public class BpfNetMaps {
+     }
+ 
+     private void dumpCurrentStatsMapConfig(final IndentingPrintWriter pw) {
++        if (sConfigurationMap == null) return;
++
+         try {
+             final long config = sConfigurationMap.getValue(CURRENT_STATS_MAP_CONFIGURATION_KEY).val;
+             final String currentStatsMap =
+@@ -1265,6 +1326,8 @@ public class BpfNetMaps {
+     }
+ 
+     private void dumpDataSaverConfig(final IndentingPrintWriter pw) {
++        if (sDataSaverEnabledMap == null) return;
++
+         try {
+             final short config = sDataSaverEnabledMap.getValue(DATA_SAVER_ENABLED_KEY).val;
+             // Any non-zero value converted from short to boolean is true by convention.
+-- 
+2.51.0
+

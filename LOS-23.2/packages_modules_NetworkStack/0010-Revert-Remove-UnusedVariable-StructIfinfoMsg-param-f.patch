@@ -1,0 +1,37 @@
+From df55a5a1ceebb690e0882ae3635a0f8450441351 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 21 Sep 2025 09:47:11 -0400
+Subject: [PATCH 10/15] Revert "Remove UnusedVariable StructIfinfoMsg param
+ from updateClatInterfaceLinkState."
+
+This reverts commit dfc02315da2ef6b3f8575197c3e7efe59544cc12.
+---
+ src/android/net/ip/IpClientLinkObserver.java | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/android/net/ip/IpClientLinkObserver.java b/src/android/net/ip/IpClientLinkObserver.java
+index e373abef7..839f6fab6 100644
+--- a/src/android/net/ip/IpClientLinkObserver.java
++++ b/src/android/net/ip/IpClientLinkObserver.java
+@@ -578,7 +578,8 @@ public class IpClientLinkObserver {
+         }
+     }
+ 
+-    private void updateClatInterfaceLinkState(@Nullable final String ifname, short nlMsgType) {
++    private void updateClatInterfaceLinkState(@NonNull final StructIfinfoMsg ifinfoMsg,
++            @Nullable final String ifname, short nlMsgType) {
+         switch (nlMsgType) {
+             case NetlinkConstants.RTM_NEWLINK:
+                 mCallback.onClatInterfaceStateUpdate(true /* add interface */);
+@@ -600,7 +601,7 @@ public class IpClientLinkObserver {
+         final short nlMsgType = msg.getHeader().nlmsg_type;
+         final StructIfinfoMsg ifinfoMsg = msg.getIfinfoHeader();
+         if (mClatInterfaceName.equals(ifname)) {
+-            updateClatInterfaceLinkState(ifname, nlMsgType);
++            updateClatInterfaceLinkState(ifinfoMsg, ifname, nlMsgType);
+             return;
+         }
+ 
+-- 
+2.54.0
+

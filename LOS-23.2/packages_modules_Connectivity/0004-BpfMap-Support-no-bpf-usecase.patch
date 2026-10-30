@@ -1,0 +1,152 @@
+From 8cd58bb6b9b9b3b38b233805a72325bef9c9bce8 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 31 Jan 2026 16:34:32 +0100
+Subject: [PATCH 4/8] BpfMap: Support no bpf usecase
+
+Change-Id: I5c04d63f4a9dbb937c4101f5a5a6be83d252892b
+---
+ bpf/headers/include/bpf/BpfMap.h              | 36 +++++++++----------
+ .../src/android/net/BpfNetMapsUtils.java      |  2 ++
+ .../com/android/net/module/util/BpfMap.java   | 15 ++++++++
+ 3 files changed, 33 insertions(+), 20 deletions(-)
+
+diff --git a/bpf/headers/include/bpf/BpfMap.h b/bpf/headers/include/bpf/BpfMap.h
+index 8ef564dbf1..c06d90ef21 100644
+--- a/bpf/headers/include/bpf/BpfMap.h
++++ b/bpf/headers/include/bpf/BpfMap.h
+@@ -104,30 +104,26 @@ class BpfMapRO {
+     // (later on, for testing, we still make available a copy assignment operator)
+     BpfMapRO<Key, Value>(const BpfMapRO<Key, Value>&) = delete;
+ 
+-  protected:
+-    void abortOnMismatch(bool writable) const {
+-        if (!mMapFd.ok()) Abort(errno, "mMapFd %d is not valid", mMapFd.get());
+-        if (isAtLeastKernelVersion(4, 14)) {
+-            int flags = bpfGetFdMapFlags(mMapFd);
+-            if (flags < 0) Abort(errno, "bpfGetFdMapFlags fail: flags=%d", flags);
+-            if (flags & BPF_F_WRONLY) Abort(0, "map is write-only (flags=0x%X)", flags);
+-            if (writable && (flags & BPF_F_RDONLY))
+-                Abort(0, "writable map is actually read-only (flags=0x%X)", flags);
+-            int keySize = bpfGetFdKeySize(mMapFd);
+-            if (keySize != sizeof(Key))
+-                Abort(errno, "map key size mismatch (expected=%zu, actual=%d)",
+-                      sizeof(Key), keySize);
+-            int valueSize = bpfGetFdValueSize(mMapFd);
+-            if (valueSize != sizeof(Value))
+-                Abort(errno, "map value size mismatch (expected=%zu, actual=%d)",
+-                      sizeof(Value), valueSize);
+-        }
++   protected:
++     void abortOnMismatch(bool writable) const {
++        (void) writable;
+     }
+ 
+   public:
++    bool isOk(bool writable = false) const {
++        if (!mMapFd.ok()) return false;
++        if (isAtLeastKernelVersion(4, 14, 0)) {
++             int flags = bpfGetFdMapFlags(mMapFd);
++            if (flags < 0) return false;
++            if (flags & BPF_F_WRONLY) return false;
++            if (writable && (flags & BPF_F_RDONLY)) return false;
++            if (bpfGetFdKeySize(mMapFd) != sizeof(Key)) return false;
++            if (bpfGetFdValueSize(mMapFd) != sizeof(Value)) return false;
++        }
++        return true;
++    }
+     explicit BpfMapRO<Key, Value>(const char* pathname) {
+-        mMapFd.reset(mapRetrieveRO(pathname));
+-        abortOnMismatch(/* writable */ false);
++         mMapFd.reset(mapRetrieveRO(pathname));
+     }
+ 
+     Result<Key> getFirstKey() const {
+diff --git a/framework/src/android/net/BpfNetMapsUtils.java b/framework/src/android/net/BpfNetMapsUtils.java
+index 1760fa7ec2..27c230641d 100644
+--- a/framework/src/android/net/BpfNetMapsUtils.java
++++ b/framework/src/android/net/BpfNetMapsUtils.java
+@@ -261,6 +261,8 @@ public class BpfNetMapsUtils {
+             IBpfMap<S32, UidOwnerValue> uidOwnerMap,
+             IBpfMap<S32, U8> dataSaverEnabledMap
+     ) {
++        if (configurationMap == null) return BLOCKED_REASON_NONE;
++
+         // System uids are not blocked by firewall chains, see bpf_progs/netd.c
+         // TODO: b/348513058 - use UserHandle.isCore() once it is accessible
+         if (UserHandle.getAppId(uid) < Process.FIRST_APPLICATION_UID) {
+diff --git a/staticlibs/device/com/android/net/module/util/BpfMap.java b/staticlibs/device/com/android/net/module/util/BpfMap.java
+index 5488706533..61241a6c34 100644
+--- a/staticlibs/device/com/android/net/module/util/BpfMap.java
++++ b/staticlibs/device/com/android/net/module/util/BpfMap.java
+@@ -144,6 +144,8 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
+      */
+     @Override
+     public void updateEntry(K key, V value) throws ErrnoException {
++        if (mMapFd == null) return;
++
+         nativeWriteToMapEntry(mMapFd.getFd(), key.writeToBytes(), value.writeToBytes(), BPF_ANY);
+     }
+ 
+@@ -154,6 +156,8 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
+     @Override
+     public void insertEntry(K key, V value)
+             throws ErrnoException, IllegalStateException {
++        if (mMapFd == null) return;
++
+         try {
+             nativeWriteToMapEntry(mMapFd.getFd(), key.writeToBytes(), value.writeToBytes(),
+                     BPF_NOEXIST);
+@@ -171,6 +175,8 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
+     @Override
+     public void replaceEntry(K key, V value)
+             throws ErrnoException, NoSuchElementException {
++        if (mMapFd == null) return;
++
+         try {
+             nativeWriteToMapEntry(mMapFd.getFd(), key.writeToBytes(), value.writeToBytes(),
+                     BPF_EXIST);
+@@ -190,6 +196,8 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
+     @Override
+     public boolean insertOrReplaceEntry(K key, V value)
+             throws ErrnoException {
++        if (mMapFd == null) return false;
++
+         try {
+             nativeWriteToMapEntry(mMapFd.getFd(), key.writeToBytes(), value.writeToBytes(),
+                     BPF_NOEXIST);
+@@ -216,11 +224,14 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
+     /** Remove existing key from eBpf map. Return false if map was not modified. */
+     @Override
+     public boolean deleteEntry(K key) throws ErrnoException {
++        if (mMapFd == null) return false;
++
+         return nativeDeleteMapEntry(mMapFd.getFd(), key.writeToBytes());
+     }
+ 
+     private K getNextKeyInternal(@Nullable K key) throws ErrnoException {
+         byte[] rawKey = new byte[mKeySize];
++        if (mMapFd == null) return null;
+ 
+         if (!nativeGetNextMapKey(mMapFd.getFd(),
+                                  key == null ? null : key.writeToBytes(),
+@@ -250,6 +261,8 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
+     /** Check whether a key exists in the map. */
+     @Override
+     public boolean containsKey(@NonNull K key) throws ErrnoException {
++        if (mMapFd == null) return false;
++
+         Objects.requireNonNull(key);
+ 
+         byte[] rawValue = new byte[mValueSize];
+@@ -259,6 +272,8 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
+     /** Retrieve a value from the map. Return null if there is no such key. */
+     @Override
+     public V getValue(@NonNull K key) throws ErrnoException {
++        if (mMapFd == null) return null;
++
+         Objects.requireNonNull(key);
+ 
+         byte[] rawValue = new byte[mValueSize];
+-- 
+2.51.0
+
