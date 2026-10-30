@@ -265,5 +265,15 @@ patches are the same as in gts210wifi-patches LOS-23.2.
 
 ## Status
 
-Work in progress: the LineageOS 20.0 patch set is being ported. The tree
-syncs and the patches apply; the ROM doesn't build yet.
+The LineageOS 20.0 patch set is ported: the tree syncs and all patches
+apply. Nothing has been built yet. The device trees are still on
+lineage-21.0, and before the first build they need:
+
+- the Soong config variables above instead of `TARGET_PROCESS_SDK_VERSION_OVERRIDE`,
+  `TARGET_LD_SHIM_LIBS`, `TARGET_HAS_MEMFD_BACKPORT`,
+  `TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE` and
+  `TARGET_HAS_LEGACY_CAMERA_HAL1`;
+- `sys.brightness.disable_gamma_conversion=true` and the
+  `config_displayColorFadeDisabled` overlay instead of
+  `ro.displaypower.colorfade=false`;
+- optionally the `config_customizedMaxCachedProcesses` overlay.
