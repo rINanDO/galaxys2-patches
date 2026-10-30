@@ -154,6 +154,25 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   (64-bit buffer usage) is upstream, and 0032 and 0045 are for legacy
   Qualcomm devices only. The camera packages are still commented out in
   `galaxys2-common`.
+- **Legacy HIDL HALs** (`hardware_lineage_interfaces`,
+  `hardware_libhardware_legacy`, `device_lineage_sepolicy` 0002-0003,
+  `frameworks_base` 0007), the same patches as gts210wifi:
+  - the legacy GNSS 1.0 passthrough HAL, which
+    `android.hardware.gnss@1.0-service.exynos4` needs, and the sepolicy
+    labels of the legacy GNSS and Wi-Fi HALs;
+  - the legacy Wi-Fi HIDL HAL (with dynamic interfaces) and the Wi-Fi headers
+    it builds against, without TWT and 802.11az. These replace LOS-20.0
+    `hardware_lineage_interfaces` 0001-0004. `galaxys2-common` lineage-21.0
+    doesn't ship a Wi-Fi HAL at the moment;
+  - `HintManagerService` no longer crashes when there is no AIDL power HAL
+    (this device has the HIDL power HAL 1.0);
+  - the health HAL's fast charge dump uses the right format for a 64-bit
+    value on 32-bit ARM, which failed the build.
+
+  Not ported from LOS-20.0 `hardware_lineage_interfaces`: 0005 (the legacy
+  camera device it fixes no longer exists), and 0006-0008 (the Lineage power
+  HAL 1.0 and the in-screen fingerprint HAL, which nothing in this device
+  uses; the HIDL power HAL 1.0 is still in AOSP).
 
 ## Status
 

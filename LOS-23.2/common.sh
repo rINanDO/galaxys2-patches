@@ -17,6 +17,8 @@ PATCHED_REPOS=(
     "external/perfetto                external_perfetto"
     "frameworks/av                    frameworks_av"
     "frameworks/base                  frameworks_base"
+    "hardware/libhardware_legacy      hardware_libhardware_legacy"
+    "hardware/lineage/interfaces      hardware_lineage_interfaces"
     "packages/modules/Connectivity    packages_modules_Connectivity"
     "packages/modules/DnsResolver     packages_modules_DnsResolver"
     "packages/modules/NetworkStack    packages_modules_NetworkStack"

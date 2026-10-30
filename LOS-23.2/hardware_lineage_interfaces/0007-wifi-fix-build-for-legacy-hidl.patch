@@ -1,0 +1,46 @@
+From 61c4f7201c5cc1afa0551ad1be12d4642b8443c1 Mon Sep 17 00:00:00 2001
+From: html6405 <peter.schelchshorn@mhs-solutions.at>
+Date: Mon, 28 Nov 2022 18:20:56 +0100
+Subject: [PATCH 07/10] wifi: fix build for legacy hidl
+
+---
+ wifi/1.0-legacy/hidl_struct_util.cpp | 2 ++
+ wifi/1.0-legacy/wifi_legacy_hal.cpp  | 2 ++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/wifi/1.0-legacy/hidl_struct_util.cpp b/wifi/1.0-legacy/hidl_struct_util.cpp
+index d05a89f..80452e7 100644
+--- a/wifi/1.0-legacy/hidl_struct_util.cpp
++++ b/wifi/1.0-legacy/hidl_struct_util.cpp
+@@ -21,6 +21,7 @@
+ 
+ 
+ #pragma GCC diagnostic ignored "-Wswitch"
++#pragma clang diagnostic ignored "-Wreturn-type"
+ 
+ namespace android {
+ namespace hardware {
+@@ -1073,6 +1074,7 @@ NanStatusType convertLegacyNanStatusTypeToHidl(legacy_hal::NanStatusType type) {
+             return NanStatusType::UNSUPPORTED_CONCURRENCY_NAN_DISABLED;
+     }
+     CHECK(false);
++    return {};
+ }
+ 
+ void convertToWifiNanStatus(legacy_hal::NanStatusType type, const char* str,
+diff --git a/wifi/1.0-legacy/wifi_legacy_hal.cpp b/wifi/1.0-legacy/wifi_legacy_hal.cpp
+index 75f22ec..cf4427d 100644
+--- a/wifi/1.0-legacy/wifi_legacy_hal.cpp
++++ b/wifi/1.0-legacy/wifi_legacy_hal.cpp
+@@ -25,6 +25,8 @@
+ #include "wifi_legacy_hal.h"
+ #include "wifi_legacy_hal_stubs.h"
+ 
++#pragma clang diagnostic ignored "-Wmissing-field-initializers"
++
+ namespace {
+ // Constants ported over from the legacy HAL calling code
+ // (com_android_server_wifi_WifiNative.cpp). This will all be thrown
+-- 
+2.54.0
+

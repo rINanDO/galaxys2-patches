@@ -1,0 +1,31 @@
+From dcce5fdf1f161fa6072478cded6e2c91c56754e1 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 8 Oct 2026 17:08:11 +0200
+Subject: [PATCH 10/10] health: Fix format string mismatch in FastCharge::dump
+
+supportedFastChargeModes is int64_t, which is "long long" on 32-bit ARM
+(ILP32), not "long" -- %ld caused a -Werror=format failure on this
+target. Use %lld with an explicit cast instead.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Change-Id: I639ceda7d1b3f45c6bb302e052f4f6eadad7f6e1
+---
+ health/aidl/default/FastCharge.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/health/aidl/default/FastCharge.cpp b/health/aidl/default/FastCharge.cpp
+index 7b97f7a..0fcdf32 100644
+--- a/health/aidl/default/FastCharge.cpp
++++ b/health/aidl/default/FastCharge.cpp
+@@ -71,7 +71,7 @@ binder_status_t FastCharge::dump(int fd, const char** args, uint32_t numArgs) {
+     FastChargeMode fastChargeMode;
+     getFastChargeMode(&fastChargeMode);
+ 
+-    dprintf(fd, "Fast charge supported modes: %ld\n", supportedFastChargeModes);
++    dprintf(fd, "Fast charge supported modes: %lld\n", static_cast<long long>(supportedFastChargeModes));
+     dprintf(fd, "Fast charge mode: %d\n", fastChargeMode);
+ 
+     return STATUS_OK;
+-- 
+2.54.0
+

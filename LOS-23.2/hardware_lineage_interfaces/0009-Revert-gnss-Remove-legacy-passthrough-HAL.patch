@@ -1,0 +1,3848 @@
+From 322cce3f94eb4069bdee55441c93fedd3edf998a Mon Sep 17 00:00:00 2001
+From: khalvat-M <mmba313@gmail.com>
+Date: Mon, 29 Apr 2024 16:01:18 +0330
+Subject: [PATCH 09/10] Revert "gnss: Remove legacy passthrough HAL"
+
+This reverts commit 7f5f1892ae55d7547ac0b529caf47f4bb82c8128.
+---
+ gnss/1.0-legacy/AGnss.cpp                     | 198 +++++
+ gnss/1.0-legacy/AGnss.h                       |  85 ++
+ gnss/1.0-legacy/AGnssRil.cpp                  | 152 ++++
+ gnss/1.0-legacy/AGnssRil.h                    |  88 ++
+ gnss/1.0-legacy/Android.bp                    |  52 ++
+ gnss/1.0-legacy/Gnss.cpp                      | 772 ++++++++++++++++++
+ gnss/1.0-legacy/Gnss.h                        | 185 +++++
+ gnss/1.0-legacy/GnssBatching.cpp              | 225 +++++
+ gnss/1.0-legacy/GnssBatching.h                |  67 ++
+ gnss/1.0-legacy/GnssConfiguration.cpp         | 117 +++
+ gnss/1.0-legacy/GnssConfiguration.h           |  66 ++
+ gnss/1.0-legacy/GnssDebug.cpp                 |  59 ++
+ gnss/1.0-legacy/GnssDebug.h                   |  62 ++
+ gnss/1.0-legacy/GnssGeofencing.cpp            | 225 +++++
+ gnss/1.0-legacy/GnssGeofencing.h              |  97 +++
+ gnss/1.0-legacy/GnssMeasurement.cpp           | 260 ++++++
+ gnss/1.0-legacy/GnssMeasurement.h             |  84 ++
+ gnss/1.0-legacy/GnssNavigationMessage.cpp     |  95 +++
+ gnss/1.0-legacy/GnssNavigationMessage.h       |  77 ++
+ gnss/1.0-legacy/GnssNi.cpp                    | 109 +++
+ gnss/1.0-legacy/GnssNi.h                      |  81 ++
+ gnss/1.0-legacy/GnssUtils.cpp                 |  93 +++
+ gnss/1.0-legacy/GnssUtils.h                   |  47 ++
+ gnss/1.0-legacy/GnssXtra.cpp                  |  95 +++
+ gnss/1.0-legacy/GnssXtra.h                    |  80 ++
+ gnss/1.0-legacy/OWNERS                        |   3 +
+ gnss/1.0-legacy/ThreadCreationWrapper.cpp     |  42 +
+ gnss/1.0-legacy/ThreadCreationWrapper.h       |  58 ++
+ ...ndroid.hardware.gnss@1.0-service.legacy.rc |   5 +
+ gnss/1.0-legacy/service.cpp                   |  17 +
+ 30 files changed, 3596 insertions(+)
+ create mode 100644 gnss/1.0-legacy/AGnss.cpp
+ create mode 100644 gnss/1.0-legacy/AGnss.h
+ create mode 100644 gnss/1.0-legacy/AGnssRil.cpp
+ create mode 100644 gnss/1.0-legacy/AGnssRil.h
+ create mode 100644 gnss/1.0-legacy/Android.bp
+ create mode 100644 gnss/1.0-legacy/Gnss.cpp
+ create mode 100644 gnss/1.0-legacy/Gnss.h
+ create mode 100644 gnss/1.0-legacy/GnssBatching.cpp
+ create mode 100644 gnss/1.0-legacy/GnssBatching.h
+ create mode 100644 gnss/1.0-legacy/GnssConfiguration.cpp
+ create mode 100644 gnss/1.0-legacy/GnssConfiguration.h
+ create mode 100644 gnss/1.0-legacy/GnssDebug.cpp
+ create mode 100644 gnss/1.0-legacy/GnssDebug.h
+ create mode 100644 gnss/1.0-legacy/GnssGeofencing.cpp
+ create mode 100644 gnss/1.0-legacy/GnssGeofencing.h
+ create mode 100644 gnss/1.0-legacy/GnssMeasurement.cpp
+ create mode 100644 gnss/1.0-legacy/GnssMeasurement.h
+ create mode 100644 gnss/1.0-legacy/GnssNavigationMessage.cpp
+ create mode 100644 gnss/1.0-legacy/GnssNavigationMessage.h
+ create mode 100644 gnss/1.0-legacy/GnssNi.cpp
+ create mode 100644 gnss/1.0-legacy/GnssNi.h
+ create mode 100644 gnss/1.0-legacy/GnssUtils.cpp
+ create mode 100644 gnss/1.0-legacy/GnssUtils.h
+ create mode 100644 gnss/1.0-legacy/GnssXtra.cpp
+ create mode 100644 gnss/1.0-legacy/GnssXtra.h
+ create mode 100644 gnss/1.0-legacy/OWNERS
+ create mode 100644 gnss/1.0-legacy/ThreadCreationWrapper.cpp
+ create mode 100644 gnss/1.0-legacy/ThreadCreationWrapper.h
+ create mode 100644 gnss/1.0-legacy/android.hardware.gnss@1.0-service.legacy.rc
+ create mode 100644 gnss/1.0-legacy/service.cpp
+
+diff --git a/gnss/1.0-legacy/AGnss.cpp b/gnss/1.0-legacy/AGnss.cpp
+new file mode 100644
+index 0000000..29c6ddd
+--- /dev/null
++++ b/gnss/1.0-legacy/AGnss.cpp
+@@ -0,0 +1,198 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "GnssHAL_AGnssInterface"
++
++#include "AGnss.h"
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++std::vector<std::unique_ptr<ThreadFuncArgs>> AGnss::sThreadFuncArgsList;
++sp<IAGnssCallback> AGnss::sAGnssCbIface = nullptr;
++bool AGnss::sInterfaceExists = false;
++
++AGpsCallbacks AGnss::sAGnssCb = {
++    .status_cb = statusCb,
++    .create_thread_cb = createThreadCb
++};
++
++AGnss::AGnss(const AGpsInterface* aGpsIface) : mAGnssIface(aGpsIface) {
++    /* Error out if an instance of the interface already exists. */
++    LOG_ALWAYS_FATAL_IF(sInterfaceExists);
++    sInterfaceExists = true;
++}
++
++AGnss::~AGnss() {
++    sThreadFuncArgsList.clear();
++    sInterfaceExists = false;
++}
++
++void AGnss::statusCb(AGpsStatus* status) {
++    if (sAGnssCbIface == nullptr) {
++        ALOGE("%s: AGNSS Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (status == nullptr) {
++        ALOGE("AGNSS status is invalid");
++        return;
++    }
++
++    /*
++     * Logic based on AGnssStatus processing by GnssLocationProvider. Size of
++     * AGpsStatus is checked for backward compatibility since some devices may
++     * be sending out an older version of AGpsStatus that only supports IPv4.
++     */
++    size_t statusSize = status->size;
++    if (status->size == sizeof(AGpsStatus)) {
++        switch (status->addr.ss_family)
++        {
++            case AF_INET:
++                {
++                    /*
++                     * ss_family indicates IPv4.
++                     */
++                    struct sockaddr_in* in = reinterpret_cast<struct sockaddr_in*>(&(status->addr));
++                    IAGnssCallback::AGnssStatusIpV4 aGnssStatusIpV4 = {
++                        .type = static_cast<IAGnssCallback::AGnssType>(status->type),
++                        .status = static_cast<IAGnssCallback::AGnssStatusValue>(status->status),
++                        .ipV4Addr = in->sin_addr.s_addr,
++                    };
++
++                    /*
++                     * Callback to client with agnssStatusIpV4Cb.
++                     */
++                    auto ret = sAGnssCbIface->agnssStatusIpV4Cb(aGnssStatusIpV4);
++                    if (!ret.isOk()) {
++                        ALOGE("%s: Unable to invoke callback", __func__);
++                    }
++                    break;
++                }
++            case AF_INET6:
++                {
++                    /*
++                     * ss_family indicates IPv6. Callback to client with agnssStatusIpV6Cb.
++                     */
++                    IAGnssCallback::AGnssStatusIpV6 aGnssStatusIpV6;
++
++                    aGnssStatusIpV6.type = static_cast<IAGnssCallback::AGnssType>(status->type);
++                    aGnssStatusIpV6.status = static_cast<IAGnssCallback::AGnssStatusValue>(
++                            status->status);
++
++                    struct sockaddr_in6* in6 = reinterpret_cast<struct sockaddr_in6 *>(
++                            &(status->addr));
++                    memcpy(&(aGnssStatusIpV6.ipV6Addr[0]), in6->sin6_addr.s6_addr,
++                           aGnssStatusIpV6.ipV6Addr.size());
++                    auto ret = sAGnssCbIface->agnssStatusIpV6Cb(aGnssStatusIpV6);
++                    if (!ret.isOk()) {
++                        ALOGE("%s: Unable to invoke callback", __func__);
++                    }
++                    break;
++                }
++             default:
++                    ALOGE("Invalid ss_family found: %d", status->addr.ss_family);
++        }
++    } else if (statusSize >= sizeof(AGpsStatus_v2)) {
++        AGpsStatus_v2* statusV2 = reinterpret_cast<AGpsStatus_v2*>(status);
++        uint32_t ipV4Addr = statusV2->ipaddr;
++        IAGnssCallback::AGnssStatusIpV4 aGnssStatusIpV4 = {
++            .type = static_cast<IAGnssCallback::AGnssType>(AF_INET),
++            .status = static_cast<IAGnssCallback::AGnssStatusValue>(status->status),
++            /*
++             * For older versions of AGpsStatus, change IP addr to net order. This
++             * was earlier being done in GnssLocationProvider.
++             */
++            .ipV4Addr = htonl(ipV4Addr)
++        };
++        /*
++         * Callback to client with agnssStatusIpV4Cb.
++         */
++        auto ret = sAGnssCbIface->agnssStatusIpV4Cb(aGnssStatusIpV4);
++        if (!ret.isOk()) {
++            ALOGE("%s: Unable to invoke callback", __func__);
++        }
++    } else {
++        ALOGE("%s: Invalid size for AGPS Status", __func__);
++    }
++}
++
++pthread_t AGnss::createThreadCb(const char* name, void (*start)(void*), void* arg) {
++    return createPthread(name, start, arg, &sThreadFuncArgsList);
++}
++
++/*
++ * Implementation of methods from ::android::hardware::gnss::V1_0::IAGnss follow.
++ */
++Return<void> AGnss::setCallback(const sp<IAGnssCallback>& callback) {
++    if (mAGnssIface == nullptr) {
++        ALOGE("%s: AGnss interface is unavailable", __func__);
++        return Void();
++    }
++
++    sAGnssCbIface = callback;
++
++    mAGnssIface->init(&sAGnssCb);
++    return Void();
++}
++
++Return<bool> AGnss::dataConnClosed()  {
++    if (mAGnssIface == nullptr) {
++        ALOGE("%s: AGnss interface is unavailable", __func__);
++        return false;
++    }
++
++    return (mAGnssIface->data_conn_closed() == 0);
++}
++
++Return<bool> AGnss::dataConnFailed()  {
++    if (mAGnssIface == nullptr) {
++        ALOGE("%s: AGnss interface is unavailable", __func__);
++        return false;
++    }
++
++    return (mAGnssIface->data_conn_failed() == 0);
++}
++
++Return<bool> AGnss::setServer(IAGnssCallback::AGnssType type,
++                              const hidl_string& hostname,
++                              int32_t port) {
++    if (mAGnssIface == nullptr) {
++        ALOGE("%s: AGnss interface is unavailable", __func__);
++        return false;
++    }
++
++    return (mAGnssIface->set_server(static_cast<AGpsType>(type), hostname.c_str(), port) == 0);
++}
++
++Return<bool> AGnss::dataConnOpen(const hidl_string& apn, IAGnss::ApnIpType apnIpType) {
++    if (mAGnssIface == nullptr) {
++        ALOGE("%s: AGnss interface is unavailable", __func__);
++        return false;
++    }
++
++    return (mAGnssIface->data_conn_open_with_apn_ip_type(apn.c_str(),
++                                                     static_cast<uint16_t>(apnIpType)) == 0);
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/AGnss.h b/gnss/1.0-legacy/AGnss.h
+new file mode 100644
+index 0000000..2a8eed0
+--- /dev/null
++++ b/gnss/1.0-legacy/AGnss.h
+@@ -0,0 +1,85 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef android_hardware_gnss_V1_0_AGnss_H_
++#define android_hardware_gnss_V1_0_AGnss_H_
++
++#include <ThreadCreationWrapper.h>
++#include <android/hardware/gnss/1.0/IAGnss.h>
++#include <hardware/gps_internal.h>
++#include <hidl/Status.h>
++#include <netinet/in.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::gnss::V1_0::IAGnss;
++using ::android::hardware::gnss::V1_0::IAGnssCallback;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::hidl_string;
++using ::android::sp;
++
++/*
++ * Extended interface for AGNSS support. Also contains wrapper methods to allow
++ * methods from IAGnssCallback interface to be passed into the conventional
++ * implementation of the GNSS HAL.
++ */
++struct AGnss : public IAGnss {
++    AGnss(const AGpsInterface* agpsIface);
++    ~AGnss();
++    /*
++     * Methods from ::android::hardware::gnss::V1_0::IAGnss interface follow.
++     * These declarations were generated from IAGnss.hal.
++     */
++    Return<void> setCallback(const sp<IAGnssCallback>& callback) override;
++    Return<bool> dataConnClosed() override;
++    Return<bool> dataConnFailed() override;
++    Return<bool> setServer(IAGnssCallback::AGnssType type,
++                         const hidl_string& hostname, int32_t port) override;
++    Return<bool> dataConnOpen(const hidl_string& apn,
++                                           IAGnss::ApnIpType apnIpType) override;
++
++    /*
++     * Callback methods to be passed into the conventional GNSS HAL by the default
++     * implementation. These methods are not part of the IAGnss base class.
++     */
++    static pthread_t createThreadCb(const char* name, void (*start)(void*), void* arg);
++    static void statusCb(AGpsStatus* status);
++
++    /*
++     * Holds function pointers to the callback methods.
++     */
++    static AGpsCallbacks sAGnssCb;
++
++ private:
++    const AGpsInterface* mAGnssIface = nullptr;
++    static sp<IAGnssCallback> sAGnssCbIface;
++    static std::vector<std::unique_ptr<ThreadFuncArgs>> sThreadFuncArgsList;
++    static bool sInterfaceExists;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif  // android_hardware_gnss_V1_0_AGnss_H_
+diff --git a/gnss/1.0-legacy/AGnssRil.cpp b/gnss/1.0-legacy/AGnssRil.cpp
+new file mode 100644
+index 0000000..1458327
+--- /dev/null
++++ b/gnss/1.0-legacy/AGnssRil.cpp
+@@ -0,0 +1,152 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "GnssHAL_AGnssRilInterface"
++
++#include "AGnssRil.h"
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++std::vector<std::unique_ptr<ThreadFuncArgs>> AGnssRil::sThreadFuncArgsList;
++sp<IAGnssRilCallback> AGnssRil::sAGnssRilCbIface = nullptr;
++bool AGnssRil::sInterfaceExists = false;
++
++AGpsRilCallbacks AGnssRil::sAGnssRilCb = {
++    .request_setid = AGnssRil::requestSetId,
++    .request_refloc = AGnssRil::requestRefLoc,
++    .create_thread_cb = AGnssRil::createThreadCb
++};
++
++AGnssRil::AGnssRil(const AGpsRilInterface* aGpsRilIface) : mAGnssRilIface(aGpsRilIface) {
++    /* Error out if an instance of the interface already exists. */
++    LOG_ALWAYS_FATAL_IF(sInterfaceExists);
++    sInterfaceExists = true;
++}
++
++AGnssRil::~AGnssRil() {
++    sThreadFuncArgsList.clear();
++    sInterfaceExists = false;
++}
++
++void AGnssRil::requestSetId(uint32_t flags) {
++    if (sAGnssRilCbIface == nullptr) {
++        ALOGE("%s: AGNSSRil Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    auto ret = sAGnssRilCbIface->requestSetIdCb(flags);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++void AGnssRil::requestRefLoc(uint32_t /*flags*/) {
++    if (sAGnssRilCbIface == nullptr) {
++        ALOGE("%s: AGNSSRil Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    auto ret = sAGnssRilCbIface->requestRefLocCb();
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++pthread_t AGnssRil::createThreadCb(const char* name, void (*start)(void*), void* arg) {
++    return createPthread(name, start, arg, &sThreadFuncArgsList);
++}
++
++// Methods from ::android::hardware::gnss::V1_0::IAGnssRil follow.
++Return<void> AGnssRil::setCallback(const sp<IAGnssRilCallback>& callback)  {
++    if (mAGnssRilIface == nullptr) {
++        ALOGE("%s: AGnssRil interface is unavailable", __func__);
++        return Void();
++    }
++
++    sAGnssRilCbIface = callback;
++
++    mAGnssRilIface->init(&sAGnssRilCb);
++    return Void();
++}
++
++Return<void> AGnssRil::setRefLocation(const IAGnssRil::AGnssRefLocation& aGnssRefLocation)  {
++    if (mAGnssRilIface == nullptr) {
++        ALOGE("%s: AGnssRil interface is unavailable", __func__);
++        return Void();
++    }
++
++    AGpsRefLocation aGnssRefloc;
++    aGnssRefloc.type = static_cast<uint16_t>(aGnssRefLocation.type);
++
++    auto& cellID = aGnssRefLocation.cellID;
++    aGnssRefloc.u.cellID = {
++        .type = static_cast<uint16_t>(cellID.type),
++        .mcc = cellID.mcc,
++        .mnc = cellID.mnc,
++        .lac = cellID.lac,
++        .cid = cellID.cid,
++        .tac = cellID.tac,
++        .pcid = cellID.pcid
++    };
++
++    mAGnssRilIface->set_ref_location(&aGnssRefloc, sizeof(aGnssRefloc));
++    return Void();
++}
++
++Return<bool> AGnssRil::setSetId(IAGnssRil::SetIDType type, const hidl_string& setid)  {
++    if (mAGnssRilIface == nullptr) {
++        ALOGE("%s: AGnssRil interface is unavailable", __func__);
++        return false;
++    }
++
++    mAGnssRilIface->set_set_id(static_cast<uint16_t>(type), setid.c_str());
++    return true;
++}
++
++Return<bool> AGnssRil::updateNetworkState(bool connected,
++                                          IAGnssRil::NetworkType type,
++                                          bool roaming) {
++    if (mAGnssRilIface == nullptr) {
++        ALOGE("%s: AGnssRil interface is unavailable", __func__);
++        return false;
++    }
++
++    mAGnssRilIface->update_network_state(connected,
++                                         static_cast<int>(type),
++                                         roaming,
++                                         nullptr /* extra_info */);
++    return true;
++}
++
++Return<bool> AGnssRil::updateNetworkAvailability(bool available, const hidl_string& apn)  {
++    if (mAGnssRilIface == nullptr) {
++        ALOGE("%s: AGnssRil interface is unavailable", __func__);
++        return false;
++    }
++
++    mAGnssRilIface->update_network_availability(available, apn.c_str());
++    return true;
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/AGnssRil.h b/gnss/1.0-legacy/AGnssRil.h
+new file mode 100644
+index 0000000..6215a9e
+--- /dev/null
++++ b/gnss/1.0-legacy/AGnssRil.h
+@@ -0,0 +1,88 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef android_hardware_gnss_V1_0_AGnssRil_H_
++#define android_hardware_gnss_V1_0_AGnssRil_H_
++
++#include <ThreadCreationWrapper.h>
++#include <android/hardware/gnss/1.0/IAGnssRil.h>
++#include <hardware/gps.h>
++#include <hidl/Status.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::gnss::V1_0::IAGnssRil;
++using ::android::hardware::gnss::V1_0::IAGnssRilCallback;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::hidl_string;
++using ::android::sp;
++
++/*
++ * Extended interface for AGNSS RIL support. An Assisted GNSS Radio Interface Layer interface
++ * allows the GNSS chipset to request radio interface layer information from Android platform.
++ * Examples of such information are reference location, unique subscriber ID, phone number string
++ * and network availability changes. Also contains wrapper methods to allow methods from
++ * IAGnssiRilCallback interface to be passed into the conventional implementation of the GNSS HAL.
++ */
++struct AGnssRil : public IAGnssRil {
++    AGnssRil(const AGpsRilInterface* aGpsRilIface);
++    ~AGnssRil();
++
++    /*
++     * Methods from ::android::hardware::gnss::V1_0::IAGnssRil follow.
++     * These declarations were generated from IAGnssRil.hal.
++     */
++    Return<void> setCallback(const sp<IAGnssRilCallback>& callback) override;
++    Return<void> setRefLocation(const IAGnssRil::AGnssRefLocation& agnssReflocation) override;
++    Return<bool> setSetId(IAGnssRil::SetIDType type, const hidl_string& setid) override;
++    Return<bool> updateNetworkState(bool connected,
++                                    IAGnssRil::NetworkType type,
++                                    bool roaming) override;
++    Return<bool> updateNetworkAvailability(bool available, const hidl_string& apn) override;
++    static void requestSetId(uint32_t flags);
++    static void requestRefLoc(uint32_t flags);
++
++    /*
++     * Callback method to be passed into the conventional GNSS HAL by the default
++     * implementation. This method is not part of the IAGnssRil base class.
++     */
++    static pthread_t createThreadCb(const char* name, void (*start)(void*), void* arg);
++
++    /*
++     * Holds function pointers to the callback methods.
++     */
++    static AGpsRilCallbacks sAGnssRilCb;
++
++ private:
++    const AGpsRilInterface* mAGnssRilIface = nullptr;
++    static sp<IAGnssRilCallback> sAGnssRilCbIface;
++    static std::vector<std::unique_ptr<ThreadFuncArgs>> sThreadFuncArgsList;
++    static bool sInterfaceExists;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif  // android_hardware_gnss_V1_0_AGnssRil_H_
+diff --git a/gnss/1.0-legacy/Android.bp b/gnss/1.0-legacy/Android.bp
+new file mode 100644
+index 0000000..75d0a03
+--- /dev/null
++++ b/gnss/1.0-legacy/Android.bp
+@@ -0,0 +1,52 @@
++cc_library_shared {
++    name: "android.hardware.gnss@1.0-impl.legacy",
++    defaults: ["hidl_defaults"],
++    vendor: true,
++    relative_install_path: "hw",
++    srcs: [
++        "ThreadCreationWrapper.cpp",
++        "AGnss.cpp",
++        "AGnssRil.cpp",
++        "Gnss.cpp",
++        "GnssBatching.cpp",
++        "GnssDebug.cpp",
++        "GnssGeofencing.cpp",
++        "GnssMeasurement.cpp",
++        "GnssNavigationMessage.cpp",
++        "GnssNi.cpp",
++        "GnssXtra.cpp",
++        "GnssConfiguration.cpp",
++        "GnssUtils.cpp",
++    ],
++
++    shared_libs: [
++        "liblog",
++        "libhidlbase",
++        "libutils",
++        "android.hardware.gnss@1.0",
++        "libhardware",
++    ],
++
++}
++
++cc_binary {
++    relative_install_path: "hw",
++    vendor: true,
++    name: "android.hardware.gnss@1.0-service.legacy",
++    defaults: ["hidl_defaults"],
++    init_rc: ["android.hardware.gnss@1.0-service.legacy.rc"],
++    srcs: ["service.cpp"],
++
++    shared_libs: [
++        "liblog",
++        "libcutils",
++        "libdl",
++        "libbase",
++        "libutils",
++        "libhardware",
++        "libbinder",
++        "libhidlbase",
++        "android.hardware.gnss@1.0",
++    ],
++
++}
+diff --git a/gnss/1.0-legacy/Gnss.cpp b/gnss/1.0-legacy/Gnss.cpp
+new file mode 100644
+index 0000000..1320c7e
+--- /dev/null
++++ b/gnss/1.0-legacy/Gnss.cpp
+@@ -0,0 +1,772 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "GnssHAL_GnssInterface"
++
++#include "Gnss.h"
++#include <GnssUtils.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++std::vector<std::unique_ptr<ThreadFuncArgs>> Gnss::sThreadFuncArgsList;
++sp<IGnssCallback> Gnss::sGnssCbIface = nullptr;
++bool Gnss::sInterfaceExists = false;
++bool Gnss::sWakelockHeldGnss = false;
++bool Gnss::sWakelockHeldFused = false;
++
++GpsCallbacks Gnss::sGnssCb = {
++    .size = sizeof(GpsCallbacks),
++    .location_cb = locationCb,
++    .status_cb = statusCb,
++    .sv_status_cb = gpsSvStatusCb,
++    .nmea_cb = nmeaCb,
++    .set_capabilities_cb = setCapabilitiesCb,
++    .acquire_wakelock_cb = acquireWakelockCb,
++    .release_wakelock_cb = releaseWakelockCb,
++    .create_thread_cb = createThreadCb,
++    .request_utc_time_cb = requestUtcTimeCb,
++    .set_system_info_cb = setSystemInfoCb,
++    .gnss_sv_status_cb = gnssSvStatusCb,
++};
++
++uint32_t Gnss::sCapabilitiesCached = 0;
++uint16_t Gnss::sYearOfHwCached = 0;
++
++Gnss::Gnss(gps_device_t* gnssDevice) :
++        mDeathRecipient(new GnssHidlDeathRecipient(this)) {
++    /* Error out if an instance of the interface already exists. */
++    LOG_ALWAYS_FATAL_IF(sInterfaceExists);
++    sInterfaceExists = true;
++
++    if (gnssDevice == nullptr) {
++        ALOGE("%s: Invalid device_t handle", __func__);
++        return;
++    }
++
++    mGnssIface = gnssDevice->get_gps_interface(gnssDevice);
++}
++
++Gnss::~Gnss() {
++    sInterfaceExists = false;
++    sThreadFuncArgsList.clear();
++}
++
++void Gnss::locationCb(GpsLocation* location) {
++    if (sGnssCbIface == nullptr) {
++        ALOGE("%s: GNSS Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (location == nullptr) {
++        ALOGE("%s: Invalid location from GNSS HAL", __func__);
++        return;
++    }
++
++    android::hardware::gnss::V1_0::GnssLocation gnssLocation = convertToGnssLocation(location);
++    auto ret = sGnssCbIface->gnssLocationCb(gnssLocation);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++void Gnss::statusCb(GpsStatus* gnssStatus) {
++    if (sGnssCbIface == nullptr) {
++        ALOGE("%s: GNSS Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (gnssStatus == nullptr) {
++        ALOGE("%s: Invalid GpsStatus from GNSS HAL", __func__);
++        return;
++    }
++
++    IGnssCallback::GnssStatusValue status =
++            static_cast<IGnssCallback::GnssStatusValue>(gnssStatus->status);
++
++    auto ret = sGnssCbIface->gnssStatusCb(status);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++void Gnss::gnssSvStatusCb(GnssSvStatus* status) {
++    if (sGnssCbIface == nullptr) {
++        ALOGE("%s: GNSS Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (status == nullptr) {
++        ALOGE("Invalid status from GNSS HAL %s", __func__);
++        return;
++    }
++
++    IGnssCallback::GnssSvStatus svStatus;
++    svStatus.numSvs = status->num_svs;
++
++    if (svStatus.numSvs > static_cast<uint32_t>(GnssMax::SVS_COUNT)) {
++        ALOGW("Too many satellites %u. Clamps to %d.", svStatus.numSvs, GnssMax::SVS_COUNT);
++        svStatus.numSvs = static_cast<uint32_t>(GnssMax::SVS_COUNT);
++    }
++
++    for (size_t i = 0; i < svStatus.numSvs; i++) {
++        auto svInfo = status->gnss_sv_list[i];
++        IGnssCallback::GnssSvInfo gnssSvInfo = {
++                .svid = svInfo.svid,
++                .constellation = static_cast<android::hardware::gnss::V1_0::GnssConstellationType>(
++                        svInfo.constellation),
++                .cN0Dbhz = svInfo.c_n0_dbhz,
++                .elevationDegrees = svInfo.elevation,
++                .azimuthDegrees = svInfo.azimuth,
++                .carrierFrequencyHz = 0,
++                // Older chipsets do not provide carrier frequency, hence
++                // HAS_CARRIER_FREQUENCY flag and the carrierFrequencyHz fields
++                // are not set. So we are resetting both fields here.
++                .svFlag = static_cast<uint8_t>(
++                        svInfo.flags &=
++                        ~(static_cast<uint8_t>(IGnssCallback::GnssSvFlags::HAS_CARRIER_FREQUENCY))),
++        };
++        svStatus.gnssSvList[i] = gnssSvInfo;
++    }
++
++    auto ret = sGnssCbIface->gnssSvStatusCb(svStatus);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++/*
++ * This enum is used by gpsSvStatusCb() method below to convert GpsSvStatus
++ * to GnssSvStatus for backward compatibility. It is only used by the default
++ * implementation and is not part of the GNSS interface.
++ */
++enum SvidValues : uint16_t {
++    GLONASS_SVID_OFFSET = 64,
++    GLONASS_SVID_COUNT = 24,
++    BEIDOU_SVID_OFFSET = 200,
++    BEIDOU_SVID_COUNT = 35,
++    SBAS_SVID_MIN = 33,
++    SBAS_SVID_MAX = 64,
++    SBAS_SVID_ADD = 87,
++    QZSS_SVID_MIN = 193,
++    QZSS_SVID_MAX = 200
++};
++
++/*
++ * The following code that converts GpsSvStatus to GnssSvStatus is moved here from
++ * GnssLocationProvider. GnssLocationProvider does not require it anymore since GpsSvStatus is
++ * being deprecated and is no longer part of the GNSS interface.
++ */
++void Gnss::gpsSvStatusCb(GpsSvStatus* svInfo) {
++    if (sGnssCbIface == nullptr) {
++        ALOGE("%s: GNSS Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (svInfo == nullptr) {
++        ALOGE("Invalid status from GNSS HAL %s", __func__);
++        return;
++    }
++
++    IGnssCallback::GnssSvStatus svStatus;
++    svStatus.numSvs = svInfo->num_svs;
++    /*
++     * Clamp the list size since GnssSvStatus can support a maximum of
++     * GnssMax::SVS_COUNT entries.
++     */
++    if (svStatus.numSvs > static_cast<uint32_t>(GnssMax::SVS_COUNT)) {
++        ALOGW("Too many satellites %u. Clamps to %d.", svStatus.numSvs, GnssMax::SVS_COUNT);
++        svStatus.numSvs = static_cast<uint32_t>(GnssMax::SVS_COUNT);
++    }
++
++    uint32_t ephemerisMask = svInfo->ephemeris_mask;
++    uint32_t almanacMask = svInfo->almanac_mask;
++    uint32_t usedInFixMask = svInfo->used_in_fix_mask;
++    // Our HALs report a bigger svinfo struct, HaxxSvStatus, which includes a GLONASS and
++    // a Beidou usage mask
++    uint32_t gloUsedInFixMask = *(&(svInfo->used_in_fix_mask) + 1); // the next int
++    uint64_t bdsUsedInFixMask = *(&(svInfo->used_in_fix_mask) + 2); // the next int
++    /*
++     * Conversion from GpsSvInfo to IGnssCallback::GnssSvInfo happens below.
++     */
++    for (size_t i = 0; i < svStatus.numSvs; i++) {
++        IGnssCallback::GnssSvInfo& info = svStatus.gnssSvList[i];
++        info.svid = svInfo->sv_list[i].prn;
++        if (info.svid >= 1 && info.svid <= 32) {
++            info.constellation = GnssConstellationType::GPS;
++        } else if (info.svid > GLONASS_SVID_OFFSET &&
++                   info.svid <= GLONASS_SVID_OFFSET + GLONASS_SVID_COUNT) {
++            info.constellation = GnssConstellationType::GLONASS;
++            info.svid -= GLONASS_SVID_OFFSET;
++        } else if (info.svid > BEIDOU_SVID_OFFSET &&
++                 info.svid <= BEIDOU_SVID_OFFSET + BEIDOU_SVID_COUNT) {
++            info.constellation = GnssConstellationType::BEIDOU;
++            info.svid -= BEIDOU_SVID_OFFSET;
++        } else if (info.svid >= SBAS_SVID_MIN && info.svid <= SBAS_SVID_MAX) {
++            info.constellation = GnssConstellationType::SBAS;
++            info.svid += SBAS_SVID_ADD;
++        } else if (info.svid >= QZSS_SVID_MIN && info.svid <= QZSS_SVID_MAX) {
++            info.constellation = GnssConstellationType::QZSS;
++        } else {
++            ALOGD("Unknown constellation type with Svid = %d.", info.svid);
++            info.constellation = GnssConstellationType::UNKNOWN;
++        }
++
++        info.cN0Dbhz = svInfo->sv_list[i].snr;
++        info.elevationDegrees = svInfo->sv_list[i].elevation;
++        info.azimuthDegrees = svInfo->sv_list[i].azimuth;
++        // TODO: b/31702236
++        info.svFlag = static_cast<uint8_t>(IGnssCallback::GnssSvFlags::NONE);
++
++        /*
++         * GPS, GLONASS and Beidou info is valid for these fields, as these masks
++         * are just 32/64 bits, by GPS prn, another for GLONASS prn and another
++         * for Beidou prn.
++         */
++        if (info.constellation == GnssConstellationType::GPS ||
++            info.constellation == GnssConstellationType::GLONASS ||
++            info.constellation == GnssConstellationType::BEIDOU) {
++            int32_t svidMask = (1 << (info.svid - 1));
++            if ((ephemerisMask & svidMask) != 0) {
++                info.svFlag |= IGnssCallback::GnssSvFlags::HAS_EPHEMERIS_DATA;
++            }
++            if ((almanacMask & svidMask) != 0) {
++                info.svFlag |= IGnssCallback::GnssSvFlags::HAS_ALMANAC_DATA;
++            }
++            if ((info.constellation == GnssConstellationType::GPS &&
++                 (usedInFixMask & svidMask) != 0) ||
++                (info.constellation == GnssConstellationType::GLONASS &&
++                 (gloUsedInFixMask & svidMask) != 0) ||
++                (info.constellation == GnssConstellationType::BEIDOU &&
++                 (bdsUsedInFixMask & svidMask) != 0)) {
++                info.svFlag |= IGnssCallback::GnssSvFlags::USED_IN_FIX;
++            }
++        }
++    }
++
++    auto ret = sGnssCbIface->gnssSvStatusCb(svStatus);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++void Gnss::nmeaCb(GpsUtcTime timestamp, const char* nmea, int length) {
++    if (sGnssCbIface == nullptr) {
++        ALOGE("%s: GNSS Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    android::hardware::hidl_string nmeaString(nmea, length);
++    auto ret = sGnssCbIface->gnssNmeaCb(timestamp, nmeaString);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++void Gnss::setCapabilitiesCb(uint32_t capabilities) {
++    if (sGnssCbIface == nullptr) {
++        ALOGE("%s: GNSS Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    auto ret = sGnssCbIface->gnssSetCapabilitesCb(capabilities);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++
++    // Save for reconnection when some legacy hal's don't resend this info
++    sCapabilitiesCached = capabilities;
++}
++
++void Gnss::acquireWakelockCb() {
++    acquireWakelockGnss();
++}
++
++void Gnss::releaseWakelockCb() {
++    releaseWakelockGnss();
++}
++
++
++void Gnss::acquireWakelockGnss() {
++    sWakelockHeldGnss = true;
++    updateWakelock();
++}
++
++void Gnss::releaseWakelockGnss() {
++    sWakelockHeldGnss = false;
++    updateWakelock();
++}
++
++void Gnss::acquireWakelockFused() {
++    sWakelockHeldFused = true;
++    updateWakelock();
++}
++
++void Gnss::releaseWakelockFused() {
++    sWakelockHeldFused = false;
++    updateWakelock();
++}
++
++void Gnss::updateWakelock() {
++    // Track the state of the last request - in case the wake lock in the layer above is reference
++    // counted.
++    static bool sWakelockHeld = false;
++
++    if (sGnssCbIface == nullptr) {
++        ALOGE("%s: GNSS Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (sWakelockHeldGnss || sWakelockHeldFused) {
++        if (!sWakelockHeld) {
++            ALOGI("%s: GNSS HAL Wakelock acquired due to gps: %d, fused: %d", __func__,
++                    sWakelockHeldGnss, sWakelockHeldFused);
++            sWakelockHeld = true;
++            auto ret = sGnssCbIface->gnssAcquireWakelockCb();
++            if (!ret.isOk()) {
++                ALOGE("%s: Unable to invoke callback", __func__);
++            }
++        }
++    } else {
++        if (sWakelockHeld) {
++            ALOGI("%s: GNSS HAL Wakelock released", __func__);
++        } else  {
++            // To avoid burning power, always release, even if logic got here with sWakelock false
++            // which it shouldn't, unless underlying *.h implementation makes duplicate requests.
++            ALOGW("%s: GNSS HAL Wakelock released, duplicate request", __func__);
++        }
++        sWakelockHeld = false;
++        auto ret = sGnssCbIface->gnssReleaseWakelockCb();
++        if (!ret.isOk()) {
++            ALOGE("%s: Unable to invoke callback", __func__);
++        }
++    }
++}
++
++void Gnss::requestUtcTimeCb() {
++    if (sGnssCbIface == nullptr) {
++        ALOGE("%s: GNSS Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    auto ret = sGnssCbIface->gnssRequestTimeCb();
++    if (!ret.isOk()) {
++            ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++pthread_t Gnss::createThreadCb(const char* name, void (*start)(void*), void* arg) {
++    return createPthread(name, start, arg, &sThreadFuncArgsList);
++}
++
++void Gnss::setSystemInfoCb(const LegacyGnssSystemInfo* info) {
++    if (sGnssCbIface == nullptr) {
++        ALOGE("%s: GNSS Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (info == nullptr) {
++        ALOGE("Invalid GnssSystemInfo from GNSS HAL %s", __func__);
++        return;
++    }
++
++    IGnssCallback::GnssSystemInfo gnssInfo = {
++        .yearOfHw = info->year_of_hw
++    };
++
++    auto ret = sGnssCbIface->gnssSetSystemInfoCb(gnssInfo);
++    if (!ret.isOk()) {
++            ALOGE("%s: Unable to invoke callback", __func__);
++    }
++
++    // Save for reconnection when some legacy hal's don't resend this info
++    sYearOfHwCached = info->year_of_hw;
++}
++
++
++// Methods from ::android::hardware::gnss::V1_0::IGnss follow.
++Return<bool> Gnss::setCallback(const sp<IGnssCallback>& callback)  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return false;
++    }
++
++    if (callback == nullptr)  {
++        ALOGE("%s: Null callback ignored", __func__);
++        return false;
++    }
++
++    if (sGnssCbIface != NULL) {
++        ALOGW("%s called more than once. Unexpected unless test.", __func__);
++        sGnssCbIface->unlinkToDeath(mDeathRecipient);
++    }
++
++    sGnssCbIface = callback;
++    callback->linkToDeath(mDeathRecipient, 0 /*cookie*/);
++
++    // If this was received in the past, send it up again to refresh caller.
++    // mGnssIface will override after init() is called below, if needed
++    // (though it's unlikely the gps.h capabilities or system info will change.)
++    if (sCapabilitiesCached != 0) {
++        setCapabilitiesCb(sCapabilitiesCached);
++    }
++    if (sYearOfHwCached != 0) {
++        LegacyGnssSystemInfo info;
++        info.year_of_hw = sYearOfHwCached;
++        setSystemInfoCb(&info);
++    }
++
++    return (mGnssIface->init(&sGnssCb) == 0);
++}
++
++Return<bool> Gnss::start()  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return false;
++    }
++
++    return (mGnssIface->start() == 0);
++}
++
++Return<bool> Gnss::stop()  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return false;
++    }
++
++    return (mGnssIface->stop() == 0);
++}
++
++Return<void> Gnss::cleanup()  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++    } else {
++        mGnssIface->cleanup();
++    }
++    return Void();
++}
++
++Return<bool> Gnss::injectLocation(double latitudeDegrees,
++                                  double longitudeDegrees,
++                                  float accuracyMeters)  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return false;
++    }
++
++    return (mGnssIface->inject_location(latitudeDegrees, longitudeDegrees, accuracyMeters) == 0);
++}
++
++Return<bool> Gnss::injectTime(int64_t timeMs, int64_t timeReferenceMs,
++                              int32_t uncertaintyMs) {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return false;
++    }
++
++    return (mGnssIface->inject_time(timeMs, timeReferenceMs, uncertaintyMs) == 0);
++}
++
++Return<void> Gnss::deleteAidingData(IGnss::GnssAidingData aidingDataFlags)  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++    } else {
++        mGnssIface->delete_aiding_data(static_cast<GpsAidingData>(aidingDataFlags));
++    }
++    return Void();
++}
++
++Return<bool> Gnss::setPositionMode(IGnss::GnssPositionMode mode,
++                                   IGnss::GnssPositionRecurrence recurrence,
++                                   uint32_t minIntervalMs,
++                                   uint32_t preferredAccuracyMeters,
++                                   uint32_t preferredTimeMs)  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return false;
++    }
++
++    return (mGnssIface->set_position_mode(static_cast<GpsPositionMode>(mode),
++                                          static_cast<GpsPositionRecurrence>(recurrence),
++                                          minIntervalMs,
++                                          preferredAccuracyMeters,
++                                          preferredTimeMs) == 0);
++}
++
++Return<sp<IAGnssRil>> Gnss::getExtensionAGnssRil()  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return nullptr;
++    }
++
++    if (mGnssRil == nullptr) {
++        const AGpsRilInterface* agpsRilIface = static_cast<const AGpsRilInterface*>(
++                mGnssIface->get_extension(AGPS_RIL_INTERFACE));
++        if (agpsRilIface == nullptr) {
++            ALOGI("%s: GnssRil interface not implemented by HAL", __func__);
++        } else {
++            mGnssRil = new AGnssRil(agpsRilIface);
++        }
++    }
++    return mGnssRil;
++}
++
++Return<sp<IGnssConfiguration>> Gnss::getExtensionGnssConfiguration()  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return nullptr;
++    }
++
++    if (mGnssConfig == nullptr) {
++        const GnssConfigurationInterface* gnssConfigIface =
++                static_cast<const GnssConfigurationInterface*>(
++                        mGnssIface->get_extension(GNSS_CONFIGURATION_INTERFACE));
++
++        if (gnssConfigIface == nullptr) {
++            ALOGE("%s: GnssConfiguration interface not implemented by HAL", __func__);
++        } else {
++            mGnssConfig = new GnssConfiguration(gnssConfigIface);
++        }
++    }
++    return mGnssConfig;
++}
++
++Return<sp<IGnssGeofencing>> Gnss::getExtensionGnssGeofencing()  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return nullptr;
++    }
++
++    if (mGnssGeofencingIface == nullptr) {
++        const GpsGeofencingInterface* gpsGeofencingIface =
++                static_cast<const GpsGeofencingInterface*>(
++                        mGnssIface->get_extension(GPS_GEOFENCING_INTERFACE));
++
++        if (gpsGeofencingIface == nullptr) {
++            ALOGE("%s: GnssGeofencing interface not implemented by HAL", __func__);
++        } else {
++            mGnssGeofencingIface = new GnssGeofencing(gpsGeofencingIface);
++        }
++    }
++
++    return mGnssGeofencingIface;
++}
++
++Return<sp<IAGnss>> Gnss::getExtensionAGnss()  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return nullptr;
++    }
++
++    if (mAGnssIface == nullptr) {
++        const AGpsInterface* agpsIface = static_cast<const AGpsInterface*>(
++                mGnssIface->get_extension(AGPS_INTERFACE));
++        if (agpsIface == nullptr) {
++            ALOGE("%s: AGnss interface not implemented by HAL", __func__);
++        } else {
++            mAGnssIface = new AGnss(agpsIface);
++        }
++    }
++    return mAGnssIface;
++}
++
++Return<sp<IGnssNi>> Gnss::getExtensionGnssNi()  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return nullptr;
++    }
++
++    if (mGnssNi == nullptr) {
++        const GpsNiInterface* gpsNiIface = static_cast<const GpsNiInterface*>(
++                mGnssIface->get_extension(GPS_NI_INTERFACE));
++        if (gpsNiIface == nullptr) {
++            ALOGI("%s: GnssNi interface not implemented by HAL", __func__);
++        } else {
++            mGnssNi = new GnssNi(gpsNiIface);
++        }
++    }
++    return mGnssNi;
++}
++
++Return<sp<IGnssMeasurement>> Gnss::getExtensionGnssMeasurement() {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return nullptr;
++    }
++
++    if (mGnssMeasurement == nullptr) {
++        const GpsMeasurementInterface* gpsMeasurementIface =
++                static_cast<const GpsMeasurementInterface*>(
++                        mGnssIface->get_extension(GPS_MEASUREMENT_INTERFACE));
++
++        if (gpsMeasurementIface == nullptr) {
++            ALOGE("%s: GnssMeasurement interface not implemented by HAL", __func__);
++        } else {
++            mGnssMeasurement = new GnssMeasurement(gpsMeasurementIface);
++        }
++    }
++    return mGnssMeasurement;
++}
++
++Return<sp<IGnssNavigationMessage>> Gnss::getExtensionGnssNavigationMessage() {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return nullptr;
++    }
++
++    if (mGnssNavigationMessage == nullptr) {
++        const GpsNavigationMessageInterface* gpsNavigationMessageIface =
++                static_cast<const GpsNavigationMessageInterface*>(
++                        mGnssIface->get_extension(GPS_NAVIGATION_MESSAGE_INTERFACE));
++
++        if (gpsNavigationMessageIface == nullptr) {
++            ALOGI("%s: GnssNavigationMessage interface not implemented by HAL", __func__);
++        } else {
++            mGnssNavigationMessage = new GnssNavigationMessage(gpsNavigationMessageIface);
++        }
++    }
++
++    return mGnssNavigationMessage;
++}
++
++Return<sp<IGnssXtra>> Gnss::getExtensionXtra()  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return nullptr;
++    }
++
++    if (mGnssXtraIface == nullptr) {
++        const GpsXtraInterface* gpsXtraIface = static_cast<const GpsXtraInterface*>(
++                mGnssIface->get_extension(GPS_XTRA_INTERFACE));
++
++        if (gpsXtraIface == nullptr) {
++            ALOGI("%s: GnssXtra interface not implemented by HAL", __func__);
++        } else {
++            mGnssXtraIface = new GnssXtra(gpsXtraIface);
++        }
++    }
++
++    return mGnssXtraIface;
++}
++
++Return<sp<IGnssDebug>> Gnss::getExtensionGnssDebug()  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return nullptr;
++    }
++
++    if (mGnssDebug == nullptr) {
++        const GpsDebugInterface* gpsDebugIface = static_cast<const GpsDebugInterface*>(
++                mGnssIface->get_extension(GPS_DEBUG_INTERFACE));
++
++        if (gpsDebugIface == nullptr) {
++            ALOGI("%s: GnssDebug interface not implemented by HAL", __func__);
++        } else {
++            mGnssDebug = new GnssDebug(gpsDebugIface);
++        }
++    }
++
++    return mGnssDebug;
++}
++
++Return<sp<IGnssBatching>> Gnss::getExtensionGnssBatching()  {
++    if (mGnssIface == nullptr) {
++        ALOGE("%s: Gnss interface is unavailable", __func__);
++        return nullptr;
++    }
++
++    if (mGnssBatching == nullptr) {
++        hw_module_t* module;
++        const FlpLocationInterface* flpLocationIface = nullptr;
++        int err = hw_get_module(FUSED_LOCATION_HARDWARE_MODULE_ID, (hw_module_t const**)&module);
++
++        if (err != 0) {
++            ALOGE("gnss flp hw_get_module failed: %d", err);
++        } else if (module == nullptr) {
++            ALOGE("Fused Location hw_get_module returned null module");
++        } else if (module->methods == nullptr) {
++            ALOGE("Fused Location hw_get_module returned null methods");
++        } else {
++            hw_device_t* device;
++            err = module->methods->open(module, FUSED_LOCATION_HARDWARE_MODULE_ID, &device);
++            if (err != 0) {
++                ALOGE("flpDevice open failed: %d", err);
++            } else {
++                flp_device_t * flpDevice = reinterpret_cast<flp_device_t*>(device);
++                flpLocationIface = flpDevice->get_flp_interface(flpDevice);
++            }
++        }
++
++        if (flpLocationIface == nullptr) {
++            ALOGE("%s: GnssBatching interface is not implemented by HAL", __func__);
++        } else {
++            mGnssBatching = new GnssBatching(flpLocationIface);
++        }
++    }
++    return mGnssBatching;
++}
++
++void Gnss::handleHidlDeath() {
++    ALOGW("GNSS service noticed HIDL death. Stopping all GNSS operations.");
++
++    // commands down to the HAL implementation
++    stop(); // stop ongoing GPS tracking
++    if (mGnssMeasurement != nullptr) {
++        mGnssMeasurement->close();
++    }
++    if (mGnssNavigationMessage != nullptr) {
++        mGnssNavigationMessage->close();
++    }
++    if (mGnssBatching != nullptr) {
++        mGnssBatching->stop();
++        mGnssBatching->cleanup();
++    }
++    cleanup();
++
++    /*
++     * This has died, so close it off in case (race condition) callbacks happen
++     * before HAL processes above messages.
++     */
++    sGnssCbIface = nullptr;
++}
++
++IGnss* HIDL_FETCH_IGnss(const char* /* hal */) {
++    hw_module_t* module;
++    IGnss* iface = nullptr;
++    int err = hw_get_module(GPS_HARDWARE_MODULE_ID, (hw_module_t const**)&module);
++
++    if (err == 0) {
++        hw_device_t* device;
++        err = module->methods->open(module, GPS_HARDWARE_MODULE_ID, &device);
++        if (err == 0) {
++            iface = new Gnss(reinterpret_cast<gps_device_t*>(device));
++        } else {
++            ALOGE("gnssDevice open %s failed: %d", GPS_HARDWARE_MODULE_ID, err);
++        }
++    } else {
++      ALOGE("gnss hw_get_module %s failed: %d", GPS_HARDWARE_MODULE_ID, err);
++    }
++    return iface;
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/Gnss.h b/gnss/1.0-legacy/Gnss.h
+new file mode 100644
+index 0000000..faf903c
+--- /dev/null
++++ b/gnss/1.0-legacy/Gnss.h
+@@ -0,0 +1,185 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef android_hardware_gnss_V1_0_Gnss_H_
++#define android_hardware_gnss_V1_0_Gnss_H_
++
++#include <AGnss.h>
++#include <AGnssRil.h>
++#include <GnssBatching.h>
++#include <GnssConfiguration.h>
++#include <GnssDebug.h>
++#include <GnssGeofencing.h>
++#include <GnssMeasurement.h>
++#include <GnssNavigationMessage.h>
++#include <GnssNi.h>
++#include <GnssXtra.h>
++
++#include <ThreadCreationWrapper.h>
++#include <android/hardware/gnss/1.0/IGnss.h>
++#include <hardware/fused_location.h>
++#include <hardware/gps.h>
++#include <hidl/Status.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::hidl_string;
++using ::android::sp;
++
++using LegacyGnssSystemInfo = ::GnssSystemInfo;
++
++/*
++ * Represents the standard GNSS interface. Also contains wrapper methods to allow methods from
++ * IGnssCallback interface to be passed into the conventional implementation of the GNSS HAL.
++ */
++class Gnss : public IGnss {
++  public:
++    Gnss(gps_device_t* gnss_device);
++    ~Gnss();
++
++    /*
++     * Methods from ::android::hardware::gnss::V1_0::IGnss follow.
++     * These declarations were generated from Gnss.hal.
++     */
++    Return<bool> setCallback(const sp<IGnssCallback>& callback)  override;
++    Return<bool> start()  override;
++    Return<bool> stop()  override;
++    Return<void> cleanup()  override;
++    Return<bool> injectLocation(double latitudeDegrees,
++                                double longitudeDegrees,
++                                float accuracyMeters)  override;
++    Return<bool> injectTime(int64_t timeMs,
++                            int64_t timeReferenceMs,
++                            int32_t uncertaintyMs) override;
++    Return<void> deleteAidingData(IGnss::GnssAidingData aidingDataFlags)  override;
++    Return<bool> setPositionMode(IGnss::GnssPositionMode mode,
++                                 IGnss::GnssPositionRecurrence recurrence,
++                                 uint32_t minIntervalMs,
++                                 uint32_t preferredAccuracyMeters,
++                                 uint32_t preferredTimeMs)  override;
++    Return<sp<IAGnssRil>> getExtensionAGnssRil() override;
++    Return<sp<IGnssGeofencing>> getExtensionGnssGeofencing() override;
++    Return<sp<IAGnss>> getExtensionAGnss() override;
++    Return<sp<IGnssNi>> getExtensionGnssNi() override;
++    Return<sp<IGnssMeasurement>> getExtensionGnssMeasurement() override;
++    Return<sp<IGnssNavigationMessage>> getExtensionGnssNavigationMessage() override;
++    Return<sp<IGnssXtra>> getExtensionXtra() override;
++    Return<sp<IGnssConfiguration>> getExtensionGnssConfiguration() override;
++    Return<sp<IGnssDebug>> getExtensionGnssDebug() override;
++    Return<sp<IGnssBatching>> getExtensionGnssBatching() override;
++
++    /*
++     * Callback methods to be passed into the conventional GNSS HAL by the default
++     * implementation. These methods are not part of the IGnss base class.
++     */
++    static void locationCb(GpsLocation* location);
++    static void statusCb(GpsStatus* gnss_status);
++    static void nmeaCb(GpsUtcTime timestamp, const char* nmea, int length);
++    static void setCapabilitiesCb(uint32_t capabilities);
++    static void acquireWakelockCb();
++    static void releaseWakelockCb();
++    static void requestUtcTimeCb();
++    static pthread_t createThreadCb(const char* name, void (*start)(void*), void* arg);
++    static void gnssSvStatusCb(GnssSvStatus* status);
++    /*
++     * Deprecated callback added for backward compatibility to devices that do
++     * not support GnssSvStatus.
++     */
++    static void gpsSvStatusCb(GpsSvStatus* status);
++    static void setSystemInfoCb(const LegacyGnssSystemInfo* info);
++
++    /*
++     * Wakelock consolidation, only needed for dual use of a gps.h & fused_location.h HAL
++     *
++     * Ensures that if the last call from either legacy .h was to acquire a wakelock, that a
++     * wakelock is held.  Otherwise releases it.
++     */
++    static void acquireWakelockFused();
++    static void releaseWakelockFused();
++
++    /*
++     * Holds function pointers to the callback methods.
++     */
++    static GpsCallbacks sGnssCb;
++
++ private:
++    /*
++     * For handling system-server death while GNSS service lives on.
++     */
++    class GnssHidlDeathRecipient : public hidl_death_recipient {
++      public:
++        GnssHidlDeathRecipient(const sp<Gnss> gnss) : mGnss(gnss) {
++        }
++
++        virtual void serviceDied(uint64_t /*cookie*/,
++                const wp<::android::hidl::base::V1_0::IBase>& /*who*/) {
++            mGnss->handleHidlDeath();
++        }
++      private:
++        sp<Gnss> mGnss;
++    };
++
++    // for wakelock consolidation, see above
++    static void acquireWakelockGnss();
++    static void releaseWakelockGnss();
++    static void updateWakelock();
++    static bool sWakelockHeldGnss;
++    static bool sWakelockHeldFused;
++
++    /*
++     * Cleanup for death notification
++     */
++    void handleHidlDeath();
++
++    sp<GnssXtra> mGnssXtraIface = nullptr;
++    sp<AGnssRil> mGnssRil = nullptr;
++    sp<GnssGeofencing> mGnssGeofencingIface = nullptr;
++    sp<AGnss> mAGnssIface = nullptr;
++    sp<GnssNi> mGnssNi = nullptr;
++    sp<GnssMeasurement> mGnssMeasurement = nullptr;
++    sp<GnssNavigationMessage> mGnssNavigationMessage = nullptr;
++    sp<GnssDebug> mGnssDebug = nullptr;
++    sp<GnssConfiguration> mGnssConfig = nullptr;
++    sp<GnssBatching> mGnssBatching = nullptr;
++
++    sp<GnssHidlDeathRecipient> mDeathRecipient;
++
++    const GpsInterface* mGnssIface = nullptr;
++    static sp<IGnssCallback> sGnssCbIface;
++    static std::vector<std::unique_ptr<ThreadFuncArgs>> sThreadFuncArgsList;
++    static bool sInterfaceExists;
++
++    // Values saved for resend
++    static uint32_t sCapabilitiesCached;
++    static uint16_t sYearOfHwCached;
++};
++
++extern "C" IGnss* HIDL_FETCH_IGnss(const char* name);
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif  // android_hardware_gnss_V1_0_Gnss_H_
+diff --git a/gnss/1.0-legacy/GnssBatching.cpp b/gnss/1.0-legacy/GnssBatching.cpp
+new file mode 100644
+index 0000000..f2e2e45
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssBatching.cpp
+@@ -0,0 +1,225 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "GnssHAL_GnssBatchingInterface"
++
++#include "GnssBatching.h"
++#include <Gnss.h> // for wakelock consolidation
++#include <GnssUtils.h>
++
++#include <android/log.h>  // for ALOGE
++#include <vector>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++sp<IGnssBatchingCallback> GnssBatching::sGnssBatchingCbIface = nullptr;
++bool GnssBatching::sFlpSupportsBatching = false;
++
++FlpCallbacks GnssBatching::sFlpCb = {
++    .size = sizeof(FlpCallbacks),
++    .location_cb = locationCb,
++    .acquire_wakelock_cb = acquireWakelockCb,
++    .release_wakelock_cb = releaseWakelockCb,
++    .set_thread_event_cb = setThreadEventCb,
++    .flp_capabilities_cb = flpCapabilitiesCb,
++    .flp_status_cb = flpStatusCb,
++};
++
++GnssBatching::GnssBatching(const FlpLocationInterface* flpLocationIface) :
++    mFlpLocationIface(flpLocationIface) {
++}
++
++/*
++ * This enum is used locally by various methods below. It is only used by the default
++ * implementation and is not part of the GNSS interface.
++ */
++enum BatchingValues : uint16_t {
++    // Numbers 0-3 were used in earlier implementations - using 4 to be distinct to the HAL
++    FLP_GNSS_BATCHING_CLIENT_ID = 4,
++    // Tech. mask of GNSS, and sensor aiding, for legacy HAL to fit with GnssBatching API
++    FLP_TECH_MASK_GNSS_AND_SENSORS = FLP_TECH_MASK_GNSS | FLP_TECH_MASK_SENSORS,
++    // Putting a cap to avoid possible memory issues.  Unlikely values this high are supported.
++    MAX_LOCATIONS_PER_BATCH = 1000
++};
++
++void GnssBatching::locationCb(int32_t locationsCount, FlpLocation** locations) {
++    if (sGnssBatchingCbIface == nullptr) {
++        ALOGE("%s: GNSS Batching Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (locations == nullptr) {
++        ALOGE("%s: Invalid locations from GNSS HAL", __func__);
++        return;
++    }
++
++    if (locationsCount < 0) {
++        ALOGE("%s: Negative location count: %d set to 0", __func__, locationsCount);
++        locationsCount = 0;
++    } else if (locationsCount > MAX_LOCATIONS_PER_BATCH) {
++        ALOGW("%s: Unexpected high location count: %d set to %d", __func__, locationsCount,
++                MAX_LOCATIONS_PER_BATCH);
++        locationsCount = MAX_LOCATIONS_PER_BATCH;
++    }
++
++    /**
++     * Note:
++     * Some existing implementations may drop duplicate locations.  These could be expanded here
++     * but as there's ambiguity between no-GPS-fix vs. dropped duplicates in that implementation,
++     * and that's not specified by the fused_location.h, that isn't safe to do here.
++     * Fortunately, this shouldn't be a major issue in cases where GNSS batching is typically
++     * used (e.g. when user is likely in vehicle/bicycle.)
++     */
++    std::vector<android::hardware::gnss::V1_0::GnssLocation> gnssLocations;
++    for (int iLocation = 0; iLocation < locationsCount; iLocation++) {
++        if (locations[iLocation] == nullptr) {
++            ALOGE("%s: Null location at slot: %d of %d, skipping", __func__, iLocation,
++                    locationsCount);
++            continue;
++        }
++        if ((locations[iLocation]->sources_used & ~FLP_TECH_MASK_GNSS_AND_SENSORS) != 0)
++        {
++            ALOGE("%s: Unrequested location type %d at slot: %d of %d, skipping", __func__,
++                    locations[iLocation]->sources_used, iLocation, locationsCount);
++            continue;
++        }
++        gnssLocations.push_back(convertToGnssLocation(locations[iLocation]));
++    }
++
++    auto ret = sGnssBatchingCbIface->gnssLocationBatchCb(gnssLocations);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++void GnssBatching::acquireWakelockCb() {
++    Gnss::acquireWakelockFused();
++}
++
++void GnssBatching::releaseWakelockCb() {
++    Gnss::releaseWakelockFused();
++}
++
++// this can just return success, because threads are now set up on demand in the jni layer
++int32_t GnssBatching::setThreadEventCb(ThreadEvent /*event*/) {
++    return FLP_RESULT_SUCCESS;
++}
++
++void GnssBatching::flpCapabilitiesCb(int32_t capabilities) {
++    ALOGD("%s capabilities %d", __func__, capabilities);
++
++    if (capabilities & CAPABILITY_GNSS) {
++        // once callback is received and capabilities high enough, we know version is
++        // high enough for flush()
++        sFlpSupportsBatching = true;
++    }
++}
++
++void GnssBatching::flpStatusCb(int32_t status) {
++    ALOGD("%s (default implementation) not forwarding status: %d", __func__, status);
++}
++
++// Methods from ::android::hardware::gnss::V1_0::IGnssBatching follow.
++Return<bool> GnssBatching::init(const sp<IGnssBatchingCallback>& callback) {
++    if (mFlpLocationIface == nullptr) {
++        ALOGE("%s: Flp batching is unavailable", __func__);
++        return false;
++    }
++
++    sGnssBatchingCbIface = callback;
++
++    return (mFlpLocationIface->init(&sFlpCb) == 0);
++}
++
++Return<uint16_t> GnssBatching::getBatchSize() {
++    if (mFlpLocationIface == nullptr) {
++        ALOGE("%s: Flp batching interface is unavailable", __func__);
++        return 0;
++    }
++
++    return mFlpLocationIface->get_batch_size();
++}
++
++Return<bool> GnssBatching::start(const IGnssBatching::Options& options) {
++    if (mFlpLocationIface == nullptr) {
++        ALOGE("%s: Flp batching interface is unavailable", __func__);
++        return false;
++    }
++
++    if (!sFlpSupportsBatching) {
++        ALOGE("%s: Flp batching interface not supported, no capabilities callback received",
++                __func__);
++        return false;
++    }
++
++    FlpBatchOptions optionsHw;
++    // Legacy code used 9999 mW for High accuracy, and 21 mW for balanced.
++    // New GNSS API just expects reasonable GNSS chipset behavior - do something efficient
++    // given the interval.  This 100 mW limit should be quite sufficient (esp. given legacy code
++    // implementations may not even use this value.)
++    optionsHw.max_power_allocation_mW = 100;
++    optionsHw.sources_to_use = FLP_TECH_MASK_GNSS_AND_SENSORS;
++    optionsHw.flags = 0;
++    if (options.flags & Flag::WAKEUP_ON_FIFO_FULL) {
++        optionsHw.flags |= FLP_BATCH_WAKEUP_ON_FIFO_FULL;
++    }
++    optionsHw.period_ns = options.periodNanos;
++    optionsHw.smallest_displacement_meters = 0; // Zero offset - just use time interval
++
++    return (mFlpLocationIface->start_batching(FLP_GNSS_BATCHING_CLIENT_ID, &optionsHw)
++            == FLP_RESULT_SUCCESS);
++}
++
++Return<void> GnssBatching::flush() {
++    if (mFlpLocationIface == nullptr) {
++        ALOGE("%s: Flp batching interface is unavailable", __func__);
++        return Void();
++    }
++
++    mFlpLocationIface->flush_batched_locations();
++
++    return Void();
++}
++
++Return<bool> GnssBatching::stop() {
++    if (mFlpLocationIface == nullptr) {
++        ALOGE("%s: Flp batching interface is unavailable", __func__);
++        return false;
++    }
++
++    return (mFlpLocationIface->stop_batching(FLP_GNSS_BATCHING_CLIENT_ID) == FLP_RESULT_SUCCESS);
++}
++
++Return<void> GnssBatching::cleanup() {
++    if (mFlpLocationIface == nullptr) {
++        ALOGE("%s: Flp batching interface is unavailable", __func__);
++        return Void();
++    }
++
++    mFlpLocationIface->cleanup();
++
++    return Void();
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/GnssBatching.h b/gnss/1.0-legacy/GnssBatching.h
+new file mode 100644
+index 0000000..001c27d
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssBatching.h
+@@ -0,0 +1,67 @@
++#ifndef ANDROID_HARDWARE_GNSS_V1_0_GNSSBATCHING_H
++#define ANDROID_HARDWARE_GNSS_V1_0_GNSSBATCHING_H
++
++#include <android/hardware/gnss/1.0/IGnssBatching.h>
++#include <hardware/fused_location.h>
++#include <hidl/MQDescriptor.h>
++#include <hidl/Status.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::gnss::V1_0::IGnssBatching;
++using ::android::hardware::gnss::V1_0::IGnssBatchingCallback;
++using ::android::hidl::base::V1_0::IBase;
++using ::android::hardware::hidl_array;
++using ::android::hardware::hidl_memory;
++using ::android::hardware::hidl_string;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::sp;
++
++struct GnssBatching : public IGnssBatching {
++    GnssBatching(const FlpLocationInterface* flpLocationIface);
++
++    // Methods from ::android::hardware::gnss::V1_0::IGnssBatching follow.
++    Return<bool> init(const sp<IGnssBatchingCallback>& callback) override;
++    Return<uint16_t> getBatchSize() override;
++    Return<bool> start(const IGnssBatching::Options& options ) override;
++    Return<void> flush() override;
++    Return<bool> stop() override;
++    Return<void> cleanup() override;
++
++    /*
++     * Callback methods to be passed into the conventional FLP HAL by the default
++     * implementation. These methods are not part of the IGnssBatching base class.
++     */
++    static void locationCb(int32_t locationsCount, FlpLocation** locations);
++    static void acquireWakelockCb();
++    static void releaseWakelockCb();
++    static int32_t setThreadEventCb(ThreadEvent event);
++    static void flpCapabilitiesCb(int32_t capabilities);
++    static void flpStatusCb(int32_t status);
++
++    /*
++     * Holds function pointers to the callback methods.
++     */
++    static FlpCallbacks sFlpCb;
++
++ private:
++    const FlpLocationInterface* mFlpLocationIface = nullptr;
++    static sp<IGnssBatchingCallback> sGnssBatchingCbIface;
++    static bool sFlpSupportsBatching;
++};
++
++extern "C" IGnssBatching* HIDL_FETCH_IGnssBatching(const char* name);
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif  // ANDROID_HARDWARE_GNSS_V1_0_GNSSBATCHING_H
+diff --git a/gnss/1.0-legacy/GnssConfiguration.cpp b/gnss/1.0-legacy/GnssConfiguration.cpp
+new file mode 100644
+index 0000000..0c1aa86
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssConfiguration.cpp
+@@ -0,0 +1,117 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "GnssHAL_GnssConfigurationInterface"
++
++#include <log/log.h>
++
++#include "GnssConfiguration.h"
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++GnssConfiguration::GnssConfiguration(const GnssConfigurationInterface* gnssConfigInfc)
++    : mGnssConfigIface(gnssConfigInfc) {}
++
++// Methods from ::android::hardware::gps::V1_0::IGnssConfiguration follow.
++Return<bool> GnssConfiguration::setSuplEs(bool enabled)  {
++    if (mGnssConfigIface == nullptr) {
++        ALOGE("%s: GNSS Configuration interface is not available.", __func__);
++        return false;
++    }
++
++    std::string config = "SUPL_ES=" + std::to_string(enabled ? 1 : 0) + "\n";
++    mGnssConfigIface->configuration_update(config.c_str(), config.size());
++    return true;
++}
++
++Return<bool> GnssConfiguration::setSuplVersion(uint32_t version)  {
++    if (mGnssConfigIface == nullptr) {
++        ALOGE("%s: GNSS Configuration interface is not available.", __func__);
++        return false;
++    }
++
++    std::string config = "SUPL_VER=" + std::to_string(version) + "\n";
++    mGnssConfigIface->configuration_update(config.c_str(), config.size());
++
++    return true;
++}
++
++Return<bool> GnssConfiguration::setSuplMode(uint8_t mode)  {
++    if (mGnssConfigIface == nullptr) {
++        ALOGE("%s: GNSS Configuration interface is not available.", __func__);
++        return false;
++    }
++
++    std::string config = "SUPL_MODE=" + std::to_string(mode) + "\n";
++    mGnssConfigIface->configuration_update(config.c_str(), config.size());
++    return true;
++}
++
++Return<bool> GnssConfiguration::setLppProfile(uint8_t lppProfile) {
++    if (mGnssConfigIface == nullptr) {
++        ALOGE("%s: GNSS Configuration interface is not available.", __func__);
++        return false;
++    }
++
++    std::string config = "LPP_PROFILE=" + std::to_string(lppProfile) + "\n";
++    mGnssConfigIface->configuration_update(config.c_str(), config.size());
++    return true;
++}
++
++Return<bool> GnssConfiguration::setGlonassPositioningProtocol(uint8_t protocol) {
++    if (mGnssConfigIface == nullptr) {
++        ALOGE("%s: GNSS Configuration interface is not available.", __func__);
++        return false;
++    }
++
++    std::string config = "A_GLONASS_POS_PROTOCOL_SELECT=" +
++            std::to_string(protocol) + "\n";
++    mGnssConfigIface->configuration_update(config.c_str(), config.size());
++    return true;
++}
++
++Return<bool> GnssConfiguration::setGpsLock(uint8_t lock) {
++    if (mGnssConfigIface == nullptr) {
++        ALOGE("%s: GNSS Configuration interface is not available.", __func__);
++        return false;
++    }
++
++    std::string config = "GPS_LOCK=" + std::to_string(lock) + "\n";
++    mGnssConfigIface->configuration_update(config.c_str(), config.size());
++    return true;
++}
++
++Return<bool> GnssConfiguration::setEmergencySuplPdn(bool enabled) {
++    if (mGnssConfigIface == nullptr) {
++        ALOGE("%s: GNSS Configuration interface is not available.", __func__);
++        return false;
++    }
++
++    std::string config = "USE_EMERGENCY_PDN_FOR_EMERGENCY_SUPL=" + std::to_string(enabled ? 1 : 0)
++            + "\n";
++    mGnssConfigIface->configuration_update(config.c_str(), config.size());
++    return true;
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/GnssConfiguration.h b/gnss/1.0-legacy/GnssConfiguration.h
+new file mode 100644
+index 0000000..a6eca88
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssConfiguration.h
+@@ -0,0 +1,66 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++
++#ifndef android_hardware_gnss_V1_0_GnssConfiguration_H_
++#define android_hardware_gnss_V1_0_GnssConfiguration_H_
++
++#include <android/hardware/gnss/1.0/IGnssConfiguration.h>
++#include <hardware/gps.h>
++#include <hidl/Status.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::gnss::V1_0::IGnssConfiguration;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::hidl_string;
++using ::android::sp;
++
++/*
++ * Interface for passing GNSS configuration info from platform to HAL.
++ */
++struct GnssConfiguration : public IGnssConfiguration {
++    GnssConfiguration(const GnssConfigurationInterface* gnssConfigIface);
++
++    /*
++     * Methods from ::android::hardware::gnss::V1_0::IGnssConfiguration follow.
++     * These declarations were generated from IGnssConfiguration.hal.
++     */
++    Return<bool> setSuplVersion(uint32_t version) override;
++    Return<bool> setSuplMode(uint8_t mode) override;
++    Return<bool> setSuplEs(bool enabled) override;
++    Return<bool> setLppProfile(uint8_t lppProfile) override;
++    Return<bool> setGlonassPositioningProtocol(uint8_t protocol) override;
++    Return<bool> setEmergencySuplPdn(bool enable) override;
++    Return<bool> setGpsLock(uint8_t lock) override;
++
++ private:
++    const GnssConfigurationInterface* mGnssConfigIface = nullptr;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif  // android_hardware_gnss_V1_0_GnssConfiguration_H_
+diff --git a/gnss/1.0-legacy/GnssDebug.cpp b/gnss/1.0-legacy/GnssDebug.cpp
+new file mode 100644
+index 0000000..cfc38ca
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssDebug.cpp
+@@ -0,0 +1,59 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "GnssHAL_GnssDebugInterface"
++
++#include <log/log.h>
++
++#include "GnssDebug.h"
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++GnssDebug::GnssDebug(const GpsDebugInterface* gpsDebugIface) : mGnssDebugIface(gpsDebugIface) {}
++
++// Methods from ::android::hardware::gnss::V1_0::IGnssDebug follow.
++Return<void> GnssDebug::getDebugData(getDebugData_cb _hidl_cb)  {
++    /*
++     * This is a new interface and hence there is no way to retrieve the
++     * debug data from the HAL.
++     */
++    DebugData data = {};
++
++    _hidl_cb(data);
++
++    /*
++     * Log the debug data sent from the conventional Gnss HAL. This code is
++     * moved here from GnssLocationProvider.
++     */
++    if (mGnssDebugIface) {
++        char buffer[kMaxDebugStrLen + 1];
++        size_t length = mGnssDebugIface->get_internal_state(buffer, kMaxDebugStrLen);
++        length = std::max(length, kMaxDebugStrLen);
++        buffer[length] = '\0';
++        ALOGD("Gnss Debug Data: %s", buffer);
++    }
++    return Void();
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/GnssDebug.h b/gnss/1.0-legacy/GnssDebug.h
+new file mode 100644
+index 0000000..9a17dde
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssDebug.h
+@@ -0,0 +1,62 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef android_hardware_gnss_V1_0_GnssDebug_H_
++#define android_hardware_gnss_V1_0_GnssDebug_H_
++
++#include <android/hardware/gnss/1.0/IGnssDebug.h>
++#include <hidl/Status.h>
++#include <hardware/gps.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::gnss::V1_0::IGnssDebug;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::hidl_string;
++using ::android::sp;
++
++/* Interface for GNSS Debug support. */
++struct GnssDebug : public IGnssDebug {
++    GnssDebug(const GpsDebugInterface* gpsDebugIface);
++
++    /*
++     * Methods from ::android::hardware::gnss::V1_0::IGnssDebug follow.
++     * These declarations were generated from IGnssDebug.hal.
++     */
++    Return<void> getDebugData(getDebugData_cb _hidl_cb)  override;
++
++ private:
++    /*
++     * Constant added for backward compatibility to conventional GPS Hals which
++     * returned a debug string.
++     */
++    const size_t kMaxDebugStrLen = 2047;
++    const GpsDebugInterface* mGnssDebugIface = nullptr;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif  // android_hardware_gnss_V1_0_GnssDebug_H_
+diff --git a/gnss/1.0-legacy/GnssGeofencing.cpp b/gnss/1.0-legacy/GnssGeofencing.cpp
+new file mode 100644
+index 0000000..54c4aaa
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssGeofencing.cpp
+@@ -0,0 +1,225 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "GnssHal_GnssGeofencing"
++
++#include "GnssGeofencing.h"
++#include <GnssUtils.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++std::vector<std::unique_ptr<ThreadFuncArgs>> GnssGeofencing::sThreadFuncArgsList;
++sp<IGnssGeofenceCallback> GnssGeofencing::mGnssGeofencingCbIface = nullptr;
++bool GnssGeofencing::sInterfaceExists = false;
++
++GpsGeofenceCallbacks GnssGeofencing::sGnssGfCb = {
++    .geofence_transition_callback = gnssGfTransitionCb,
++    .geofence_status_callback = gnssGfStatusCb,
++    .geofence_add_callback = gnssGfAddCb,
++    .geofence_remove_callback = gnssGfRemoveCb,
++    .geofence_pause_callback = gnssGfPauseCb,
++    .geofence_resume_callback = gnssGfResumeCb,
++    .create_thread_cb = createThreadCb
++};
++
++GnssGeofencing::GnssGeofencing(const GpsGeofencingInterface* gpsGeofencingIface)
++    : mGnssGeofencingIface(gpsGeofencingIface) {
++    /* Error out if an instance of the interface already exists. */
++    LOG_ALWAYS_FATAL_IF(sInterfaceExists);
++    sInterfaceExists = true;
++}
++
++GnssGeofencing::~GnssGeofencing() {
++    sThreadFuncArgsList.clear();
++    sInterfaceExists = false;
++}
++void GnssGeofencing::gnssGfTransitionCb(int32_t geofenceId,
++                                        GpsLocation* location,
++                                        int32_t transition,
++                                        GpsUtcTime timestamp) {
++    if (mGnssGeofencingCbIface == nullptr) {
++        ALOGE("%s: GNSS Geofence Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (location == nullptr) {
++        ALOGE("%s : Invalid location from GNSS HAL", __func__);
++        return;
++    }
++
++    GnssLocation gnssLocation = convertToGnssLocation(location);
++    auto ret = mGnssGeofencingCbIface->gnssGeofenceTransitionCb(
++            geofenceId,
++            gnssLocation,
++            static_cast<IGnssGeofenceCallback::GeofenceTransition>(transition),
++            timestamp);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++void GnssGeofencing::gnssGfStatusCb(int32_t status, GpsLocation* location) {
++    if (mGnssGeofencingCbIface == nullptr) {
++        ALOGE("%s: GNSS Geofence Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    GnssLocation gnssLocation;
++
++    if (location != nullptr) {
++        gnssLocation = convertToGnssLocation(location);
++    } else {
++        gnssLocation = {};
++    }
++
++    auto ret = mGnssGeofencingCbIface->gnssGeofenceStatusCb(
++            static_cast<IGnssGeofenceCallback::GeofenceAvailability>(status), gnssLocation);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++void GnssGeofencing::gnssGfAddCb(int32_t geofenceId, int32_t status) {
++    if (mGnssGeofencingCbIface == nullptr) {
++        ALOGE("%s: GNSS Geofence Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    auto ret = mGnssGeofencingCbIface->gnssGeofenceAddCb(
++            geofenceId, static_cast<IGnssGeofenceCallback::GeofenceStatus>(status));
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++void GnssGeofencing::gnssGfRemoveCb(int32_t geofenceId, int32_t status) {
++    if (mGnssGeofencingCbIface == nullptr) {
++        ALOGE("%s: GNSS Geofence Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    auto ret = mGnssGeofencingCbIface->gnssGeofenceRemoveCb(
++            geofenceId, static_cast<IGnssGeofenceCallback::GeofenceStatus>(status));
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++void GnssGeofencing::gnssGfPauseCb(int32_t geofenceId, int32_t status) {
++    if (mGnssGeofencingCbIface == nullptr) {
++        ALOGE("%s: GNSS Geofence Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    auto ret = mGnssGeofencingCbIface->gnssGeofencePauseCb(
++            geofenceId, static_cast<IGnssGeofenceCallback::GeofenceStatus>(status));
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++void GnssGeofencing::gnssGfResumeCb(int32_t geofenceId, int32_t status) {
++    if (mGnssGeofencingCbIface == nullptr) {
++        ALOGE("%s: GNSS Geofence Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    auto ret = mGnssGeofencingCbIface->gnssGeofenceResumeCb(
++            geofenceId, static_cast<IGnssGeofenceCallback::GeofenceStatus>(status));
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++pthread_t GnssGeofencing::createThreadCb(const char* name, void (*start)(void*), void* arg) {
++    return createPthread(name, start, arg, &sThreadFuncArgsList);
++}
++
++// Methods from ::android::hardware::gnss::V1_0::IGnssGeofencing follow.
++Return<void> GnssGeofencing::setCallback(const sp<IGnssGeofenceCallback>& callback)  {
++    mGnssGeofencingCbIface = callback;
++
++    if (mGnssGeofencingIface == nullptr) {
++        ALOGE("%s: GnssGeofencing interface is not available", __func__);
++    } else {
++        mGnssGeofencingIface->init(&sGnssGfCb);
++    }
++
++    return Void();
++}
++
++Return<void> GnssGeofencing::addGeofence(
++        int32_t geofenceId,
++        double latitudeDegrees,
++        double longitudeDegrees,
++        double radiusMeters,
++        IGnssGeofenceCallback::GeofenceTransition lastTransition,
++        int32_t monitorTransitions,
++        uint32_t notificationResponsivenessMs,
++        uint32_t unknownTimerMs)  {
++    if (mGnssGeofencingIface == nullptr) {
++        ALOGE("%s: GnssGeofencing interface is not available", __func__);
++        return Void();
++    } else {
++        mGnssGeofencingIface->add_geofence_area(
++                geofenceId,
++                latitudeDegrees,
++                longitudeDegrees,
++                radiusMeters,
++                static_cast<int32_t>(lastTransition),
++                monitorTransitions,
++                notificationResponsivenessMs,
++                unknownTimerMs);
++    }
++    return Void();
++}
++
++Return<void> GnssGeofencing::pauseGeofence(int32_t geofenceId)  {
++    if (mGnssGeofencingIface == nullptr) {
++        ALOGE("%s: GnssGeofencing interface is not available", __func__);
++    } else {
++        mGnssGeofencingIface->pause_geofence(geofenceId);
++    }
++    return Void();
++}
++
++Return<void> GnssGeofencing::resumeGeofence(int32_t geofenceId, int32_t monitorTransitions)  {
++    if (mGnssGeofencingIface == nullptr) {
++        ALOGE("%s: GnssGeofencing interface is not available", __func__);
++    } else {
++        mGnssGeofencingIface->resume_geofence(geofenceId, monitorTransitions);
++    }
++    return Void();
++}
++
++Return<void> GnssGeofencing::removeGeofence(int32_t geofenceId)  {
++    if (mGnssGeofencingIface == nullptr) {
++        ALOGE("%s: GnssGeofencing interface is not available", __func__);
++    } else {
++        mGnssGeofencingIface->remove_geofence_area(geofenceId);
++    }
++    return Void();
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/GnssGeofencing.h b/gnss/1.0-legacy/GnssGeofencing.h
+new file mode 100644
+index 0000000..124b893
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssGeofencing.h
+@@ -0,0 +1,97 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef android_hardware_gnss_V1_0_GnssGeofencing_H_
++#define android_hardware_gnss_V1_0_GnssGeofencing_H_
++
++#include <ThreadCreationWrapper.h>
++#include <android/hardware/gnss/1.0/IGnssGeofencing.h>
++#include <hidl/Status.h>
++#include <hardware/gps.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::gnss::V1_0::IGnssGeofenceCallback;
++using ::android::hardware::gnss::V1_0::IGnssGeofencing;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::hidl_string;
++using ::android::sp;
++
++/*
++ * Interface for GNSS Geofencing support. It also contains wrapper methods to allow
++ * methods from IGnssGeofenceCallback interface to be passed into the
++ * conventional implementation of the GNSS HAL.
++ */
++struct GnssGeofencing : public IGnssGeofencing {
++    GnssGeofencing(const GpsGeofencingInterface* gpsGeofencingIface);
++    ~GnssGeofencing();
++
++    /*
++     * Methods from ::android::hardware::gnss::V1_0::IGnssGeofencing follow.
++     * These declarations were generated from IGnssGeofencing.hal.
++     */
++    Return<void> setCallback(const sp<IGnssGeofenceCallback>& callback)  override;
++    Return<void> addGeofence(int32_t geofenceId,
++                             double latitudeDegrees,
++                             double longitudeDegrees,
++                             double radiusMeters,
++                             IGnssGeofenceCallback::GeofenceTransition lastTransition,
++                             int32_t monitorTransitions,
++                             uint32_t notificationResponsivenessMs,
++                             uint32_t unknownTimerMs)  override;
++
++    Return<void> pauseGeofence(int32_t geofenceId)  override;
++    Return<void> resumeGeofence(int32_t geofenceId, int32_t monitorTransitions)  override;
++    Return<void> removeGeofence(int32_t geofenceId)  override;
++
++    /*
++     * Callback methods to be passed into the conventional GNSS HAL by the default
++     * implementation. These methods are not part of the IGnssGeofencing base class.
++     */
++    static void gnssGfTransitionCb(int32_t geofence_id, GpsLocation* location,
++                                   int32_t transition, GpsUtcTime timestamp);
++    static void gnssGfStatusCb(int32_t status, GpsLocation* last_location);
++    static void gnssGfAddCb(int32_t geofence_id, int32_t status);
++    static void gnssGfRemoveCb(int32_t geofence_id, int32_t status);
++    static void gnssGfPauseCb(int32_t geofence_id, int32_t status);
++    static void gnssGfResumeCb(int32_t geofence_id, int32_t status);
++    static pthread_t createThreadCb(const char* name, void (*start)(void*), void* arg);
++
++    /*
++     * Holds function pointers to the callback methods.
++     */
++    static GpsGeofenceCallbacks sGnssGfCb;
++
++ private:
++    static std::vector<std::unique_ptr<ThreadFuncArgs>> sThreadFuncArgsList;
++    static sp<IGnssGeofenceCallback> mGnssGeofencingCbIface;
++    const GpsGeofencingInterface* mGnssGeofencingIface = nullptr;
++    static bool sInterfaceExists;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif  // android_hardware_gnss_V1_0_GnssGeofencing_H_
+diff --git a/gnss/1.0-legacy/GnssMeasurement.cpp b/gnss/1.0-legacy/GnssMeasurement.cpp
+new file mode 100644
+index 0000000..d81f829
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssMeasurement.cpp
+@@ -0,0 +1,260 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "GnssHAL_GnssMeasurementInterface"
++
++#include "GnssMeasurement.h"
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++sp<IGnssMeasurementCallback> GnssMeasurement::sGnssMeasureCbIface = nullptr;
++GpsMeasurementCallbacks GnssMeasurement::sGnssMeasurementCbs = {
++    .size = sizeof(GpsMeasurementCallbacks),
++    .measurement_callback = gpsMeasurementCb,
++    .gnss_measurement_callback = gnssMeasurementCb
++};
++
++GnssMeasurement::GnssMeasurement(const GpsMeasurementInterface* gpsMeasurementIface)
++    : mGnssMeasureIface(gpsMeasurementIface) {}
++
++void GnssMeasurement::gnssMeasurementCb(LegacyGnssData* legacyGnssData) {
++    if (sGnssMeasureCbIface == nullptr) {
++        ALOGE("%s: GNSSMeasurement Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (legacyGnssData == nullptr) {
++        ALOGE("%s: Invalid GnssData from GNSS HAL", __func__);
++        return;
++    }
++
++    IGnssMeasurementCallback::GnssData gnssData;
++    gnssData.measurementCount = std::min(legacyGnssData->measurement_count,
++                                         static_cast<size_t>(GnssMax::SVS_COUNT));
++
++    for (size_t i = 0; i < gnssData.measurementCount; i++) {
++        auto entry = legacyGnssData->measurements[i];
++        auto state = static_cast<GnssMeasurementState>(entry.state);
++        if (state & IGnssMeasurementCallback::GnssMeasurementState::STATE_TOW_DECODED) {
++          state |= IGnssMeasurementCallback::GnssMeasurementState::STATE_TOW_KNOWN;
++        }
++        if (state & IGnssMeasurementCallback::GnssMeasurementState::STATE_GLO_TOD_DECODED) {
++          state |= IGnssMeasurementCallback::GnssMeasurementState::STATE_GLO_TOD_KNOWN;
++        }
++        gnssData.measurements[i] = {
++            .flags = entry.flags,
++            .svid = entry.svid,
++            .constellation = static_cast<GnssConstellationType>(entry.constellation),
++            .timeOffsetNs = entry.time_offset_ns,
++            .state = state,
++            .receivedSvTimeInNs = entry.received_sv_time_in_ns,
++            .receivedSvTimeUncertaintyInNs = entry.received_sv_time_uncertainty_in_ns,
++            .cN0DbHz = entry.c_n0_dbhz,
++            .pseudorangeRateMps = entry.pseudorange_rate_mps,
++            .pseudorangeRateUncertaintyMps = entry.pseudorange_rate_uncertainty_mps,
++            .accumulatedDeltaRangeState = entry.accumulated_delta_range_state,
++            .accumulatedDeltaRangeM = entry.accumulated_delta_range_m,
++            .accumulatedDeltaRangeUncertaintyM = entry.accumulated_delta_range_uncertainty_m,
++            .carrierFrequencyHz = entry.carrier_frequency_hz,
++            .carrierCycles = entry.carrier_cycles,
++            .carrierPhase = entry.carrier_phase,
++            .carrierPhaseUncertainty = entry.carrier_phase_uncertainty,
++            .multipathIndicator = static_cast<IGnssMeasurementCallback::GnssMultipathIndicator>(
++                    entry.multipath_indicator),
++            .snrDb = entry.snr_db
++        };
++    }
++
++    auto clockVal = legacyGnssData->clock;
++    gnssData.clock = {
++        .gnssClockFlags = clockVal.flags,
++        .leapSecond = clockVal.leap_second,
++        .timeNs = clockVal.time_ns,
++        .timeUncertaintyNs = clockVal.time_uncertainty_ns,
++        .fullBiasNs = clockVal.full_bias_ns,
++        .biasNs = clockVal.bias_ns,
++        .biasUncertaintyNs = clockVal.bias_uncertainty_ns,
++        .driftNsps = clockVal.drift_nsps,
++        .driftUncertaintyNsps = clockVal.drift_uncertainty_nsps,
++        .hwClockDiscontinuityCount = clockVal.hw_clock_discontinuity_count
++    };
++
++    auto ret = sGnssMeasureCbIface->GnssMeasurementCb(gnssData);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++/*
++ * The code in the following method has been moved here from GnssLocationProvider.
++ * It converts GpsData to GnssData. This code is no longer required in
++ * GnssLocationProvider since GpsData is deprecated and no longer part of the
++ * GNSS interface.
++ */
++void GnssMeasurement::gpsMeasurementCb(GpsData* gpsData) {
++    if (sGnssMeasureCbIface == nullptr) {
++        ALOGE("%s: GNSSMeasurement Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (gpsData == nullptr) {
++        ALOGE("%s: Invalid GpsData from GNSS HAL", __func__);
++        return;
++    }
++
++    IGnssMeasurementCallback::GnssData gnssData;
++    gnssData.measurementCount = std::min(gpsData->measurement_count,
++                                         static_cast<size_t>(GnssMax::SVS_COUNT));
++
++
++    for (size_t i = 0; i < gnssData.measurementCount; i++) {
++        auto entry = gpsData->measurements[i];
++        gnssData.measurements[i].flags = entry.flags;
++        gnssData.measurements[i].svid = static_cast<int32_t>(entry.prn);
++        if (entry.prn >= 1 && entry.prn <= 32) {
++            gnssData.measurements[i].constellation = GnssConstellationType::GPS;
++        } else {
++            gnssData.measurements[i].constellation =
++                  GnssConstellationType::UNKNOWN;
++        }
++
++        gnssData.measurements[i].timeOffsetNs = entry.time_offset_ns;
++        gnssData.measurements[i].state = entry.state;
++        gnssData.measurements[i].receivedSvTimeInNs = entry.received_gps_tow_ns;
++        gnssData.measurements[i].receivedSvTimeUncertaintyInNs =
++            entry.received_gps_tow_uncertainty_ns;
++        gnssData.measurements[i].cN0DbHz = entry.c_n0_dbhz;
++        gnssData.measurements[i].pseudorangeRateMps = entry.pseudorange_rate_mps;
++        gnssData.measurements[i].pseudorangeRateUncertaintyMps =
++                entry.pseudorange_rate_uncertainty_mps;
++        gnssData.measurements[i].accumulatedDeltaRangeState =
++                entry.accumulated_delta_range_state;
++        gnssData.measurements[i].accumulatedDeltaRangeM =
++                entry.accumulated_delta_range_m;
++        gnssData.measurements[i].accumulatedDeltaRangeUncertaintyM =
++                entry.accumulated_delta_range_uncertainty_m;
++
++        if (entry.flags & GNSS_MEASUREMENT_HAS_CARRIER_FREQUENCY) {
++            gnssData.measurements[i].carrierFrequencyHz = entry.carrier_frequency_hz;
++        } else {
++            gnssData.measurements[i].carrierFrequencyHz = 0;
++        }
++
++        if (entry.flags & GNSS_MEASUREMENT_HAS_CARRIER_PHASE) {
++            gnssData.measurements[i].carrierPhase = entry.carrier_phase;
++        } else {
++            gnssData.measurements[i].carrierPhase = 0;
++        }
++
++        if (entry.flags & GNSS_MEASUREMENT_HAS_CARRIER_PHASE_UNCERTAINTY) {
++            gnssData.measurements[i].carrierPhaseUncertainty = entry.carrier_phase_uncertainty;
++        } else {
++            gnssData.measurements[i].carrierPhaseUncertainty = 0;
++        }
++
++        gnssData.measurements[i].multipathIndicator =
++                static_cast<IGnssMeasurementCallback::GnssMultipathIndicator>(
++                        entry.multipath_indicator);
++
++        if (entry.flags & GNSS_MEASUREMENT_HAS_SNR) {
++            gnssData.measurements[i].snrDb = entry.snr_db;
++        } else {
++            gnssData.measurements[i].snrDb = 0;
++        }
++    }
++
++    auto clockVal = gpsData->clock;
++    static uint32_t discontinuity_count_to_handle_old_clock_type = 0;
++
++    gnssData.clock.leapSecond = clockVal.leap_second;
++    /*
++     * GnssClock only supports the more effective HW_CLOCK type, so type
++     * handling and documentation complexity has been removed.  To convert the
++     * old GPS_CLOCK types (active only in a limited number of older devices),
++     * the GPS time information is handled as an always discontinuous HW clock,
++     * with the GPS time information put into the full_bias_ns instead - so that
++     * time_ns - full_bias_ns = local estimate of GPS time. Additionally, the
++     * sign of full_bias_ns and bias_ns has flipped between GpsClock &
++     * GnssClock, so that is also handled below.
++     */
++    switch (clockVal.type) {
++        case GPS_CLOCK_TYPE_UNKNOWN:
++            // Clock type unsupported.
++            ALOGE("Unknown clock type provided.");
++            break;
++        case GPS_CLOCK_TYPE_LOCAL_HW_TIME:
++            // Already local hardware time. No need to do anything.
++            break;
++        case GPS_CLOCK_TYPE_GPS_TIME:
++            // GPS time, need to convert.
++            clockVal.flags |= GPS_CLOCK_HAS_FULL_BIAS;
++            clockVal.full_bias_ns = clockVal.time_ns;
++            clockVal.time_ns = 0;
++            gnssData.clock.hwClockDiscontinuityCount =
++                    discontinuity_count_to_handle_old_clock_type++;
++            break;
++    }
++
++    gnssData.clock.timeNs = clockVal.time_ns;
++    gnssData.clock.timeUncertaintyNs = clockVal.time_uncertainty_ns;
++    /*
++     * Definition of sign for full_bias_ns & bias_ns has been changed since N,
++     * so flip signs here.
++     */
++    gnssData.clock.fullBiasNs = -(clockVal.full_bias_ns);
++    gnssData.clock.biasNs = -(clockVal.bias_ns);
++    gnssData.clock.biasUncertaintyNs = clockVal.bias_uncertainty_ns;
++    gnssData.clock.driftNsps = clockVal.drift_nsps;
++    gnssData.clock.driftUncertaintyNsps = clockVal.drift_uncertainty_nsps;
++    gnssData.clock.gnssClockFlags = clockVal.flags;
++
++    auto ret = sGnssMeasureCbIface->GnssMeasurementCb(gnssData);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++// Methods from ::android::hardware::gnss::V1_0::IGnssMeasurement follow.
++Return<GnssMeasurement::GnssMeasurementStatus> GnssMeasurement::setCallback(
++        const sp<IGnssMeasurementCallback>& callback)  {
++    if (mGnssMeasureIface == nullptr) {
++        ALOGE("%s: GnssMeasure interface is unavailable", __func__);
++        return GnssMeasurementStatus::ERROR_GENERIC;
++    }
++    sGnssMeasureCbIface = callback;
++
++    return static_cast<GnssMeasurement::GnssMeasurementStatus>(
++            mGnssMeasureIface->init(&sGnssMeasurementCbs));
++}
++
++Return<void> GnssMeasurement::close()  {
++    if (mGnssMeasureIface == nullptr) {
++        ALOGE("%s: GnssMeasure interface is unavailable", __func__);
++    } else {
++        mGnssMeasureIface->close();
++    }
++    return Void();
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/GnssMeasurement.h b/gnss/1.0-legacy/GnssMeasurement.h
+new file mode 100644
+index 0000000..9ff1435
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssMeasurement.h
+@@ -0,0 +1,84 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef android_hardware_gnss_V1_0_GnssMeasurement_H_
++#define android_hardware_gnss_V1_0_GnssMeasurement_H_
++
++#include <ThreadCreationWrapper.h>
++#include <android/hardware/gnss/1.0/IGnssMeasurement.h>
++#include <hidl/Status.h>
++#include <hardware/gps.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::gnss::V1_0::IGnssMeasurement;
++using ::android::hardware::gnss::V1_0::IGnssMeasurementCallback;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::hidl_string;
++using ::android::sp;
++
++using LegacyGnssData = ::GnssData;
++
++/*
++ * Extended interface for GNSS Measurements support. Also contains wrapper methods to allow methods
++ * from IGnssMeasurementCallback interface to be passed into the conventional implementation of the
++ * GNSS HAL.
++ */
++struct GnssMeasurement : public IGnssMeasurement {
++    GnssMeasurement(const GpsMeasurementInterface* gpsMeasurementIface);
++
++    /*
++     * Methods from ::android::hardware::gnss::V1_0::IGnssMeasurement follow.
++     * These declarations were generated from IGnssMeasurement.hal.
++     */
++    Return<GnssMeasurementStatus> setCallback(
++        const sp<IGnssMeasurementCallback>& callback) override;
++    Return<void> close() override;
++
++    /*
++     * Callback methods to be passed into the conventional GNSS HAL by the default
++     * implementation. These methods are not part of the IGnssMeasurement base class.
++     */
++    static void gnssMeasurementCb(LegacyGnssData* data);
++     /*
++      * Deprecated callback added for backward compatibity for devices that do
++      * not support GnssData measurements.
++      */
++    static void gpsMeasurementCb(GpsData* data);
++
++    /*
++     * Holds function pointers to the callback methods.
++     */
++    static GpsMeasurementCallbacks sGnssMeasurementCbs;
++
++ private:
++    const GpsMeasurementInterface* mGnssMeasureIface = nullptr;
++    static sp<IGnssMeasurementCallback> sGnssMeasureCbIface;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif  // android_hardware_gnss_V1_0_GnssMeasurement_H_
+diff --git a/gnss/1.0-legacy/GnssNavigationMessage.cpp b/gnss/1.0-legacy/GnssNavigationMessage.cpp
+new file mode 100644
+index 0000000..6f509d0
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssNavigationMessage.cpp
+@@ -0,0 +1,95 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "GnssHAL_GnssNavigationMessageInterface"
++
++#include <log/log.h>
++
++#include "GnssNavigationMessage.h"
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++sp<IGnssNavigationMessageCallback> GnssNavigationMessage::sGnssNavigationMsgCbIface = nullptr;
++
++GpsNavigationMessageCallbacks GnssNavigationMessage::sGnssNavigationMessageCb = {
++    .size = sizeof(GpsNavigationMessageCallbacks),
++    .navigation_message_callback = nullptr,
++    .gnss_navigation_message_callback = gnssNavigationMessageCb
++};
++
++GnssNavigationMessage::GnssNavigationMessage(
++        const GpsNavigationMessageInterface* gpsNavigationMessageIface) :
++    mGnssNavigationMessageIface(gpsNavigationMessageIface) {}
++
++void GnssNavigationMessage::gnssNavigationMessageCb(LegacyGnssNavigationMessage* message) {
++    if (sGnssNavigationMsgCbIface == nullptr) {
++        ALOGE("%s: GnssNavigation Message Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (message == nullptr) {
++        ALOGE("%s, received invalid GnssNavigationMessage from GNSS HAL", __func__);
++        return;
++    }
++
++    IGnssNavigationMessageCallback::GnssNavigationMessage navigationMsg;
++
++    navigationMsg.svid = message->svid;
++    navigationMsg.type =
++            static_cast<IGnssNavigationMessageCallback::GnssNavigationMessageType>(message->type);
++    navigationMsg.status = message->status;
++    navigationMsg.messageId = message->message_id;
++    navigationMsg.submessageId = message->submessage_id;
++    navigationMsg.data.setToExternal(message->data, message->data_length);
++
++    auto ret = sGnssNavigationMsgCbIface->gnssNavigationMessageCb(navigationMsg);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++// Methods from ::android::hardware::gnss::V1_0::IGnssNavigationMessage follow.
++Return<GnssNavigationMessage::GnssNavigationMessageStatus> GnssNavigationMessage::setCallback(
++        const sp<IGnssNavigationMessageCallback>& callback)  {
++    if (mGnssNavigationMessageIface == nullptr) {
++        ALOGE("%s: GnssNavigationMessage not available", __func__);
++        return GnssNavigationMessageStatus::ERROR_GENERIC;
++    }
++
++    sGnssNavigationMsgCbIface = callback;
++
++    return static_cast<GnssNavigationMessage::GnssNavigationMessageStatus>(
++            mGnssNavigationMessageIface->init(&sGnssNavigationMessageCb));
++}
++
++Return<void> GnssNavigationMessage::close()  {
++    if (mGnssNavigationMessageIface == nullptr) {
++        ALOGE("%s: GnssNavigationMessage not available", __func__);
++    } else {
++        mGnssNavigationMessageIface->close();
++    }
++    return Void();
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/GnssNavigationMessage.h b/gnss/1.0-legacy/GnssNavigationMessage.h
+new file mode 100644
+index 0000000..882854b
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssNavigationMessage.h
+@@ -0,0 +1,77 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef android_hardware_gnss_V1_0_GnssNavigationMessage_H_
++#define android_hardware_gnss_V1_0_GnssNavigationMessage_H_
++
++#include <android/hardware/gnss/1.0/IGnssNavigationMessage.h>
++#include <hidl/Status.h>
++#include <hardware/gps.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::gnss::V1_0::IGnssNavigationMessage;
++using ::android::hardware::gnss::V1_0::IGnssNavigationMessageCallback;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::hidl_string;
++using ::android::sp;
++
++using LegacyGnssNavigationMessage = ::GnssNavigationMessage;
++
++/*
++ * Extended interface for GNSS navigation message reporting support. Also contains wrapper methods
++ * to allow methods from IGnssNavigationMessageCallback interface to be passed into the conventional
++ * implementation of the GNSS HAL.
++ */
++struct GnssNavigationMessage : public IGnssNavigationMessage {
++    GnssNavigationMessage(const GpsNavigationMessageInterface* gpsNavigationMessageIface);
++
++    /*
++     * Methods from ::android::hardware::gnss::V1_0::IGnssNavigationMessage follow.
++     * These declarations were generated from IGnssNavigationMessage.hal.
++     */
++    Return<GnssNavigationMessageStatus> setCallback(
++        const sp<IGnssNavigationMessageCallback>& callback) override;
++    Return<void> close() override;
++
++    /*
++     * Callback methods to be passed into the conventional GNSS HAL by the default implementation.
++     * These methods are not part of the IGnssNavigationMessage base class.
++     */
++    static void gnssNavigationMessageCb(LegacyGnssNavigationMessage* message);
++
++    /*
++     * Holds function pointers to the callback methods.
++     */
++    static GpsNavigationMessageCallbacks sGnssNavigationMessageCb;
++ private:
++    const GpsNavigationMessageInterface* mGnssNavigationMessageIface = nullptr;
++    static sp<IGnssNavigationMessageCallback> sGnssNavigationMsgCbIface;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif  // android_hardware_gnss_V1_0_GnssNavigationMessage_H_
+diff --git a/gnss/1.0-legacy/GnssNi.cpp b/gnss/1.0-legacy/GnssNi.cpp
+new file mode 100644
+index 0000000..d17891d
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssNi.cpp
+@@ -0,0 +1,109 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "GnssHAL_GnssNiInterface"
++
++#include "GnssNi.h"
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++std::vector<std::unique_ptr<ThreadFuncArgs>> GnssNi::sThreadFuncArgsList;
++sp<IGnssNiCallback> GnssNi::sGnssNiCbIface = nullptr;
++bool GnssNi::sInterfaceExists = false;
++
++GpsNiCallbacks GnssNi::sGnssNiCb = {
++    .notify_cb = niNotifyCb,
++    .create_thread_cb = createThreadCb
++};
++
++GnssNi::GnssNi(const GpsNiInterface* gpsNiIface) : mGnssNiIface(gpsNiIface) {
++    /* Error out if an instance of the interface already exists. */
++    LOG_ALWAYS_FATAL_IF(sInterfaceExists);
++    sInterfaceExists = true;
++}
++
++GnssNi::~GnssNi() {
++    sThreadFuncArgsList.clear();
++    sInterfaceExists = false;
++}
++
++pthread_t GnssNi::createThreadCb(const char* name, void (*start)(void*), void* arg) {
++    return createPthread(name, start, arg, &sThreadFuncArgsList);
++}
++
++void GnssNi::niNotifyCb(GpsNiNotification* notification) {
++    if (sGnssNiCbIface == nullptr) {
++        ALOGE("%s: GNSS NI Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    if (notification == nullptr) {
++        ALOGE("%s: Invalid GpsNotification callback from GNSS HAL", __func__);
++        return;
++    }
++
++    IGnssNiCallback::GnssNiNotification notificationGnss = {
++        .notificationId =  notification->notification_id,
++        .niType = static_cast<IGnssNiCallback::GnssNiType>(notification->ni_type),
++        .notifyFlags = notification->notify_flags,
++        .timeoutSec = static_cast<uint32_t>(notification->timeout),
++        .defaultResponse =
++                static_cast<IGnssNiCallback::GnssUserResponseType>(notification->default_response),
++        .requestorId = notification->requestor_id,
++        .notificationMessage = notification->text,
++        .requestorIdEncoding =
++                static_cast<IGnssNiCallback::GnssNiEncodingType>(notification->requestor_id_encoding),
++        .notificationIdEncoding =
++                static_cast<IGnssNiCallback::GnssNiEncodingType>(notification->text_encoding)
++    };
++
++    auto ret = sGnssNiCbIface->niNotifyCb(notificationGnss);
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++// Methods from ::android::hardware::gnss::V1_0::IGnssNi follow.
++Return<void> GnssNi::setCallback(const sp<IGnssNiCallback>& callback)  {
++    if (mGnssNiIface == nullptr) {
++       ALOGE("%s: GnssNi interface is unavailable", __func__);
++       return Void();
++    }
++
++    sGnssNiCbIface = callback;
++
++    mGnssNiIface->init(&sGnssNiCb);
++    return Void();
++}
++
++Return<void> GnssNi::respond(int32_t notifId, IGnssNiCallback::GnssUserResponseType userResponse)  {
++    if (mGnssNiIface == nullptr) {
++        ALOGE("%s: GnssNi interface is unavailable", __func__);
++    } else {
++        mGnssNiIface->respond(notifId, static_cast<GpsUserResponseType>(userResponse));
++    }
++    return Void();
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/GnssNi.h b/gnss/1.0-legacy/GnssNi.h
+new file mode 100644
+index 0000000..fe850b1
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssNi.h
+@@ -0,0 +1,81 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef android_hardware_gnss_V1_0_GnssNi_H_
++#define android_hardware_gnss_V1_0_GnssNi_H_
++
++#include <ThreadCreationWrapper.h>
++#include <android/hardware/gnss/1.0/IGnssNi.h>
++#include <hidl/Status.h>
++#include <hardware/gps.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::gnss::V1_0::IGnssNi;
++using ::android::hardware::gnss::V1_0::IGnssNiCallback;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::hidl_string;
++using ::android::sp;
++
++/*
++ * Extended interface for Network-initiated (NI) support. This interface is used to respond to
++ * NI notifications originating from the HAL. Also contains wrapper methods to allow methods from
++ * IGnssNiCallback interface to be passed into the conventional implementation of the GNSS HAL.
++ */
++struct GnssNi : public IGnssNi {
++    GnssNi(const GpsNiInterface* gpsNiIface);
++    ~GnssNi();
++
++    /*
++     * Methods from ::android::hardware::gnss::V1_0::IGnssNi follow.
++     * These declarations were generated from IGnssNi.hal.
++     */
++    Return<void> setCallback(const sp<IGnssNiCallback>& callback) override;
++    Return<void> respond(int32_t notifId,
++                         IGnssNiCallback::GnssUserResponseType userResponse) override;
++
++    /*
++     * Callback methods to be passed into the conventional GNSS HAL by the default
++     * implementation. These methods are not part of the IGnssNi base class.
++     */
++    static pthread_t createThreadCb(const char* name, void (*start)(void*), void* arg);
++    static void niNotifyCb(GpsNiNotification* notification);
++
++    /*
++     * Holds function pointers to the callback methods.
++     */
++    static GpsNiCallbacks sGnssNiCb;
++
++ private:
++    const GpsNiInterface* mGnssNiIface = nullptr;
++    static sp<IGnssNiCallback> sGnssNiCbIface;
++    static std::vector<std::unique_ptr<ThreadFuncArgs>> sThreadFuncArgsList;
++    static bool sInterfaceExists;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif  // android_hardware_gnss_V1_0_GnssNi_H_
+diff --git a/gnss/1.0-legacy/GnssUtils.cpp b/gnss/1.0-legacy/GnssUtils.cpp
+new file mode 100644
+index 0000000..4514a21
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssUtils.cpp
+@@ -0,0 +1,93 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include "GnssUtils.h"
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using android::hardware::gnss::V1_0::GnssLocation;
++
++GnssLocation convertToGnssLocation(GpsLocation* location) {
++    GnssLocation gnssLocation = {};
++    if (location != nullptr) {
++        gnssLocation = {
++            // Bit operation AND with 1f below is needed to clear vertical accuracy,
++            // speed accuracy and bearing accuracy flags as some vendors are found
++            // to be setting these bits in pre-Android-O devices
++            .gnssLocationFlags = static_cast<uint16_t>(location->flags & 0x1f),
++            .latitudeDegrees = location->latitude,
++            .longitudeDegrees = location->longitude,
++            .altitudeMeters = location->altitude,
++            .speedMetersPerSec = location->speed,
++            .bearingDegrees = location->bearing,
++            .horizontalAccuracyMeters = location->accuracy,
++            // Older chipsets do not provide the following 3 fields, hence the flags
++            // HAS_VERTICAL_ACCURACY, HAS_SPEED_ACCURACY and HAS_BEARING_ACCURACY are
++            // not set and the field are set to zeros.
++            .verticalAccuracyMeters = 0,
++            .speedAccuracyMetersPerSecond = 0,
++            .bearingAccuracyDegrees = 0,
++            .timestamp = location->timestamp
++        };
++    }
++
++    return gnssLocation;
++}
++
++GnssLocation convertToGnssLocation(FlpLocation* flpLocation) {
++    GnssLocation gnssLocation = {};
++    if (flpLocation != nullptr) {
++        gnssLocation = {.gnssLocationFlags = 0,  // clear here and set below
++                        .latitudeDegrees = flpLocation->latitude,
++                        .longitudeDegrees = flpLocation->longitude,
++                        .altitudeMeters = flpLocation->altitude,
++                        .speedMetersPerSec = flpLocation->speed,
++                        .bearingDegrees = flpLocation->bearing,
++                        .horizontalAccuracyMeters = flpLocation->accuracy,
++                        .verticalAccuracyMeters = 0,
++                        .speedAccuracyMetersPerSecond = 0,
++                        .bearingAccuracyDegrees = 0,
++                        .timestamp = flpLocation->timestamp};
++        // FlpLocation flags different from GnssLocation flags
++        if (flpLocation->flags & FLP_LOCATION_HAS_LAT_LONG) {
++            gnssLocation.gnssLocationFlags |= GPS_LOCATION_HAS_LAT_LONG;
++        }
++        if (flpLocation->flags & FLP_LOCATION_HAS_ALTITUDE) {
++            gnssLocation.gnssLocationFlags |= GPS_LOCATION_HAS_ALTITUDE;
++        }
++        if (flpLocation->flags & FLP_LOCATION_HAS_SPEED) {
++            gnssLocation.gnssLocationFlags |= GPS_LOCATION_HAS_SPEED;
++        }
++        if (flpLocation->flags & FLP_LOCATION_HAS_BEARING) {
++            gnssLocation.gnssLocationFlags |= GPS_LOCATION_HAS_BEARING;
++        }
++        if (flpLocation->flags & FLP_LOCATION_HAS_ACCURACY) {
++            gnssLocation.gnssLocationFlags |= GPS_LOCATION_HAS_HORIZONTAL_ACCURACY;
++        }
++    }
++
++    return gnssLocation;
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/GnssUtils.h b/gnss/1.0-legacy/GnssUtils.h
+new file mode 100644
+index 0000000..38d4b2d
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssUtils.h
+@@ -0,0 +1,47 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#ifndef android_hardware_gnss_V1_0_GnssUtil_H_
++#define android_hardware_gnss_V1_0_GnssUtil_H_
++
++#include <hardware/fused_location.h>
++#include <hardware/gps.h>
++#include <android/hardware/gnss/1.0/types.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++/*
++ * This method converts a GpsLocation struct to a GnssLocation
++ * struct.
++ */
++GnssLocation convertToGnssLocation(GpsLocation* location);
++
++/*
++ * This method converts an FlpLocation struct to a GnssLocation
++ * struct.
++ */
++GnssLocation convertToGnssLocation(FlpLocation* location);
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif
+diff --git a/gnss/1.0-legacy/GnssXtra.cpp b/gnss/1.0-legacy/GnssXtra.cpp
+new file mode 100644
+index 0000000..d124ce1
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssXtra.cpp
+@@ -0,0 +1,95 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#define LOG_TAG "GnssHAL_GnssXtraInterface"
++
++#include "GnssXtra.h"
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++std::vector<std::unique_ptr<ThreadFuncArgs>> GnssXtra::sThreadFuncArgsList;
++sp<IGnssXtraCallback> GnssXtra::sGnssXtraCbIface = nullptr;
++bool GnssXtra::sInterfaceExists = false;
++
++GpsXtraCallbacks GnssXtra::sGnssXtraCb = {
++    .download_request_cb = gnssXtraDownloadRequestCb,
++    .create_thread_cb = createThreadCb,
++};
++
++GnssXtra::~GnssXtra() {
++    sThreadFuncArgsList.clear();
++    sInterfaceExists = false;
++}
++
++pthread_t GnssXtra::createThreadCb(const char* name, void (*start)(void*), void* arg) {
++    return createPthread(name, start, arg, &sThreadFuncArgsList);
++}
++
++GnssXtra::GnssXtra(const GpsXtraInterface* xtraIface) : mGnssXtraIface(xtraIface) {
++    /* Error out if an instance of the interface already exists. */
++    LOG_ALWAYS_FATAL_IF(sInterfaceExists);
++    sInterfaceExists = true;
++}
++
++void GnssXtra::gnssXtraDownloadRequestCb() {
++    if (sGnssXtraCbIface == nullptr) {
++        ALOGE("%s: GNSS Callback Interface configured incorrectly", __func__);
++        return;
++    }
++
++    auto ret = sGnssXtraCbIface->downloadRequestCb();
++    if (!ret.isOk()) {
++        ALOGE("%s: Unable to invoke callback", __func__);
++    }
++}
++
++// Methods from ::android::hardware::gnss::V1_0::IGnssXtra follow.
++Return<bool> GnssXtra::setCallback(const sp<IGnssXtraCallback>& callback)  {
++    if (mGnssXtraIface == nullptr) {
++        ALOGE("%s: Gnss Xtra interface is unavailable", __func__);
++        return false;
++    }
++
++    sGnssXtraCbIface = callback;
++
++    return (mGnssXtraIface->init(&sGnssXtraCb) == 0);
++}
++
++Return<bool> GnssXtra::injectXtraData(const hidl_string& xtraData)  {
++    if (mGnssXtraIface == nullptr) {
++        ALOGE("%s: Gnss Xtra interface is unavailable", __func__);
++        return false;
++    }
++
++    char* buf = new char[xtraData.size()];
++    const char* data = xtraData.c_str();
++
++    memcpy(buf, data, xtraData.size());
++
++    int ret = mGnssXtraIface->inject_xtra_data(buf, xtraData.size());
++    delete[] buf;
++    return (ret == 0);
++}
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
+diff --git a/gnss/1.0-legacy/GnssXtra.h b/gnss/1.0-legacy/GnssXtra.h
+new file mode 100644
+index 0000000..7a0733a
+--- /dev/null
++++ b/gnss/1.0-legacy/GnssXtra.h
+@@ -0,0 +1,80 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef android_hardware_gnss_V1_0_GnssXtra_H_
++#define android_hardware_gnss_V1_0_GnssXtra_H_
++
++#include <ThreadCreationWrapper.h>
++#include <android/hardware/gnss/1.0/IGnssXtra.h>
++#include <hardware/gps.h>
++#include <hidl/Status.h>
++
++namespace android {
++namespace hardware {
++namespace gnss {
++namespace V1_0 {
++namespace implementation {
++
++using ::android::hardware::gnss::V1_0::IGnssXtra;
++using ::android::hardware::gnss::V1_0::IGnssXtraCallback;
++using ::android::hardware::Return;
++using ::android::hardware::Void;
++using ::android::hardware::hidl_vec;
++using ::android::hardware::hidl_string;
++using ::android::sp;
++
++/*
++ * This interface is used by the GNSS HAL to request the framework to download XTRA data.
++ * Also contains wrapper methods to allow methods from IGnssXtraCallback interface to be passed
++ * into the conventional implementation of the GNSS HAL.
++ */
++struct GnssXtra : public IGnssXtra {
++    GnssXtra(const GpsXtraInterface* xtraIface);
++    ~GnssXtra();
++
++    /*
++     * Methods from ::android::hardware::gnss::V1_0::IGnssXtra follow.
++     * These declarations were generated from IGnssXtra.hal.
++     */
++    Return<bool> setCallback(const sp<IGnssXtraCallback>& callback) override;
++    Return<bool> injectXtraData(const hidl_string& xtraData) override;
++
++    /*
++     * Callback methods to be passed into the conventional GNSS HAL by the default implementation.
++     * These methods are not part of the IGnssXtra base class.
++     */
++    static pthread_t createThreadCb(const char* name, void (*start)(void*), void* arg);
++    static void gnssXtraDownloadRequestCb();
++
++    /*
++     * Holds function pointers to the callback methods.
++     */
++    static GpsXtraCallbacks sGnssXtraCb;
++
++ private:
++    const GpsXtraInterface* mGnssXtraIface = nullptr;
++    static sp<IGnssXtraCallback> sGnssXtraCbIface;
++    static std::vector<std::unique_ptr<ThreadFuncArgs>> sThreadFuncArgsList;
++    static bool sInterfaceExists;
++};
++
++}  // namespace implementation
++}  // namespace V1_0
++}  // namespace gnss
++}  // namespace hardware
++}  // namespace android
++
++#endif  // android_hardware_gnss_V1_0_GnssXtra_H_
+diff --git a/gnss/1.0-legacy/OWNERS b/gnss/1.0-legacy/OWNERS
+new file mode 100644
+index 0000000..6c25bd7
+--- /dev/null
++++ b/gnss/1.0-legacy/OWNERS
+@@ -0,0 +1,3 @@
++wyattriley@google.com
++gomo@google.com
++smalkos@google.com
+diff --git a/gnss/1.0-legacy/ThreadCreationWrapper.cpp b/gnss/1.0-legacy/ThreadCreationWrapper.cpp
+new file mode 100644
+index 0000000..2a5638f
+--- /dev/null
++++ b/gnss/1.0-legacy/ThreadCreationWrapper.cpp
+@@ -0,0 +1,42 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <ThreadCreationWrapper.h>
++
++void* threadFunc(void* arg) {
++    ThreadFuncArgs* threadArgs = reinterpret_cast<ThreadFuncArgs*>(arg);
++    threadArgs->fptr(threadArgs->args);
++    return nullptr;
++}
++
++pthread_t createPthread(const char* name,
++                        void (*start)(void*),
++                        void* arg, std::vector<std::unique_ptr<ThreadFuncArgs>> * listArgs) {
++    pthread_t threadId;
++    auto threadArgs = new ThreadFuncArgs(start, arg);
++    auto argPtr = std::unique_ptr<ThreadFuncArgs>(threadArgs);
++
++    listArgs->push_back(std::move(argPtr));
++
++    int ret = pthread_create(&threadId, nullptr, threadFunc, reinterpret_cast<void*>(
++            threadArgs));
++    if (ret != 0) {
++        ALOGE("pthread creation unsuccessful");
++    } else {
++        pthread_setname_np(threadId, name);
++    }
++    return threadId;
++}
+diff --git a/gnss/1.0-legacy/ThreadCreationWrapper.h b/gnss/1.0-legacy/ThreadCreationWrapper.h
+new file mode 100644
+index 0000000..f401ce2
+--- /dev/null
++++ b/gnss/1.0-legacy/ThreadCreationWrapper.h
+@@ -0,0 +1,58 @@
++/*
++ * Copyright (C) 2016 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef ANDROID_HARDWARE_GNSS_THREADCREATIONWRAPPER_H
++#define ANDROID_HARDWARE_GNSS_THREADCREATIONWRAPPER_H
++
++#include <log/log.h>
++#include <pthread.h>
++#include <vector>
++
++typedef void (*threadEntryFunc)(void* ret);
++
++/*
++ * This class facilitates createThreadCb methods in various GNSS interfaces to wrap
++ * pthread_create() from libc since its function signature differs from what is required by the
++ * conventional GNSS HAL. The arguments passed to pthread_create() need to be on heap and not on
++ * the stack of createThreadCb.
++ */
++struct ThreadFuncArgs {
++    ThreadFuncArgs(void (*start)(void*), void* arg) : fptr(start), args(arg) {}
++
++    /* pointer to the function of type void()(void*) that needs to be wrapped */
++    threadEntryFunc fptr;
++    /* argument for fptr to be called with */
++    void* args;
++};
++
++/*
++ * This method is simply a wrapper. It is required since pthread_create() requires an entry
++ * function pointer of type void*()(void*) and the GNSS hal requires as input a function pointer of
++ * type void()(void*).
++ */
++void* threadFunc(void* arg);
++
++/*
++ * This method is called by createThreadCb with a pointer to the vector that
++ * holds the pointers to the thread arguments. The arg and start parameters are
++ * first used to create a ThreadFuncArgs object which is then saved in the
++ * listArgs parameters. The created ThreadFuncArgs object is then used to invoke
++ * threadFunc() method which in-turn invokes pthread_create.
++ */
++pthread_t createPthread(const char* name, void (*start)(void*), void* arg,
++                        std::vector<std::unique_ptr<ThreadFuncArgs>> * listArgs);
++
++#endif
+diff --git a/gnss/1.0-legacy/android.hardware.gnss@1.0-service.legacy.rc b/gnss/1.0-legacy/android.hardware.gnss@1.0-service.legacy.rc
+new file mode 100644
+index 0000000..a696c59
+--- /dev/null
++++ b/gnss/1.0-legacy/android.hardware.gnss@1.0-service.legacy.rc
+@@ -0,0 +1,5 @@
++service vendor.gnss_service /vendor/bin/hw/android.hardware.gnss@1.0-service.legacy
++    interface android.hardware.gnss@1.0::IGnss default
++    class hal
++    user gps
++    group system gps radio
+diff --git a/gnss/1.0-legacy/service.cpp b/gnss/1.0-legacy/service.cpp
+new file mode 100644
+index 0000000..9771fbb
+--- /dev/null
++++ b/gnss/1.0-legacy/service.cpp
+@@ -0,0 +1,17 @@
++#define LOG_TAG "android.hardware.gnss@1.0-service.legacy"
++
++#include <android/hardware/gnss/1.0/IGnss.h>
++
++#include <hidl/LegacySupport.h>
++
++#include <binder/ProcessState.h>
++
++using android::hardware::gnss::V1_0::IGnss;
++using android::hardware::defaultPassthroughServiceImplementation;
++
++int main() {
++    // The GNSS HAL may communicate to other vendor components via
++    // /dev/vndbinder
++    android::ProcessState::initWithDriver("/dev/vndbinder");
++    return defaultPassthroughServiceImplementation<IGnss>();
++}
+-- 
+2.54.0
+
