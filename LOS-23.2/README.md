@@ -140,6 +140,20 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   memcg setup, and make a failure to create a process's cgroup a logged
   error instead of a reason not to start it (LOS-20.0 `system_core` 0002 is
   part of `system_core` 0002).
+- **Camera HAL v1** (`frameworks_av`, `frameworks_base` 0004-0006,
+  `system_core` 0005, `device_lineage_sepolicy`): the camera blob only
+  speaks the HAL v1 API, which AOSP removed. These are the gts210wifi
+  patches that restore HALv1 in cameraserver (or, with
+  `$(call soong_config_set_bool,camera_hal1,no_cameraserver,true)`, in
+  mediaserver), the old recording path, the camera extensions and formats,
+  and the HALv1 sepolicy. They replace the LOS-20.0 `frameworks_av`
+  0001-0022 and camera reverts in `frameworks_base`, and
+  `TARGET_HAS_LEGACY_CAMERA_HAL1` (`vendor_lineage` 0006). From LOS-20.0
+  only `frameworks_av` 0030 (no crash on a NULL camera parameter) is kept;
+  0025 (custom `CameraParameters` library) is unused by this device, 0035
+  (64-bit buffer usage) is upstream, and 0032 and 0045 are for legacy
+  Qualcomm devices only. The camera packages are still commented out in
+  `galaxys2-common`.
 
 ## Status
 

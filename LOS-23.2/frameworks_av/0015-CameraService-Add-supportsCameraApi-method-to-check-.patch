@@ -1,0 +1,132 @@
+From 66ccec39e1edfcd4abd8151797b5c4848369f7fb Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 4 Jul 2026 22:22:30 +0200
+Subject: [PATCH 15/16] CameraService: Add supportsCameraApi method to check
+ camera API support
+
+Change-Id: I74b186245bfdff20e754c091758b4216bfbf7cad
+---
+ .../aidl/android/hardware/ICameraService.aidl | 17 +++++
+ .../camera/libcameraservice/CameraService.cpp | 62 +++++++++++++++++++
+ .../camera/libcameraservice/CameraService.h   |  4 ++
+ 3 files changed, 83 insertions(+)
+
+diff --git a/camera/aidl/android/hardware/ICameraService.aidl b/camera/aidl/android/hardware/ICameraService.aidl
+index 7a4b9f8585..7071a6f505 100644
+--- a/camera/aidl/android/hardware/ICameraService.aidl
++++ b/camera/aidl/android/hardware/ICameraService.aidl
+@@ -140,6 +140,23 @@ interface ICameraService
+             in AttributionSourceState clientAttribution,
+             int devicePolicy);
+ 
++    /**
++     * apiVersion constants for supportsCameraApi
++     */
++    const int API_VERSION_1 = 1;
++    const int API_VERSION_2 = 2;
++
++    /**
++     * Determine whether a camera device supports a given camera API directly, without needing
++     * to go through a compatibility shim.
++     *
++     * @param cameraId The ID of the camera device to query.
++     * @param apiVersion The API version to query for, i.e. {@link ICameraService#API_VERSION_1}
++     *        or {@link ICameraService#API_VERSION_2}.
++     * @return Whether the camera device backing cameraId supports apiVersion directly.
++     */
++    boolean supportsCameraApi(@utf8InCpp String cameraId, int apiVersion);
++
+     /**
+      * Open a camera device through the new camera API.
+      * Only supported for device HAL versions >= 3.2.
+diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
+index 8c9781024b..3df040c815 100644
+--- a/services/camera/libcameraservice/CameraService.cpp
++++ b/services/camera/libcameraservice/CameraService.cpp
+@@ -2411,6 +2411,68 @@ bool CameraService::shouldRejectSystemCameraConnection(const std::string& camera
+     return false;
+ }
+ 
++Status CameraService::supportsCameraApi(const std::string& unresolvedCameraId, int32_t apiVersion,
++        /*out*/ bool* isSupported) {
++    ATRACE_CALL();
++    ALOGV("%s: for camera ID = %s, apiVersion = %d", __FUNCTION__, unresolvedCameraId.c_str(),
++            apiVersion);
++
++    switch (apiVersion) {
++        case hardware::ICameraService::API_VERSION_1:
++        case hardware::ICameraService::API_VERSION_2:
++            break;
++        default:
++            std::string msg = fmt::sprintf("Unknown API version %d", apiVersion);
++            ALOGE("%s: %s", __FUNCTION__, msg.c_str());
++            return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT, msg.c_str());
++    }
++
++    Mutex::Autolock l(mServiceLock);
++
++    std::optional<std::string> cameraIdOptional = resolveCameraId(unresolvedCameraId,
++            /*deviceId*/ kDefaultDeviceId, IVirtualDeviceManagerNative::DEVICE_POLICY_DEFAULT);
++    if (!cameraIdOptional.has_value()) {
++        std::string msg = fmt::sprintf("Camera %s: Invalid camera id",
++                unresolvedCameraId.c_str());
++        ALOGE("%s: %s", __FUNCTION__, msg.c_str());
++        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT, msg.c_str());
++    }
++    std::string cameraId = cameraIdOptional.value();
++
++    if (shouldRejectSystemCameraConnection(cameraId)) {
++        return STATUS_ERROR_FMT(ERROR_DISCONNECTED,
++                "No camera device with ID \"%s\" currently available", cameraId.c_str());
++    }
++
++    int portraitRotation;
++    int deviceVersion = getDeviceVersion(cameraId,
++            CameraCompatibilityInfo(), &portraitRotation).first;
++
++    switch (deviceVersion) {
++        case CAMERA_DEVICE_API_VERSION_1_0:
++            *isSupported = (apiVersion == hardware::ICameraService::API_VERSION_1);
++            break;
++        case CAMERA_DEVICE_API_VERSION_3_0:
++        case CAMERA_DEVICE_API_VERSION_3_1:
++        case CAMERA_DEVICE_API_VERSION_3_2:
++        case CAMERA_DEVICE_API_VERSION_3_3:
++        case CAMERA_DEVICE_API_VERSION_3_4:
++        case CAMERA_DEVICE_API_VERSION_3_5:
++        case CAMERA_DEVICE_API_VERSION_3_6:
++        case CAMERA_DEVICE_API_VERSION_3_7:
++            *isSupported = (apiVersion == hardware::ICameraService::API_VERSION_2);
++            break;
++        default: {
++            std::string msg = fmt::sprintf("Unknown device version %x for device %s",
++                    deviceVersion, cameraId.c_str());
++            ALOGE("%s: %s", __FUNCTION__, msg.c_str());
++            return STATUS_ERROR(ERROR_INVALID_OPERATION, msg.c_str());
++        }
++    }
++
++    return Status::ok();
++}
++
+ Status CameraService::connectDevice(
+         const sp<hardware::camera2::ICameraDeviceCallbacks>& cameraCb,
+         const std::string& unresolvedCameraId,
+diff --git a/services/camera/libcameraservice/CameraService.h b/services/camera/libcameraservice/CameraService.h
+index f7f6694160..5df59127a5 100644
+--- a/services/camera/libcameraservice/CameraService.h
++++ b/services/camera/libcameraservice/CameraService.h
+@@ -186,6 +186,10 @@ public:
+             /*out*/
+             sp<hardware::ICamera>* device);
+ 
++    virtual binder::Status     supportsCameraApi(const std::string& cameraId, int32_t apiVersion,
++            /*out*/
++            bool* isSupported);
++
+     virtual binder::Status     connectDevice(
+             const sp<hardware::camera2::ICameraDeviceCallbacks>& cameraCb,
+             const std::string& cameraId, int scoreOffset, int targetSdkVersion,
+-- 
+2.54.0
+

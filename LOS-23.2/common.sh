@@ -13,7 +13,9 @@
 PATCHED_REPOS=(
     "art                              art"
     "bionic                           bionic"
+    "device/lineage/sepolicy          device_lineage_sepolicy"
     "external/perfetto                external_perfetto"
+    "frameworks/av                    frameworks_av"
     "frameworks/base                  frameworks_base"
     "packages/modules/Connectivity    packages_modules_Connectivity"
     "packages/modules/DnsResolver     packages_modules_DnsResolver"
