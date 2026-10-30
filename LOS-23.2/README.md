@@ -135,6 +135,11 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   `external_perfetto` and `vendor_lineage` 0005). Bitmaps sent to other
   processes keep using ashmem, because the legacy memfd broke apps such as
   YouTube ("Could not copy bitmap to parcel blob").
+- **cgroup v1-only kernel** (`system_core`, `frameworks_base`, `system_netd`
+  0003): the kernel has no cgroup v2. These revert the v2-only freezer and
+  memcg setup, and make a failure to create a process's cgroup a logged
+  error instead of a reason not to start it (LOS-20.0 `system_core` 0002 is
+  part of `system_core` 0002).
 
 ## Status
 
