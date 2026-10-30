@@ -28,6 +28,7 @@ PATCHED_REPOS=(
     "packages/modules/NetworkStack    packages_modules_NetworkStack"
     "system/bpf                       system_bpf"
     "system/core                      system_core"
+    "system/libhwbinder               system_libhwbinder"
     "system/linkerconfig              system_linkerconfig"
     "system/netd                      system_netd"
     "vendor/lineage                   vendor_lineage"

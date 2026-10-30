@@ -236,6 +236,24 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   `prebuilts/tools-lineage`, so the gts210wifi xz patches aren't needed.
   The LOS-20.0 `vendor_lineage` 0003-0006 are replaced by Soong config
   variables (see above).
+- **Smaller fixes** (`system_libhwbinder`, `system_core` 0006):
+  - libhwbinder logs an error instead of aborting when a process shrinks its
+    thread pool, as `libbinder` does (`frameworks_native` 0001);
+  - in the off-mode charger, the home button also wakes the screen.
+
+## LOS-20.0 patches that are no longer needed
+
+- **Audio** (`frameworks_av` 0024, `hardware_interfaces` 0001-0002): the
+  device now uses the audio HAL 7.0, which 23.2 still supports, through
+  `hardware/samsung`'s own legacy audio service. The 2.0 HAL and the
+  changes to the default audio service aren't needed.
+- **Battery life extender** (`hardware_lineage_interfaces` 0009,
+  `packages_apps_Settings`, `device_lineage_sepolicy`): `galaxys2-common`
+  lineage-21.0 doesn't ship that HAL. LineageOS's own Charging control
+  (health HAL with `charge_start_level`/`charge_stop_level` in the kernel),
+  as on herolte, would replace it.
+- **`packages_modules_Permission`** 0001-0002: the second patch reverts the
+  first.
 
 ## Status
 
