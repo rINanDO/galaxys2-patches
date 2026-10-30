@@ -173,6 +173,30 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   camera device it fixes no longer exists), and 0006-0008 (the Lineage power
   HAL 1.0 and the in-screen fingerprint HAL, which nothing in this device
   uses; the HIDL power HAL 1.0 is still in AOSP).
+- **Framework tweaks for this device** (`frameworks_base` 0008-0012, from
+  LOS-20.0 `frameworks_base` 0013-0023):
+  - no warning dialogs about a vendor mismatch or an app's old target SDK;
+  - `config_useSystemClockforRotationSensor`: auto-rotate uses the system
+    clock instead of the sensor event timestamp, which is far off after
+    deep sleep on old sensor libraries;
+  - `storage.xml` is written as text XML, which TWRP can read;
+  - aggressive trimming of cached and empty apps on devices with less than
+    1 GB RAM (`ro.vendor.qti.sys.fw.*` properties). The number of cached
+    apps is now set with the `config_customizedMaxCachedProcesses` overlay
+    instead of `ro.vendor.qti.sys.fw.bg_apps_limit`.
+
+  Replaced by settings that 23.2 already has, to be set in the device
+  tree:
+  - 0017 (brightness slider curve): `sys.brightness.disable_gamma_conversion=true`;
+  - 0021 (`ro.displaypower.colorfade`): the `config_displayColorFadeDisabled`
+    overlay. 0020 (ColorFade EGL crash) isn't needed while ColorFade is
+    off.
+
+  Not ported: 0013 (this device has no fingerprint or face sensor), 0014
+  (ignore a `SensorPrivacyService` permission error, a hack with an unknown
+  cause; port it again if the error shows up), 0019 (hwui reset to
+  Android 13) and 0008 (CameraServiceProxy accepting calls from
+  mediaserver; revisit once the camera is enabled).
 - **frameworks/native** (`frameworks_native`), the same patches as
   gts210wifi:
   - `gpuservice` is disabled, because its GPU memory accounting needs BPF
