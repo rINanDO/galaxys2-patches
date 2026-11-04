@@ -88,9 +88,10 @@ aborts that and resets the patched repos with `repo sync`.
 - Device, kernel, hardware and vendor repos are forks listed in
   `galaxys2-23.2.xml`. None of them has a `lineage-23.2` branch yet, so the
   manifest uses the newest branch each fork has: `lineage-21.0` for the device
-  trees and `hardware/samsung` (its `lineage-23.2` branch no longer has the
-  exynos4 HALs), and `lineage-20.0` for the kernel, the GCC 4.9 toolchain and
-  `vendor/samsung` (the only branch with the i9100 blobs).
+  trees, and `lineage-20.0` for the kernel, the GCC 4.9 toolchain and
+  `vendor/samsung` (the only branch with the i9100 blobs). `hardware/samsung`
+  uses `lineage-23.2-exynos4`, because its `lineage-23.2` branch no longer has
+  the exynos4 HALs.
 
 ## What the patches address
 
