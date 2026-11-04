@@ -86,12 +86,11 @@ aborts that and resets the patched repos with `repo sync`.
   in the matching directory, named after the repo path (`frameworks_av` for
   `frameworks/av`).
 - Device, kernel, hardware and vendor repos are forks listed in
-  `galaxys2-23.2.xml`. None of them has a `lineage-23.2` branch yet, so the
-  manifest uses the newest branch each fork has: `lineage-21.0` for the device
-  trees, and `lineage-20.0` for the kernel, the GCC 4.9 toolchain and
-  `vendor/samsung` (the only branch with the i9100 blobs). `hardware/samsung`
-  uses `lineage-23.2-exynos4`, because its `lineage-23.2` branch no longer has
-  the exynos4 HALs.
+  `galaxys2-23.2.xml`. The device trees and the kernel use `lineage-23.2`.
+  `hardware/samsung` uses `lineage-23.2-exynos4`, because its `lineage-23.2`
+  branch no longer has the exynos4 HALs. The GCC 4.9 toolchain and
+  `vendor/samsung` stay on `lineage-20.0` (the only branch with the i9100
+  blobs).
 
 ## What the patches address
 
