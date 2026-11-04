@@ -107,6 +107,8 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   this kernel lacks. These replace the LOS-20.0 `system_bpf`, `system_netd`
   0001, `packages_modules_Connectivity`, `packages_modules_NetworkStack` and
   `frameworks_libs_net` patches (that library is part of Connectivity now).
+  `packages_modules_Connectivity` 0009 makes the loaders stop at once when
+  the kernel has no bpf() syscall, which starts zygote ~1.4 s earlier.
 - **Mobile data with the Samsung RIL** (`system_netd` 0004): netd can add a
   rule for the kernel's directly-connected routes, without which IPv4 mobile
   data has no default route. Enable it in the device tree with
