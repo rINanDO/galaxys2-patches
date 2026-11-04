@@ -153,8 +153,13 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   only `frameworks_av` 0030 (no crash on a NULL camera parameter) is kept;
   0025 (custom `CameraParameters` library) is unused by this device, 0035
   (64-bit buffer usage) is upstream, and 0032 and 0045 are for legacy
-  Qualcomm devices only. The camera packages are still commented out in
-  `galaxys2-common`.
+  Qualcomm devices only.
+  `frameworks_base` 0014-0015 adapt the camera2 legacy shim for camera2
+  apps: 0014 keeps the 1280x720 preview size (the M5MO has no 4:3 preview
+  size above 640x480), and 0015 renders encoder surfaces as BGRA so the SEC
+  encoder can convert them on FIMC (`hardware/samsung`). `galaxys2-common`
+  ships Open Camera instead of Aperture: with the old camera API, recording
+  is zero-copy from the HAL's FIMC2 buffers to MFC and offers 1080p.
 - **Legacy HIDL HALs** (`hardware_lineage_interfaces`,
   `hardware_libhardware_legacy`, `device_lineage_sepolicy` 0002-0003,
   `frameworks_base` 0007), the same patches as gts210wifi:
