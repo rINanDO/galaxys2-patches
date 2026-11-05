@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+
+  <!-- DEVICES -->
+  <project name="rINanDO/android_device_samsung_galaxys2-common" path="device/samsung/galaxys2-common" remote="github" revision="lineage-20.0" />
+  <project name="rINanDO/android_device_samsung_i9100" path="device/samsung/i9100" remote="github" revision="lineage-20.0" />
+
+  <!-- KERNEL (shared with the Galaxy S3) -->
+  <project name="rINanDO/android_kernel_samsung_smdk4412" path="kernel/samsung/smdk4412" remote="github" revision="lineage-20.0" />
+
+  <!-- TOOLCHAIN: GCC 4.9 for the kernel -->
+  <remove-project name="LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9" />
+  <project name="rINanDO/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9" path="prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9" remote="github" revision="lineage-20.0" />
+
+  <!-- HARDWARE -->
+  <project name="rINanDO/android_hardware_samsung" path="hardware/samsung" remote="github" revision="lineage-20.0" />
+
+  <!-- VENDOR -->
+  <project name="rINanDO/proprietary_vendor_samsung" path="vendor/samsung" remote="github" revision="lineage-20.0" />
+
+</manifest>
