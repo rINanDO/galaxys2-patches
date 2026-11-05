@@ -205,6 +205,13 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   cause; port it again if the error shows up), 0019 (hwui reset to
   Android 13) and 0008 (CameraServiceProxy accepting calls from
   mediaserver; revisit once the camera is enabled).
+- **Hardware Menu key** (`frameworks_base` 0016): Lineage's key rebinding
+  makes `KeyGestureController` skip `KEYCODE_MENU` and `KEYCODE_ASSIST`.
+  In 23.2 that also skips `PhoneWindowManager`, so the Menu key's press and
+  long press actions never ran (holding Menu didn't open recent apps). The
+  keys now go on to `PhoneWindowManager` like the other keys. The kernel
+  side (touch key reported as released when its LED is switched) is fixed
+  in `kernel/samsung/smdk4412`.
 - **frameworks/native** (`frameworks_native`), the same patches as
   gts210wifi:
   - `gpuservice` is disabled, because its GPU memory accounting needs BPF
