@@ -12,7 +12,7 @@
 #   -f, --force    discard uncommitted changes and unpushed commits instead of
 #                  stopping (they can't be recovered afterwards)
 #   --fetch        fetch from the network while syncing (default: local only)
-#   --keep FILE    leave .repo/local_manifests/FILE in place (used by setup.sh)
+#   --keep FILE    leave .repo/local_manifests/FILE in place
 #   --no-sync      do everything except the final `repo sync` (used by setup.sh)
 #   -h, --help     show this help
 #
@@ -102,7 +102,7 @@ exit 0
 '
 scan_err=$(mktemp)
 scan_out=$(repo forall -j "$(nproc)" -c "$scan" 2> "$scan_err" | sort) \
-    || { cat "$scan_err" >&2; rm -f "$scan_err"; die "scanning projects with repo forall failed"; }
+    || { cat "$scan_err" >&2; rm -f "$scan_err"; die "scanning projects with repo forall failed (a project that isn't checked out, e.g. after an interrupted sync, also does this: run repo sync first)"; }
 rm -f "$scan_err"
 
 busy=() busy_ops=() dirty=() ahead=()

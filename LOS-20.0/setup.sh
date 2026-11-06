@@ -2,10 +2,11 @@
 #
 # Sets up a complete LineageOS 20.0 source tree for i9100:
 #   1. `repo init` (only if source-root isn't a repo checkout yet)
-#   2. install galaxys2-20.0.xml as local manifest (first, so an outdated
-#      or broken copy can't stop the cleanup)
-#   3. cleanup.sh: remove other local manifests, abort unfinished git
-#      operations, drop previously applied patches
+#   2. cleanup.sh: remove all local manifests (also an outdated
+#      galaxys2-20.0.xml), abort unfinished git operations, drop previously
+#      applied patches
+#   3. install galaxys2-20.0.xml as local manifest (after the cleanup, so it
+#      can't clash with another manifest declaring the same projects)
 #   4. `repo sync`
 #   5. apply.sh: apply the patch set
 #
@@ -82,31 +83,40 @@ fi
 cd "$SOURCE_ROOT" || die "cannot enter $SOURCE_ROOT"
 
 # ---------------------------------------------------------------------------
-step "Local manifest"
+step "Clean up"
 # ---------------------------------------------------------------------------
-mkdir -p .repo/local_manifests
+# Our own manifest is taken out first: together with another local manifest
+# that declares the same projects (e.g. an old roomservice.xml) it would make
+# every repo command fail. It is installed again in the next step.
+# If the cleanup fails, an up-to-date copy is put back, so the next repo
+# command doesn't remove the device repos.
 target=".repo/local_manifests/$LOCAL_MANIFEST"
-if cmp -s "$PATCHES_DIR/$LOCAL_MANIFEST" "$target"; then
-    echo "    $target is up to date"
-else
-    if [ -f "$target" ]; then
+parked="$target.setup"     # not *.xml, so repo ignores it
+if [ -f "$target" ]; then
+    if cmp -s "$PATCHES_DIR/$LOCAL_MANIFEST" "$target"; then
+        mv "$target" "$parked"
+    else
         backup=".repo/local_manifests.backup/$(date +%Y%m%d-%H%M%S)"
         mkdir -p "$backup" && mv "$target" "$backup/" \
             && echo "    moved the outdated $LOCAL_MANIFEST to $backup/"
     fi
-    cp "$PATCHES_DIR/$LOCAL_MANIFEST" "$target" || die "could not install $target"
-    echo "    installed $target"
 fi
-
-# ---------------------------------------------------------------------------
-step "Clean up"
-# ---------------------------------------------------------------------------
 if [ -s .repo/project.list ]; then
-    "$PATCHES_DIR/cleanup.sh" "${cleanup_args[@]}" --keep "$LOCAL_MANIFEST" --no-sync "$SOURCE_ROOT" \
-        || exit 1
+    if ! "$PATCHES_DIR/cleanup.sh" "${cleanup_args[@]}" --no-sync "$SOURCE_ROOT"; then
+        [ -f "$parked" ] && mv "$parked" "$target"
+        exit 1
+    fi
 else
     echo "    not synced yet, nothing to clean up"
 fi
+
+# ---------------------------------------------------------------------------
+step "Local manifest"
+# ---------------------------------------------------------------------------
+mkdir -p .repo/local_manifests
+rm -f "$parked"
+cp "$PATCHES_DIR/$LOCAL_MANIFEST" "$target" || die "could not install $target"
+echo "    installed $target"
 
 # ---------------------------------------------------------------------------
 step "repo sync ${sync_args[*]}"
