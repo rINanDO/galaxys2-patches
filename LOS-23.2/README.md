@@ -109,6 +109,10 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   `frameworks_libs_net` patches (that library is part of Connectivity now).
   `packages_modules_Connectivity` 0009 makes the loaders stop at once when
   the kernel has no bpf() syscall, which starts zygote ~1.4 s earlier.
+- **Video freezing after a surface change** (`frameworks_av` 0017): the SEC AVC
+  decoder aligns its port height after its buffers were allocated. ACodec then
+  set a new surface to that size, and the surface dropped every buffer, so a
+  1280x674 video froze on rotation while audio kept playing.
 - **Wi-Fi with the screen off** (`packages_modules_Wifi`): the BCM4330 driver
   has no scheduled scan, so hardware PNO is not available and Wi-Fi does not
   connect while the screen is off. The patch defaults the Software PNO flag to
