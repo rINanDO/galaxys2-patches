@@ -109,6 +109,10 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   `frameworks_libs_net` patches (that library is part of Connectivity now).
   `packages_modules_Connectivity` 0009 makes the loaders stop at once when
   the kernel has no bpf() syscall, which starts zygote ~1.4 s earlier.
+- **Wi-Fi with the screen off** (`packages_modules_Wifi`): the BCM4330 driver
+  has no scheduled scan, so hardware PNO is not available and Wi-Fi does not
+  connect while the screen is off. The patch defaults the Software PNO flag to
+  on, so `config_wifiSwPnoEnabled` in the device's Wi-Fi overlay decides.
 - **Mobile data with the Samsung RIL** (`system_netd` 0004): netd can add a
   rule for the kernel's directly-connected routes, without which IPv4 mobile
   data has no default route. Enable it in the device tree with
