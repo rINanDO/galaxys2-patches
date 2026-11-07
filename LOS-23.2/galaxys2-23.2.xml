@@ -18,4 +18,9 @@
   <!-- VENDOR: only lineage-20.0 has the i9100 blobs -->
   <project name="rINanDO/proprietary_vendor_samsung" path="vendor/samsung" remote="github" revision="lineage-20.0" clone-depth="1" />
 
+  <!-- WEBVIEW: newer versions need GLES 3, so they lose GPU rendering on the
+       Mali-400. 145 is the last prebuilt that still runs on GLES 2. -->
+  <remove-project name="LineageOS/android_external_chromium-webview_prebuilt_arm" />
+  <project path="external/chromium-webview/prebuilt/arm" name="LineageOS/android_external_chromium-webview_prebuilt_arm" remote="github" groups="pdk" revision="f547731aef7f92fed845d822d9fec66ddad04cd3" upstream="main" />
+
 </manifest>
