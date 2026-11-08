@@ -92,12 +92,12 @@ aborts that and resets the patched repos with `repo sync`.
   `vendor/samsung` stay on `lineage-20.0` (the only branch with the i9100
   blobs).
 
+
 ## What the patches address
 
 The Galaxy S2 is a legacy device: a Linux 3.0 kernel, no Treble, and 2011
 blobs. LineageOS 23.2 has dropped much of the compatibility code they depend
-on. Most problems are shared with other legacy devices, so where possible the
-patches are the same as in gts210wifi-patches LOS-23.2.
+on.
 
 - **No BPF in the kernel** (`system_bpf`, `system_netd`,
   `packages_modules_Connectivity`, `packages_modules_DnsResolver`,
@@ -153,8 +153,8 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   part of `system_core` 0002).
 - **Camera HAL v1** (`frameworks_av`, `frameworks_base` 0004-0006,
   `system_core` 0005, `device_lineage_sepolicy`): the camera blob only
-  speaks the HAL v1 API, which AOSP removed. These are the gts210wifi
-  patches that restore HALv1 in cameraserver (or, with
+  speaks the HAL v1 API, which AOSP removed. These restore HALv1 in
+  cameraserver (or, with
   `$(call soong_config_set,camera_hal1,no_cameraserver,true)`, in
   mediaserver), the old recording path, the camera extensions and formats,
   and the HALv1 sepolicy. They replace the LOS-20.0 `frameworks_av`
@@ -172,14 +172,13 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   is zero-copy from the HAL's FIMC2 buffers to MFC and offers 1080p.
 - **Legacy HIDL HALs** (`hardware_lineage_interfaces`,
   `hardware_libhardware_legacy`, `device_lineage_sepolicy` 0002-0003,
-  `frameworks_base` 0007), the same patches as gts210wifi:
+  `frameworks_base` 0007):
   - the legacy GNSS 1.0 passthrough HAL, which
     `android.hardware.gnss@1.0-service.exynos4` needs, and the sepolicy
     labels of the legacy GNSS and Wi-Fi HALs;
   - the legacy Wi-Fi HIDL HAL (with dynamic interfaces) and the Wi-Fi headers
     it builds against, without TWT and 802.11az. These replace LOS-20.0
-    `hardware_lineage_interfaces` 0001-0004. `galaxys2-common` lineage-21.0
-    doesn't ship a Wi-Fi HAL at the moment;
+    `hardware_lineage_interfaces` 0001-0004;
   - `HintManagerService` no longer crashes when there is no AIDL power HAL
     (this device has the HIDL power HAL 1.0);
   - the health HAL's fast charge dump uses the right format for a 64-bit
@@ -189,6 +188,11 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   camera device it fixes no longer exists), and 0006-0008 (the Lineage power
   HAL 1.0 and the in-screen fingerprint HAL, which nothing in this device
   uses; the HIDL power HAL 1.0 is still in AOSP).
+- **Keyboard haptics** (`hardware_lineage_interfaces` 0011): the legacy
+  AIDL vibrator advertised an on-completion callback that it never called,
+  so every effect waited out the framework's 1 s callback timeout and the
+  next key presses were dropped. It now reports no capabilities, and every
+  key tap vibrates.
 - **Framework tweaks for this device** (`frameworks_base` 0008-0012, from
   LOS-20.0 `frameworks_base` 0013-0023):
   - no warning dialogs about a vendor mismatch or an app's old target SDK;
@@ -212,7 +216,7 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   (ignore a `SensorPrivacyService` permission error, a hack with an unknown
   cause; port it again if the error shows up), 0019 (hwui reset to
   Android 13) and 0008 (CameraServiceProxy accepting calls from
-  mediaserver; revisit once the camera is enabled).
+  mediaserver; not needed, the camera works without it).
 - **Hardware Menu key** (`frameworks_base` 0016): Lineage's key rebinding
   makes `KeyGestureController` skip `KEYCODE_MENU` and `KEYCODE_ASSIST`.
   In 23.2 that also skips `PhoneWindowManager`, so the Menu key's press and
@@ -220,8 +224,13 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   keys now go on to `PhoneWindowManager` like the other keys. The kernel
   side (touch key reported as released when its LED is switched) is fixed
   in `kernel/samsung/smdk4412`.
-- **frameworks/native** (`frameworks_native`), the same patches as
-  gts210wifi:
+- **A settled phone after boot** (`frameworks_base` 0017): the boot is
+  CPU-bound, and the phone used to reach the home screen while dexopt and
+  app starts still kept both cores busy, so the first minute of use was
+  slow and prone to ANRs. WindowManager now keeps the boot animation up
+  (with the screen on) until the CPU has been under 50% busy for three
+  2-second samples, or for 180 s at most.
+- **frameworks/native** (`frameworks_native`):
   - `gpuservice` is disabled, because its GPU memory accounting needs BPF
     (replaces LOS-20.0 0001);
   - `libbinder` no longer aborts when it shrinks its thread pool (replaces
@@ -237,8 +246,7 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   back to the old blocking FunctionFS code when the first asynchronous read
   fails, or uses it straight away with `ro.adb.nonblocking_ffs=false`.
   The device side of the old USB transport is built into adbd only,
-  because the adb host has its own USB transport now. (gts210wifi
-  backports FunctionFS AIO to its kernel instead.)
+  because the adb host has its own USB transport now.
 - **Build and kernel** (`build_make`, `build_soong`, `system_linkerconfig`,
   `vendor_lineage`):
   - `BOARD_NO_RECOVERY_PATCH` (`build_make` 0001): recovery is part of the
@@ -249,28 +257,143 @@ patches are the same as in gts210wifi-patches LOS-23.2.
     embeds it;
   - `-fuse-ld=lld` in the kernel's `HOSTCFLAGS` (`vendor_lineage` 0002),
     because Linux 3.0 links its host programs with `HOSTCFLAGS` only;
-  - from gts210wifi: no Treble (`build_make` 0004 and
-    `system_linkerconfig`), uncompressed APEXes, `link_type_error` as a
-    warning, `TARGET_SPECIFIC_HEADER_PATH` (`build_make` 0005 and
-    `build_soong`), which `galaxys2-common` and `i9100` use, and the
-    automatic kernel header library.
+  - no Treble (`build_make` 0004 and `system_linkerconfig`), uncompressed
+    APEXes, `link_type_error` as a warning, `TARGET_SPECIFIC_HEADER_PATH`
+    (`build_make` 0005 and `build_soong`), which `galaxys2-common` and
+    `i9100` use, and the automatic kernel header library.
 
   The kernel is LZMA-compressed; `lzma` comes from
-  `prebuilts/tools-lineage`, so the gts210wifi xz patches aren't needed.
-  The LOS-20.0 `vendor_lineage` 0003-0006 are replaced by Soong config
-  variables (see above).
+  `prebuilts/tools-lineage`. The LOS-20.0 `vendor_lineage` 0003-0006 are
+  replaced by Soong config variables (see above).
 - **Smaller fixes** (`system_libhwbinder`, `system_core` 0006):
   - libhwbinder logs an error instead of aborting when a process shrinks its
     thread pool, as `libbinder` does (`frameworks_native` 0001);
   - in the off-mode charger, the home button also wakes the screen.
-- **Legacy kernel fixes from gts210wifi** (`system_memory_lmkd`,
-  `frameworks_base` 0013, `system_core` 0007):
+- **Legacy kernel fixes** (`system_memory_lmkd`, `frameworks_base` 0013,
+  `system_core` 0007):
   - lmkd no longer exits at every boot: with the kernel's low memory
     killer it tried to start PSI monitoring when ActivityManager asked, and
     this kernel has no PSI;
   - `FileIntegrity` skips fs-verity, which this kernel lacks, instead of
     logging a stack trace on every settings and permissions write;
   - fast reboot on legacy devices too.
+- **WebView** (`galaxys2-23.2.xml`): WebView 146 and later need OpenGL ES 3,
+  which the Mali-400 doesn't have, so they fall back to software raster at
+  half the frame rate and lose WebGL. The manifest pins the arm WebView to
+  145.0.7632.109, the last release with GPU raster and WebGL 1 on this GPU.
+  It gets no further security fixes; recheck GLES 2 support before moving
+  it.
+
+## Fixes in the device, kernel and hardware repos
+
+Most i9100 issues are fixed in the forks listed in `galaxys2-23.2.xml`, not
+in patches. The main ones:
+
+### Kernel (`kernel/samsung/smdk4412`)
+
+- **Booting Android 16 on Linux 3.0**: `/proc/config.gz` (system_server
+  aborts on its VMAP_STACK check without it), `/dev/loop-control` for
+  apexd, `CONFIG_XFRM_USER`, namespace dentries that aren't reused, and
+  SELinux policies with netlink xperm rules.
+- **vmalloc exhaustion after ~20 minutes**: every binder process takes
+  about 1 MB of vmalloc on this kernel, and the bootloader's `vmalloc=144m`
+  ran out ("Binder driver could not be opened"). The kernel now reserves
+  256 MB, and a later `vmalloc=` can no longer shrink it.
+- **Hang on reboot or shutdown**: removing a per-app memory cgroup could
+  loop forever in `mem_cgroup_force_empty` when a charge was stuck, which
+  hung init. The loop now gives up after 1 s.
+- **Kernel panic when apps change cgroup**: a thread that exited while
+  system_server moved its process to another cgroup hit
+  `BUG_ON(!newcg)`. Such threads are skipped now.
+- **Native crash backtraces**: `PTRACE_GETREGSET` works on ARM, and
+  children of a seizing tracer start in a trap stop, so `crash_dump` gets
+  registers and tombstones have backtraces.
+- **Wi-Fi drops and unreachable networks**: the gateway of a route is
+  looked up in the route's own table, and the socket's UID is passed into
+  routing flows, so the per-network routing rules match.
+- **Dead auto-rotate**: the K3DH accelerometer's test class device had a
+  bogus device number, and ueventd could create `/dev/accelerometer` for it
+  instead of the real sensor.
+- **Menu key long press**: switching the touch key LEDs while a key was
+  held made the controller report a release; LED commands now wait until
+  the key is released.
+- **Camera**: the M5MO frame rate register runs ~10% fast and is
+  calibrated, so 24 and 25 fps video is close to 24 and 25 fps. The FIMC
+  capture path selects the camera input when it starts, so recording works
+  after a video was played through FIMC.
+- **Memory layout**: FIMC0 has enough memory for 720p preview, the ION
+  contiguous heap is 52 MB for the hardware encoder and the composer, and
+  the FIMD, JPEG and FIMC3 reservations are trimmed to what is used
+  (27 MB more RAM). The media regions stay clear of the bootloader logo,
+  which no longer turns to noise during boot.
+
+### Hardware (`hardware/samsung`)
+
+- **HAL updates**: AIDL touch, LiveDisplay and vibrator HALs, libril built
+  through `hardware/ril`, and fixes for the current Clang, libutils and
+  libcutils.
+- **Hardware composer overlays**: the full-screen app layer, the status bar
+  and decoded video (scaled on FIMC) are scanned out on FIMD windows
+  instead of being composed on the GPU, which roughly halves the jank in
+  Settings and app lists.
+- **Composer fixes**:
+  - a file descriptor leak of one sync fence per frame, which made
+    surfaceflinger run out of descriptors after a few hours and every app
+    crash in a loop (screen flicker);
+  - surfaceflinger crashing while a video resized when the ION heap was
+    full: the frame is composed on the GPU until overlay buffers can be
+    allocated again;
+  - a 480x35 display after surfaceflinger restarted, because the kernel
+    sets the mode of fb0 to the size of the last layer in window 0;
+  - sheared video shown at a width that isn't a multiple of 16 (e.g. a 4:3
+    video in NewPipe), because FIMC wrote the picture with a narrower row
+    pitch than the display scanned it out with.
+- **gralloc**: reading past the end of cloned buffer handles, which crashed
+  apps that rotate while a video plays.
+- **Video encoder**: BGRA surface input is converted to NV12 on FIMC
+  instead of NEON, and camera HAL frames are encoded in place, which makes
+  zero-copy 720p and 1080p recording possible.
+
+### Device (`device/samsung/galaxys2-common`, `device/samsung/i9100`)
+
+- **Bring-up on 23.2**: Soong config variables instead of the old
+  `TARGET_*` flags, a VINTF manifest that passes `check_vintf`, the USB 1.3
+  and AIDL touch, LiveDisplay and vibrator HALs, a tmpfs `/metadata` for
+  aconfigd, the libgps shim calling the real `get_gps_interface`, and many
+  SELinux fixes (vendor libraries labelled as same-process HALs, ION,
+  GNSS, dhd, sysfs nodes).
+- **Watchdog kills of system_server**: a VINTF interface without a service
+  (`ISunlightEnhancement`) is no longer declared.
+- **Slow shutdown**: the zram swapoff at shutdown, which took minutes on
+  this kernel, is skipped.
+- **Memory**: zram is 512 MB on both cores, the Dalvik heap overrides and
+  userspace lmkd tunables are gone, the low memory killer levels are
+  lower, the launcher and WebView are no longer pinned in RAM (69 MB), the
+  Go launcher is used, and unused apps are removed (AudioFX,
+  DeviceAsWebcam, ImsServiceEntitlement, Seedvault, the Updater,
+  SecureElement, printing, live wallpapers and others).
+- **Audio**: `audio_effects.xml` is installed where 23.2 looks for it, the
+  Codec2 software codecs are used again, and the primary output runs at
+  44.1 kHz, which saves resampling most music and video.
+- **Camera**: the HAL v1 camera and the legacy provider build and run;
+  fixed frame rates (15, 24 and 30 fps) are advertised; recording frames
+  are passed as native handles for zero-copy recording up to 1080p; a
+  1080p recording deadlock is fixed; preview stalls are recovered from
+  instead of leaving the camera "in use" until a reboot. Open Camera
+  replaces Aperture.
+- **Sensors**: the sensors HAL can control the input sensors, and waits
+  for the compass input node, which could appear late and leave
+  auto-rotate dead until a reboot.
+- **Responsiveness**: a power HAL boosts the CPU to 1.2 GHz on both cores
+  for 1 s on touch and 2 s on app launch; ANR timeouts are doubled
+  (`ro.hw_timeout_multiplier=2`); the boot animation runs at 30 fps at
+  480x160; the stock 60 fps animation cost 13-21 s of boot time.
+- **App compilation**: system apps are compiled with `speed`. Installed
+  apps are installed with `verify` and compiled with `speed` by background
+  dexopt when the phone is idle, because compiling them at install time
+  made installing a large app take a minute or more.
+- **Wi-Fi**: Software PNO is enabled, so Wi-Fi reconnects with the screen
+  off.
 
 ## LOS-20.0 patches that are no longer needed
 
@@ -280,23 +403,26 @@ patches are the same as in gts210wifi-patches LOS-23.2.
   changes to the default audio service aren't needed.
 - **Battery life extender** (`hardware_lineage_interfaces` 0009,
   `packages_apps_Settings`, `device_lineage_sepolicy`): `galaxys2-common`
-  lineage-21.0 doesn't ship that HAL. LineageOS's own Charging control
-  (health HAL with `charge_start_level`/`charge_stop_level` in the kernel),
-  as on herolte, would replace it.
+  doesn't ship that HAL anymore.
 - **`packages_modules_Permission`** 0001-0002: the second patch reverts the
   first.
 
 ## Status
 
-The LineageOS 20.0 patch set is ported: the tree syncs and all patches
-apply. Nothing has been built yet. The device trees are still on
-lineage-21.0, and before the first build they need:
+The ROM builds and is in daily use. Working: display with hardware
+overlays, GPU, touch and hardware keys, Wi-Fi (also with the screen off),
+GPS, sensors and auto-rotate, audio, both cameras with
+photos and video recording up to 1080p, hardware video decoding and
+encoding, adb, TWRP flashing, charging.
 
-- the Soong config variables above instead of `TARGET_PROCESS_SDK_VERSION_OVERRIDE`,
-  `TARGET_LD_SHIM_LIBS`, `TARGET_HAS_MEMFD_BACKPORT`,
-  `TARGET_NEEDS_NETD_DIRECT_CONNECT_RULE` and
-  `TARGET_HAS_LEGACY_CAMERA_HAL1`;
-- `sys.brightness.disable_gamma_conversion=true` and the
-  `config_displayColorFadeDisabled` overlay instead of
-  `ro.displaypower.colorfade=false`;
-- optionally the `config_customizedMaxCachedProcesses` overlay.
+Known limitations:
+
+- Phone calls and SMS are untested (no 2G/3G network available for the
+  tests); Bluetooth is unconfirmed.
+- 720p60 video decodes at about 10 fps, because the SEC decoder converts
+  its tiled output with NEON; 480p plays at 27-30 fps.
+- Rotated video (landscape) is composed on the GPU, not on FIMC.
+- The hardware decoder (MFC) runs only a few decoders at once (at most
+  four, fewer for larger videos); another video fails to start until a
+  player releases its decoder.
+- WebView stays on 145 (see above).
