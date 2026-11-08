@@ -230,6 +230,12 @@ on.
   slow and prone to ANRs. WindowManager now keeps the boot animation up
   (with the screen on) until the CPU has been under 50% busy for three
   2-second samples, or for 180 s at most.
+- **Screen staying on during the boot settle** (`frameworks_base` 0018):
+  SystemUI remembers whether the phone was asleep so that a SystemUI
+  restart doesn't leave the screen on, but the setting survived reboots.
+  After a reboot started with the screen off, SystemUI put the phone back
+  to sleep during the boot animation. The state is now only restored
+  within the same boot.
 - **frameworks/native** (`frameworks_native`):
   - `gpuservice` is disabled, because its GPU memory accounting needs BPF
     (replaces LOS-20.0 0001);

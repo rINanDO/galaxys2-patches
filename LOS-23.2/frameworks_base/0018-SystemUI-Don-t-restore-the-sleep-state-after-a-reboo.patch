@@ -1,0 +1,74 @@
+From 0584274e3eba30f3db072eac98a0f69025d7f5fb Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 8 Nov 2026 14:24:56 +0100
+Subject: [PATCH 18/18] SystemUI: Don't restore the sleep state after a reboot
+
+RestartDozeListener stores whether the device was asleep and, when
+SystemUI starts, puts it back to sleep, so that a SystemUI restart does
+not leave the screen on. The setting survives reboots, so after a
+reboot that was started with the screen off, SystemUI put the phone to
+sleep again while it was still booting: the screen went off during the
+boot animation, while WindowManager holds it until the boot has
+settled.
+
+Store the boot count with the state and only restore it within the
+same boot.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I610f51080052b35decbeff4cbc79b8938a58ffe4
+---
+ .../systemui/flags/RestartDozeListener.kt      | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/flags/RestartDozeListener.kt b/packages/SystemUI/src/com/android/systemui/flags/RestartDozeListener.kt
+index dc0de2cef349..34d15e5eb265 100644
+--- a/packages/SystemUI/src/com/android/systemui/flags/RestartDozeListener.kt
++++ b/packages/SystemUI/src/com/android/systemui/flags/RestartDozeListener.kt
+@@ -17,6 +17,7 @@
+ package com.android.systemui.flags
+ 
+ import android.os.PowerManager
++import android.provider.Settings
+ import android.util.Log
+ import com.android.internal.annotations.VisibleForTesting
+ import com.android.systemui.dagger.SysUISingleton
+@@ -40,6 +41,7 @@ constructor(
+ 
+     companion object {
+         @VisibleForTesting val RESTART_SLEEP_KEY = "restart_nap_after_start"
++        @VisibleForTesting val RESTART_SLEEP_BOOT_KEY = "restart_nap_boot_count"
+     }
+ 
+     private var inited = false
+@@ -67,7 +69,13 @@ constructor(
+     fun maybeRestartSleep() {
+         bgExecutor.executeDelayed(
+             {
+-                if (settings.getBool(RESTART_SLEEP_KEY, false)) {
++                // The state is kept across reboots. Only restore it after SystemUI restarted
++                // during the same boot: after a reboot that happened with the screen off, it
++                // would put the phone to sleep while it is still booting.
++                if (
++                    settings.getBool(RESTART_SLEEP_KEY, false) &&
++                        settings.getInt(RESTART_SLEEP_BOOT_KEY, -1) == bootCount()
++                ) {
+                     Log.d("RestartDozeListener", "Restarting sleep state")
+                     powerManager.wakeUp(
+                         systemClock.uptimeMillis(),
+@@ -82,6 +90,12 @@ constructor(
+     }
+ 
+     private fun storeSleepState(sleeping: Boolean) {
+-        bgExecutor.execute { settings.putBool(RESTART_SLEEP_KEY, sleeping) }
++        bgExecutor.execute {
++            settings.putBool(RESTART_SLEEP_KEY, sleeping)
++            settings.putInt(RESTART_SLEEP_BOOT_KEY, bootCount())
++        }
+     }
++
++    private fun bootCount(): Int =
++        Settings.Global.getInt(settings.getContentResolver(), Settings.Global.BOOT_COUNT, 0)
+ }
+-- 
+2.54.0
+
