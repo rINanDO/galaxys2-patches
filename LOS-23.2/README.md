@@ -391,7 +391,9 @@ in patches. The main ones:
   for the compass input node, which could appear late and leave
   auto-rotate dead until a reboot.
 - **Responsiveness**: a power HAL boosts the CPU to 1.2 GHz on both cores
-  for 1 s on touch and 2 s on app launch; ANR timeouts are doubled
+  for 1 s on touch, 2 s on app launch and 2 s when the screen turns on
+  (waking took 1.2-1.3 s instead of 0.75-0.9 s on one core, because the
+  second core only came up after the screen was on); ANR timeouts are doubled
   (`ro.hw_timeout_multiplier=2`); the boot animation runs at 30 fps at
   480x160; the stock 60 fps animation cost 13-21 s of boot time.
 - **App compilation**: system apps are compiled with `speed`. Installed
