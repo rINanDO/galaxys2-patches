@@ -1,0 +1,160 @@
+From e8ad2098b89180e15ed49c3bd7d6da0fbf129911 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 12 Oct 2026 11:02:44 +0200
+Subject: [PATCH 11/14] LocalNetEventHandler: don't abort when BPF ring buffers
+ are unavailable
+
+Previous fix (BpfNetMaps null-chunk-map guard) got PermissionMonitor's
+setUidsPermissionBits past its crash ("took 412 microseconds" now logs
+successfully), but system_server still dies immediately after, this
+time with a native abort instead of a Java exception:
+
+  D ConnectivityService: ConnectivityService starting up
+  D PermissionMonitor: setUidsPermissionBits in PermissionBpfMap took 412 microseconds.
+  E LocalNetEventHandler: BpfRingbuf init failed: failed to retrieve
+    ringbuffer at /sys/fs/bpf/netd_shared/map_netd_local_net_note_op_ringbuf:
+    Function not implemented
+  F libc: Fatal signal 6 (SIGABRT) ... system_server
+
+"Function not implemented" is ENOSYS from the bpf() syscall itself -
+this device's 3.10 kernel predates eBPF entirely (same root cause as
+the BpfNetMaps fix). The crash is intentional by design:
+BpfRingbufBase's path-taking constructor is explicitly documented as
+"Full construction that aborts on error (use Create/Init to handle
+errors)" and does exactly that - ALOGE + abort(). This is a brand new
+feature (local network access note-op reporting, dated 2026) whose
+LocalNetEventHandler::GetRingbuf() used that aborting constructor
+directly instead of the non-aborting Create()/Init() pattern the base
+class offers for exactly this situation.
+
+Fix: give LocalNetEventRingbuf a non-aborting constructor that calls
+the protected Init(path) directly and records the Result, add ok()/
+errorMessage() accessors, and make GetRingbuf() return nullptr instead
+of ever calling the aborting path. Updated both call sites
+(GetNewRingbufFd(), ConsumeAll()) to handle a null ring buffer by
+degrading gracefully (invalid fd / empty event list) instead of
+dereferencing null. Also guarded the Java-side LocalNetEventListener
+.start(), which would otherwise NPE on a null ring buffer fd when
+registering the fd listener with the Looper - local network access
+notifications are simply unavailable on this device, not fatal.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Change-Id: I0c849f2139edc04863c24c70ceec30f361b20567
+---
+ .../libeventpolling/LocalNetEventHandler.cpp  | 14 +++++++++-
+ .../libeventpolling/LocalNetEventHandler.h    | 26 ++++++++++++++++---
+ .../connectivity/LocalNetEventListener.java   |  8 ++++++
+ 3 files changed, 44 insertions(+), 4 deletions(-)
+
+diff --git a/service/native/libs/libeventpolling/LocalNetEventHandler.cpp b/service/native/libs/libeventpolling/LocalNetEventHandler.cpp
+index 59c28445fb..42c24ed905 100644
+--- a/service/native/libs/libeventpolling/LocalNetEventHandler.cpp
++++ b/service/native/libs/libeventpolling/LocalNetEventHandler.cpp
+@@ -38,6 +38,15 @@ LocalNetEventHandler::LocalNetEventRingbuf *LocalNetEventHandler::GetRingbuf() {
+         []() -> LocalNetEventRingbuf * {
+         auto rb = std::make_unique<LocalNetEventRingbuf>(
+             LOCAL_NET_NOTE_OP_RINGBUF_PATH);
++        if (!rb->ok()) {
++            // Devices without BPF ring buffer support in the kernel (e.g. no
++            // CONFIG_BPF_SYSCALL at all) can't ever create this, and that's
++            // not a fatal condition for the rest of the system - local
++            // network access notifications are simply unavailable.
++            ALOGW("Local net access ring buffer unavailable: %s",
++                  rb->errorMessage().c_str());
++            return nullptr;
++        }
+         return rb.release();
+     }();
+     return sRingbuf;
+@@ -45,9 +54,12 @@ LocalNetEventHandler::LocalNetEventRingbuf *LocalNetEventHandler::GetRingbuf() {
+ 
+ // static
+ std::vector<uint32_t> LocalNetEventHandler::ConsumeAll() {
++    LocalNetEventRingbuf *rb = GetRingbuf();
++    if (rb == nullptr) return {};
++
+     std::vector<uint32_t> uids_pids;
+     base::Result<int> ret =
+-        GetRingbuf()->ConsumeAll([&](const LocalNetNoteOp &event) {
++        rb->ConsumeAll([&](const LocalNetNoteOp &event) {
+             uids_pids.push_back(event.uid);
+             uids_pids.push_back(event.pid);
+         });
+diff --git a/service/native/libs/libeventpolling/include/libeventpolling/LocalNetEventHandler.h b/service/native/libs/libeventpolling/include/libeventpolling/LocalNetEventHandler.h
+index ce46620ef7..fb76d27c1e 100644
+--- a/service/native/libs/libeventpolling/include/libeventpolling/LocalNetEventHandler.h
++++ b/service/native/libs/libeventpolling/include/libeventpolling/LocalNetEventHandler.h
+@@ -16,6 +16,7 @@
+ 
+ #pragma once
+ 
++#include <string>
+ #include <vector>
+ 
+ #include <android-base/unique_fd.h>
+@@ -35,8 +36,12 @@ class LocalNetEventHandler {
+ 
+     // Returns a duplicate of the ring buffer file descriptor. This is needed so
+     // we can pass the file descriptor via jni for use in polling in java.
++    // Returns an invalid fd if the ring buffer is unavailable (e.g. the
++    // kernel doesn't support BPF ring buffers at all).
+     static android::base::unique_fd GetNewRingbufFd() {
+-        return GetRingbuf()->GetDuplicateFd();
++        LocalNetEventRingbuf *rb = GetRingbuf();
++        if (rb == nullptr) return android::base::unique_fd();
++        return rb->GetDuplicateFd();
+     }
+ 
+     // Consumes all available events in the ring buffer. Returns a list of
+@@ -48,15 +53,30 @@ class LocalNetEventHandler {
+   private:
+     class LocalNetEventRingbuf : public bpf::BpfRingbuf<LocalNetNoteOp> {
+       public:
+-        LocalNetEventRingbuf(const char *path)
+-            : BpfRingbuf<LocalNetNoteOp>(path) {}
++        // Non-aborting construction: this device may have a kernel without
++        // BPF ring buffer support at all, in which case Init() fails and
++        // ok() returns false. Check ok() before use (see the aborting
++        // single-arg BpfRingbuf(path) constructor this intentionally
++        // avoids, in BpfRingbuf.h).
++        explicit LocalNetEventRingbuf(const char *path)
++            : bpf::BpfRingbuf<LocalNetNoteOp>(), mInitResult(Init(path)) {}
++
++        bool ok() const { return mInitResult.ok(); }
++
++        std::string errorMessage() const {
++            return mInitResult.error().message();
++        }
+ 
+         android::base::unique_fd GetDuplicateFd() {
+             return android::base::unique_fd(
+                 fcntl(mRingFd.get(), F_DUPFD_CLOEXEC, 0));
+         }
++
++      private:
++        android::base::Result<void> mInitResult;
+     };
+ 
++    // Returns nullptr if the ring buffer could not be initialized.
+     static LocalNetEventRingbuf *GetRingbuf();
+ };
+ 
+diff --git a/service/src/com/android/server/connectivity/LocalNetEventListener.java b/service/src/com/android/server/connectivity/LocalNetEventListener.java
+index e8d495ca81..e36f071244 100644
+--- a/service/src/com/android/server/connectivity/LocalNetEventListener.java
++++ b/service/src/com/android/server/connectivity/LocalNetEventListener.java
+@@ -98,6 +98,14 @@ public class LocalNetEventListener {
+         if (mStarted) {
+             return;
+         }
++        // mRingbufFd is null when the native layer couldn't create the ring buffer, e.g. on a
++        // device whose kernel doesn't support BPF ring buffers at all. Local network access
++        // notifications are simply unavailable in that case.
++        if (mRingbufFd == null) {
++            Log.w(TAG, "Local net access ring buffer unavailable, not starting listener");
++            mStarted = true;
++            return;
++        }
+         if (mMetricsEnabled || mNoteOpsEnabled) {
+             mLooper.getQueue().addOnFileDescriptorEventListener(mRingbufFd,
+                     EVENT_INPUT | EVENT_ERROR, this::consumeEvents);

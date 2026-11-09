@@ -1,0 +1,32 @@
+From 973875133b5f42a66000f7afc2184cd10311061c Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 4 Nov 2026 10:59:15 +0100
+Subject: [PATCH 14/18] Camera: legacy: Keep preview sizes with a different
+ aspect ratio
+
+The legacy shim drops preview sizes from the largest down until their
+aspect ratio matches the largest picture size. The M5MO on the Galaxy
+S2 has no 4:3 preview size above 640x480, so 1280x720 was removed and
+camera2 apps were limited to 480p preview and video.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I4609aa1672084400e155b3b05d1b40de0d1fa0b2
+---
+ .../android/hardware/camera2/legacy/LegacyMetadataMapper.java | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/core/java/android/hardware/camera2/legacy/LegacyMetadataMapper.java b/core/java/android/hardware/camera2/legacy/LegacyMetadataMapper.java
+index 362ddfae67bf..b79a8eb27c35 100644
+--- a/core/java/android/hardware/camera2/legacy/LegacyMetadataMapper.java
++++ b/core/java/android/hardware/camera2/legacy/LegacyMetadataMapper.java
+@@ -299,7 +299,9 @@ public class LegacyMetadataMapper {
+             }
+ 
+             // Now remove preview sizes from the end (largest->smallest) until aspect ratio matches
+-            while (!previewSizes.isEmpty()) {
++            // galaxys2: keep them. The M5MO has no 4:3 preview size above 640x480, so this
++            // would drop 1280x720 and limit preview and video to 480p.
++            while (false && !previewSizes.isEmpty()) {
+                 int index = previewSizes.size() - 1; // max is always at the end
+                 Camera.Size size = previewSizes.get(index);
+ 

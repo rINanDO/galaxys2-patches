@@ -1,0 +1,22 @@
+From a25a93a59dddfbc75f25d2f2a081975068cb5590 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 1 Mar 2026 17:43:22 +0100
+Subject: [PATCH 08/14] NetworkStatsService: Support more no bpf usecase
+
+Change-Id: Ibf1a0a0fa7801be9cc07ec2e47acc5df56898323
+---
+ service-t/src/com/android/server/net/NetworkStatsService.java | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/service-t/src/com/android/server/net/NetworkStatsService.java b/service-t/src/com/android/server/net/NetworkStatsService.java
+index af553b55aa..49350247a1 100644
+--- a/service-t/src/com/android/server/net/NetworkStatsService.java
++++ b/service-t/src/com/android/server/net/NetworkStatsService.java
+@@ -2844,6 +2844,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
+      * @param uid
+      */
+     private void deleteKernelTagData(int uid) {
++        if (mCookieTagMap == null) return;
+         try {
+             mCookieTagMap.forEach((key, value) -> {
+                 // If SkDestroyListener deletes the socket tag while this code is running,

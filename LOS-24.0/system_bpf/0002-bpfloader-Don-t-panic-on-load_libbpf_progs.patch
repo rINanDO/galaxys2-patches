@@ -1,0 +1,23 @@
+From 21615126bc6d6c6f10ac89725e9f447caa2be573 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Fri, 16 Jan 2026 08:32:40 +0100
+Subject: [PATCH 2/3] bpfloader: Don't panic on load_libbpf_progs
+
+Change-Id: I32cbbda8239e289468f84a239c3a9a2eec226623
+---
+ loader/bpfloader.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/loader/bpfloader.rs b/loader/bpfloader.rs
+index f23d882..594b5ea 100644
+--- a/loader/bpfloader.rs
++++ b/loader/bpfloader.rs
+@@ -733,7 +733,7 @@ fn load_libbpf_progs() {
+     for file_desc in file_vec {
+         if let Err(e) = libbpf_worker(&file_desc) {
+             if file_desc.critical {
+-                panic!("Error when loading {0}: {e}", file_desc.filename);
++                error!("IGNORING CRITICAL: Error when loading {0}: {e}", file_desc.filename);
+             } else {
+                 error!("Error when loading {0}: {e}", file_desc.filename);
+             }

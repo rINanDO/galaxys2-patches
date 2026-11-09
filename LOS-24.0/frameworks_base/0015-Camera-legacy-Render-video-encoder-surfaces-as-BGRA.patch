@@ -1,0 +1,45 @@
+From 4f9f499dd184c8ea1473bb051c7251e9152034fb Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 4 Nov 2026 10:59:15 +0100
+Subject: [PATCH 15/18] Camera: legacy: Render video encoder surfaces as BGRA
+
+The Exynos 4210 SEC encoder converts RGB surface input to NV12 on the
+CPU. Rendering encoder buffers as BGRA lets it use FIMC instead, which
+can't read RGBA, taking the conversion off the CPU.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I75d323eedb239245c14b334a1ff92cc9f1fbe0ae
+---
+ .../camera2/legacy/SurfaceTextureRenderer.java       | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/core/java/android/hardware/camera2/legacy/SurfaceTextureRenderer.java b/core/java/android/hardware/camera2/legacy/SurfaceTextureRenderer.java
+index a4c65aeb1050..588b7e5e812b 100644
+--- a/core/java/android/hardware/camera2/legacy/SurfaceTextureRenderer.java
++++ b/core/java/android/hardware/camera2/legacy/SurfaceTextureRenderer.java
+@@ -55,6 +55,7 @@ public class SurfaceTextureRenderer {
+     private static final String TAG = SurfaceTextureRenderer.class.getSimpleName();
+     private static final boolean DEBUG = false;
+     private static final int EGL_RECORDABLE_ANDROID = 0x3142; // from EGL/eglext.h
++    private static final int HAL_PIXEL_FORMAT_BGRA_8888 = 5; // from system/graphics.h
+     private static final int GL_MATRIX_SIZE = 16;
+     private static final int VERTEX_POS_SIZE = 3;
+     private static final int VERTEX_UV_SIZE = 2;
+@@ -472,6 +473,17 @@ public class SurfaceTextureRenderer {
+             holder.eglSurface = EGL14.eglCreateWindowSurface(mEGLDisplay, mConfigs,
+                     holder.surface, surfaceAttribs, /*offset*/ 0);
+             checkEglError("eglCreateWindowSurface");
++
++            // galaxys2: render video encoder buffers as BGRA. The SEC encoder can then
++            // convert them to NV12 on FIMC, which can't read RGBA, instead of on the CPU.
++            try {
++                if (LegacyCameraDevice.isVideoEncoderConsumer(holder.surface)) {
++                    LegacyCameraDevice.setSurfaceFormat(holder.surface, HAL_PIXEL_FORMAT_BGRA_8888);
++                }
++            } catch (LegacyExceptionUtils.BufferQueueAbandonedException
++                    | IllegalArgumentException e) {
++                Log.w(TAG, "Surface abandoned, skipping BGRA format for the encoder", e);
++            }
+         }
+     }
+ 

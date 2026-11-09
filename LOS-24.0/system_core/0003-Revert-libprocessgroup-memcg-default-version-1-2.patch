@@ -1,0 +1,45 @@
+From b89ba094b59a4a187fdc18eb7502cd93f0ebaf47 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 3 Dec 2025 12:33:52 +0100
+Subject: [PATCH 3/7] Revert "libprocessgroup: memcg default version 1 -> 2"
+
+This reverts commit 5fa48a84b53aa60d76ba85dd449d470128b48742.
+
+Change-Id: I109844bbfbd6de2370555885fedaa7c723bf546f
+---
+ libprocessgroup/profiles/cgroups.json | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/libprocessgroup/profiles/cgroups.json b/libprocessgroup/profiles/cgroups.json
+index 4eb18c4b9..542130e79 100644
+--- a/libprocessgroup/profiles/cgroups.json
++++ b/libprocessgroup/profiles/cgroups.json
+@@ -34,6 +34,14 @@
+       "Mode": "0755",
+       "UID": "system",
+       "GID": "system"
++    },
++    {
++      "Controller": "memory",
++      "Path": "/dev/memcg",
++      "Mode": "0700",
++      "UID": "root",
++      "GID": "system",
++      "Optional": true
+     }
+   ],
+   "Cgroups2": {
+@@ -45,13 +53,6 @@
+       {
+         "Controller": "freezer",
+         "Path": "."
+-      },
+-      {
+-        "Controller": "memory",
+-        "Path": ".",
+-        "NeedsActivation": true,
+-        "MaxActivationDepth": 3,
+-        "Optional": true
+       }
+     ]
+   }

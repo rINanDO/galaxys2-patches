@@ -1,0 +1,153 @@
+From 7e9646f0b9d0ee68f7bc051389bb50d9220cce69 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 7 Nov 2026 13:43:08 +0100
+Subject: [PATCH 17/18] WindowManager: Hold the boot animation until the boot
+ has settled
+
+On slow hardware BOOT_COMPLETED starts so much work that the phone stays at
+full CPU load for about a minute after the home screen appears, and apps can
+hit ANRs in that time.
+
+Tell ActivityManager the animation is complete while it is still showing, so
+boot finishes behind it. End the animation once CPU use has stayed below 50%
+for three 2 s samples, or after 180 s. Keep the screen on in the meantime,
+because the screen timeout starts when boot completes.
+
+The home screen now appears after about 117 s instead of about 61 s, with the
+CPU already mostly idle.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Ibf5c535fa81a92b9647a9d0ea2bdb83ce64ceccf
+---
+ .../server/wm/WindowManagerService.java       | 84 +++++++++++++++++++
+ 1 file changed, 84 insertions(+)
+
+diff --git a/services/core/java/com/android/server/wm/WindowManagerService.java b/services/core/java/com/android/server/wm/WindowManagerService.java
+index b7c7ea467ded..55c6632da007 100644
+--- a/services/core/java/com/android/server/wm/WindowManagerService.java
++++ b/services/core/java/com/android/server/wm/WindowManagerService.java
+@@ -378,12 +378,14 @@ import com.android.window.flags.Flags;
+ 
+ import dalvik.annotation.optimization.NeverCompile;
+ 
++import java.io.BufferedReader;
+ import java.io.BufferedWriter;
+ import java.io.DataInputStream;
+ import java.io.File;
+ import java.io.FileDescriptor;
+ import java.io.FileInputStream;
+ import java.io.FileNotFoundException;
++import java.io.FileReader;
+ import java.io.IOException;
+ import java.io.InputStream;
+ import java.io.OutputStream;
+@@ -432,6 +434,16 @@ public class WindowManagerService extends IWindowManager.Stub
+     // TODO(b/159045990) Migrate to SystemService.waitForState with dedicated thread.
+     private static final int BOOT_ANIMATION_POLL_INTERVAL = 50;
+ 
++    /**
++     * Slow devices spend a long time starting apps after BOOT_COMPLETED. Keep the boot animation
++     * up until the CPU has been below this share for BOOT_SETTLE_IDLE_SAMPLES samples in a row,
++     * but never for longer than BOOT_SETTLE_MAX_WAIT_MS.
++     */
++    private static final int BOOT_SETTLE_BUSY_PERCENT = 50;
++    private static final int BOOT_SETTLE_IDLE_SAMPLES = 3;
++    private static final long BOOT_SETTLE_SAMPLE_MS = 2000;
++    private static final long BOOT_SETTLE_MAX_WAIT_MS = 180 * 1000;
++
+     // The name of the boot animation service in init.rc.
+     private static final String BOOT_ANIMATION_SERVICE = "bootanim";
+ 
+@@ -717,6 +729,8 @@ public class WindowManagerService extends IWindowManager.Stub
+     boolean mShowingBootMessages = false;
+     boolean mSystemReady = false;
+     boolean mBootAnimationStopped = false;
++    private boolean mBootSettleWaitStarted = false;
++    private boolean mBootSettled = false;
+     long mBootWaitForWindowsStartTime = -1;
+     boolean mThemeReady = true;
+ 
+@@ -4388,6 +4402,17 @@ public class WindowManagerService extends IWindowManager.Stub
+                 }
+             }
+ 
++            if (mSystemBooted && !mBootSettled) {
++                if (!mBootSettleWaitStarted) {
++                    mBootSettleWaitStarted = true;
++                    final Thread thread =
++                            new Thread(this::waitForBootToSettle, "BootSettleWait");
++                    thread.setDaemon(true);
++                    thread.start();
++                }
++                return;
++            }
++
+             if (!mBootAnimationStopped) {
+                 Trace.asyncTraceBegin(TRACE_TAG_WINDOW_MANAGER, "Stop bootanim", 0);
+ 
+@@ -4434,6 +4459,65 @@ public class WindowManagerService extends IWindowManager.Stub
+         }
+     }
+ 
++    /**
++     * Finishes booting behind the boot animation, so that BOOT_COMPLETED and the app startup it
++     * causes are over before the user gets the phone.
++     */
++    private void waitForBootToSettle() {
++        // The screen timeout starts when boot completes. Don't let it run out under the animation.
++        final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(
++                PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ON_AFTER_RELEASE,
++                "WindowManager:BootSettle");
++        wakeLock.acquire();
++        final long start = SystemClock.elapsedRealtime();
++        // finishBooting() runs on the calling thread and its services need a Looper.
++        mH.post(() -> {
++            try {
++                mActivityManager.bootAnimationComplete();
++            } catch (RemoteException e) {
++            }
++        });
++
++        long[] last = readCpuTimes();
++        int idleSamples = 0;
++        while (last != null && idleSamples < BOOT_SETTLE_IDLE_SAMPLES
++                && SystemClock.elapsedRealtime() - start < BOOT_SETTLE_MAX_WAIT_MS) {
++            SystemClock.sleep(BOOT_SETTLE_SAMPLE_MS);
++            final long[] current = readCpuTimes();
++            if (current == null) {
++                break;
++            }
++            final long total = current[0] - last[0];
++            final long idle = current[1] - last[1];
++            final long busyPercent = total > 0 ? 100 * (total - idle) / total : 100;
++            idleSamples = busyPercent < BOOT_SETTLE_BUSY_PERCENT ? idleSamples + 1 : 0;
++            Slog.i(TAG_WM, "Boot settle: cpu busy " + busyPercent + "%");
++            last = current;
++        }
++        Slog.i(TAG_WM, "Boot settled after " + (SystemClock.elapsedRealtime() - start) + " ms");
++
++        synchronized (mGlobalLock) {
++            mBootSettled = true;
++        }
++        performEnableScreen();
++        wakeLock.release();
++    }
++
++    /** Returns the total and idle jiffies of all CPUs, or null if they can't be read. */
++    private static long[] readCpuTimes() {
++        try (BufferedReader reader = new BufferedReader(new FileReader("/proc/stat"))) {
++            final String[] fields = reader.readLine().trim().split("\\s+");
++            long total = 0;
++            for (int i = 1; i < fields.length; i++) {
++                total += Long.parseLong(fields[i]);
++            }
++            return new long[] {total, Long.parseLong(fields[4]) + Long.parseLong(fields[5])};
++        } catch (IOException | RuntimeException e) {
++            Slog.w(TAG_WM, "Can't read CPU times", e);
++            return null;
++        }
++    }
++
+     private boolean checkBootAnimationCompleteLocked() {
+         if (SystemService.isRunning(BOOT_ANIMATION_SERVICE)) {
+             mH.removeMessages(H.CHECK_IF_BOOT_ANIMATION_FINISHED);

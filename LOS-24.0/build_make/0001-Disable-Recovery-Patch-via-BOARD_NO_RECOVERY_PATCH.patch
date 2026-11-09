@@ -1,0 +1,62 @@
+From de876c6decb393a884ea5bf24d265b24a3216603 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Fri, 30 Oct 2026 18:37:20 +0100
+Subject: [PATCH 1/5] Disable Recovery Patch via BOARD_NO_RECOVERY_PATCH
+
+Add BOARD_NO_RECOVERY_PATCH := true in your BoardConfig.mk to
+disable the creation of a recovery patch in
+/system|vendor/etc/recovery.img.
+
+[Ported to LineageOS 23.2: make_recovery_patch.py and
+HasRecoveryPatch() no longer have a "no target directory" case, so
+they check the flag directly.]
+
+Change-Id: Ibf7c2d695b35aad22cd97e8c67e3aa3b9629b986
+---
+ core/Makefile                             | 3 +++
+ tools/releasetools/make_recovery_patch.py | 3 +++
+ tools/releasetools/non_ab_ota.py          | 3 +++
+ 3 files changed, 9 insertions(+)
+
+diff --git a/core/Makefile b/core/Makefile
+index 65c45cb835..63ab2ef685 100644
+--- a/core/Makefile
++++ b/core/Makefile
+@@ -6185,6 +6185,9 @@ endif
+ ifdef BOARD_USES_VENDORIMAGE
+ 	$(hide) echo "board_uses_vendorimage=true" >> $@
+ endif
++ifdef BOARD_NO_RECOVERY_PATCH
++	$(hide) echo "board_no_recovery_patch=true" >> $@
++endif
+ ifeq ($(BOARD_AVB_ENABLE),true)
+ ifeq ($(BUILDING_VBMETA_IMAGE),true)
+ 	$(hide) echo "avb_building_vbmeta_image=true" >> $@
+diff --git a/tools/releasetools/make_recovery_patch.py b/tools/releasetools/make_recovery_patch.py
+index 1497d69ed7..64b309a6bc 100644
+--- a/tools/releasetools/make_recovery_patch.py
++++ b/tools/releasetools/make_recovery_patch.py
+@@ -47,6 +47,9 @@ def main(argv):
+   if not recovery_img or not boot_img:
+     sys.exit(0)
+ 
++  if OPTIONS.info_dict.get("board_no_recovery_patch") == "true":
++    sys.exit(0)
++
+   board_uses_vendorimage = OPTIONS.info_dict.get(
+       "board_uses_vendorimage") == "true"
+ 
+diff --git a/tools/releasetools/non_ab_ota.py b/tools/releasetools/non_ab_ota.py
+index 2d1075eb81..8b61540977 100644
+--- a/tools/releasetools/non_ab_ota.py
++++ b/tools/releasetools/non_ab_ota.py
+@@ -708,6 +708,9 @@ def _WriteRecoveryImageToBoot(script, output_zip):
+ 
+ 
+ def HasRecoveryPatch(target_files_zip, info_dict):
++  if info_dict.get("board_no_recovery_patch") == "true":
++    return True
++
+   board_uses_vendorimage = info_dict.get("board_uses_vendorimage") == "true"
+ 
+   if board_uses_vendorimage:

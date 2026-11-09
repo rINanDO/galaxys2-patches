@@ -1,0 +1,35 @@
+From 4998909cb21f09a4d0aa3026c90fadb8b4cd5f55 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 25 Oct 2026 22:46:16 +0100
+Subject: [PATCH 13/18] FileIntegrity: skip fs-verity on devices that don't
+ support it
+
+VerityUtils.isFsVeritySupported() is false for devices that launched
+before R, whose kernels may not have fs-verity at all (gts210wifi runs
+3.10). ResilientAtomicFile and the permission AccessPersistence still
+called setUpFsVerity() on every settings write, which failed with
+"Inappropriate ioctl for device" and logged a full stack trace each
+time. Return early instead, like the other fs-verity users do.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I07f4d1578a64f3477e5be545779e1b6be35ead16
+---
+ .../core/java/com/android/server/security/FileIntegrity.java | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/services/core/java/com/android/server/security/FileIntegrity.java b/services/core/java/com/android/server/security/FileIntegrity.java
+index b8f187e0ee3a..59e5666dc25d 100644
+--- a/services/core/java/com/android/server/security/FileIntegrity.java
++++ b/services/core/java/com/android/server/security/FileIntegrity.java
+@@ -63,6 +63,11 @@ public final class FileIntegrity {
+     @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
+     public static void setUpFsVerity(@NonNull ParcelFileDescriptor parcelFileDescriptor)
+             throws IOException {
++        // Devices that launched before R aren't required to support fs-verity, and
++        // their kernels may lack it entirely. Skip instead of failing every write.
++        if (!VerityUtils.isFsVeritySupported()) {
++            return;
++        }
+         VerityUtils.setUpFsverity(parcelFileDescriptor.getFd());
+     }
+ }

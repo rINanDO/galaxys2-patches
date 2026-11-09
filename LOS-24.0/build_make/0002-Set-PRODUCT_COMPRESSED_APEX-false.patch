@@ -1,0 +1,25 @@
+From 0f1a0c433361d7e0f04840a70a9b44ea6a968f2d Mon Sep 17 00:00:00 2001
+From: khalvat-M <mmba313@gmail.com>
+Date: Fri, 5 Apr 2024 21:31:31 +0330
+Subject: [PATCH 2/5] Set PRODUCT_COMPRESSED_APEX := false
+
+for some reason we can not disable it from device side
+
+Change-Id: Ie8fb10dac3de0436e549fe7e91c586ccd8104da5
+---
+ core/product_config.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/core/product_config.mk b/core/product_config.mk
+index 5883e213b5..e2938809cc 100644
+--- a/core/product_config.mk
++++ b/core/product_config.mk
+@@ -557,7 +557,7 @@ endif
+ # setting OVERRIDE_PRODUCT_COMPRESSED_APEX to true (resp. false), e.g. by
+ # setting the OVERRIDE_PRODUCT_COMPRESSED_APEX environment variable.
+ 
+-_default_compressed_apex := true
++_default_compressed_apex := false
+ # To mount APEXes before /data partition is mounted, there should be no compressed
+ # apexes.
+ ifeq (true,$(RELEASE_APEX_MOUNT_BEFORE_DATA))

@@ -1,0 +1,32 @@
+From 572d9e2862862326de509be089fa308bb0b9ddd6 Mon Sep 17 00:00:00 2001
+From: Adrian DC <radian.dc@gmail.com>
+Date: Sun, 31 Dec 2017 13:12:05 +0100
+Subject: [PATCH 06/17] stagefright: ACodec: Resolve empty vendor parameters
+ usage
+
+ * On devices where vendorKeys is empty, the status was left
+    as kExtensionsUnchecked and would block getVendorParameters
+    on a wrong loop of empty vendor keys
+
+ * Instead, set the status to kExtensionsNone to validate
+    the check and the empty vendor keys, matching the old
+    behaviour without vendor keys in getPortFormat
+
+Change-Id: Ic3bdc9454c6af8e5d41ab901d4156ccb62281974
+Signed-off-by: Adrian DC <radian.dc@gmail.com>
+---
+ media/libstagefright/ACodec.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/media/libstagefright/ACodec.cpp b/media/libstagefright/ACodec.cpp
+index 06446e2b4f..a7b9965032 100644
+--- a/media/libstagefright/ACodec.cpp
++++ b/media/libstagefright/ACodec.cpp
+@@ -8388,6 +8388,7 @@ status_t ACodec::setVendorParameters(const sp<AMessage> &params) {
+     // don't bother component if we don't have vendor extensions as they may not have implemented
+     // the android vendor extension support, which will lead to unnecessary OMX failure logs.
+     if (vendorKeys.empty()) {
++        mVendorExtensionsStatus = kExtensionsNone;
+         return OK;
+     }
+ 

@@ -1,0 +1,24 @@
+From 3638fa9a8ef6bb32bc60b8a75cf018079e36c42b Mon Sep 17 00:00:00 2001
+From: Pierre-Hugues Husson <phh@phh.me>
+Date: Tue, 7 May 2024 22:44:25 +0000
+Subject: [PATCH] Dont abort if the DnsHelper failed to init on BPF-less kernel
+
+---
+ DnsProxyListener.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/DnsProxyListener.cpp b/DnsProxyListener.cpp
+index f55d2c5d..e8bceda2 100644
+--- a/DnsProxyListener.cpp
++++ b/DnsProxyListener.cpp
+@@ -717,7 +717,9 @@ DnsProxyListener::DnsProxyListener() : FrameworkListener(SOCKET_NAME) {
+     mGetDnsNetIdCommand = std::make_unique<GetDnsNetIdCommand>();
+     registerCmd(mGetDnsNetIdCommand.get());
+ 
+-    if (ADnsHelper_init()) abort();
++    if (const int ret = ADnsHelper_init(); ret) {
++        LOG(ERROR) << __func__ << ": ADnsHelper_init failed " << strerror(-ret);
++    }
+ }
+ 
+ void DnsProxyListener::Handler::spawn() {

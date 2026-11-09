@@ -1,0 +1,53 @@
+From 4a81713dc5cad8cd585c9e46666c0c22fbecb332 Mon Sep 17 00:00:00 2001
+From: Dmitrii <bankersenator@gmail.com>
+Date: Sun, 7 Dec 2025 20:12:58 +0000
+Subject: [PATCH 4/4] BLASTBufferQueue: Add epoll_pwait2 fallback for older
+ kernels
+
+The epoll_pwait2 syscall was introduced in Linux 5.11. Older kernels
+return ENOSYS when attempting to use this syscall, causing buffer
+release operations to fail.
+
+12-07 18:05:15.668  2095  2226 E BLASTBufferQueue: epoll_wait error while waiting for buffer release. errno=38 message='Function not implemented'
+12-07 18:05:15.668  2095  2226 E BLASTBufferQueue: epoll_wait error while waiting for buffer release. errno=38 message='Function not implemented'
+
+Test: Boot device with kernel < 5.11, verify no epoll errors
+
+Change-Id: I5998edd71c7eeb1e4de68326996ef37068b7512d
+Signed-off-by: Dmitrii <bankersenator@gmail.com>
+Signed-off-by: HDzungx <hdzungx@gmail.com>
+Signed-off-by: Stella Diaz <electi@yzu.moe>
+---
+ libs/gui/BLASTBufferQueue.cpp | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/libs/gui/BLASTBufferQueue.cpp b/libs/gui/BLASTBufferQueue.cpp
+index 8000691fa3..27eebfce5f 100644
+--- a/libs/gui/BLASTBufferQueue.cpp
++++ b/libs/gui/BLASTBufferQueue.cpp
+@@ -75,6 +75,25 @@ inline const char* boolToString(bool b) {
+ 
+ } // namespace
+ 
++inline int epoll_wait_with_timeout(int epfd, struct epoll_event* events, int maxevents,
++                                   const timespec* timeout) {
++    static bool useEpollWait = false;
++    if (!useEpollWait) {
++        int ret = epoll_pwait2(epfd, events, maxevents, timeout, nullptr);
++        if (ret == -1 && errno == ENOSYS) {
++            useEpollWait = true;
++        } else {
++            return ret;
++        }
++    }
++
++    int timeoutMs = -1;
++    if (timeout) {
++        timeoutMs = (timeout->tv_sec * 1000) + (timeout->tv_nsec / 1000000);
++    }
++    return epoll_wait(epfd, events, maxevents, timeoutMs);
++}
++
+ namespace android {
+ 
+ // Macros to include adapter info in log messages

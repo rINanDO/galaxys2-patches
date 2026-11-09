@@ -1,0 +1,72 @@
+From 251857de00cb40e67b24818ec54bfb8cf69f8002 Mon Sep 17 00:00:00 2001
+From: Jan Altensen <info@stricted.net>
+Date: Thu, 10 Sep 2020 15:21:40 +0200
+Subject: [PATCH 1/2] soong: allow overriding header files
+
+Includes:
+
+  Author: Jan Altensen <info@stricted.net>
+  Date:   Sat Aug 7 19:41:59 2021 +0200
+
+    soong: move header override to compiler.go
+
+     * library.go only covers libraries
+
+    Change-Id: I3374999d6b364dd1bbc2060996964ee7b04493e7
+
+Change-Id: Ia9d2210605c5927b529fbe9485b0e5abd079f487
+---
+ android/config.go   |  4 ++++
+ android/variable.go |  2 ++
+ cc/compiler.go      | 10 ++++++++++
+ 3 files changed, 16 insertions(+)
+
+diff --git a/android/config.go b/android/config.go
+index 1cef8c9e1..edab4e33d 100644
+--- a/android/config.go
++++ b/android/config.go
+@@ -2037,6 +2037,10 @@ func (c *deviceConfig) DeviceKernelHeaderDirs() []string {
+ 	return c.config.productVariables.DeviceKernelHeaders
+ }
+ 
++func (c *deviceConfig) TargetSpecificHeaderPath() string {
++	return String(c.config.productVariables.TargetSpecificHeaderPath)
++}
++
+ // JavaCoverageEnabledForPath returns whether Java code coverage is enabled for
+ // path. Coverage is enabled by default when the product variable
+ // JavaCoveragePaths is empty. If JavaCoveragePaths is not empty, coverage is
+diff --git a/android/variable.go b/android/variable.go
+index baaa7f616..cc9e2b4fa 100644
+--- a/android/variable.go
++++ b/android/variable.go
+@@ -381,6 +381,8 @@ type ProductVariables struct {
+ 
+ 	DeviceKernelHeaders []string `json:",omitempty"`
+ 
++	TargetSpecificHeaderPath *string `json:",omitempty"`
++
+ 	ExtraVndkVersions []string `json:",omitempty"`
+ 
+ 	NamespacesToExport []string `json:",omitempty"`
+diff --git a/cc/compiler.go b/cc/compiler.go
+index ef3488e67..12e06d370 100644
+--- a/cc/compiler.go
++++ b/cc/compiler.go
+@@ -395,6 +395,16 @@ func (compiler *baseCompiler) compilerFlags(ctx ModuleContext, flags Flags, deps
+ 	tc := ctx.toolchain()
+ 	modulePath := ctx.ModuleDir()
+ 
++	additionalIncludeDirs := ctx.DeviceConfig().TargetSpecificHeaderPath()
++	if len(additionalIncludeDirs) > 0 {
++		// devices can have multiple paths in TARGET_SPECIFIC_HEADER_PATH
++		// add -I in front of all of them
++		if (strings.Contains(additionalIncludeDirs, " ")) {
++			additionalIncludeDirs = strings.ReplaceAll(additionalIncludeDirs, " ", " -I")
++		}
++		flags.Local.CommonFlags = append(flags.Local.CommonFlags, "-I" + additionalIncludeDirs)
++	}
++
+ 	reuseObjs := false
+ 	if len(ctx.GetDirectDepsProxyWithTag(reuseObjTag)) > 0 {
+ 		reuseObjs = true

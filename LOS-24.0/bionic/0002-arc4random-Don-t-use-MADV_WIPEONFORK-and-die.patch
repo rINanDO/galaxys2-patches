@@ -1,0 +1,26 @@
+From deaefb31238a01085b67147a9fd7846d21b275a6 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 15 Feb 2026 16:51:47 +0100
+Subject: [PATCH 2/9] arc4random: Don't use MADV_WIPEONFORK and die
+
+Change-Id: If251f5ee8f0320e18d172c9eeee842f1bbb16a4e
+---
+ libc/upstream-openbsd/android/include/arc4random.h | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/libc/upstream-openbsd/android/include/arc4random.h b/libc/upstream-openbsd/android/include/arc4random.h
+index 1940398ba..2770927b7 100644
+--- a/libc/upstream-openbsd/android/include/arc4random.h
++++ b/libc/upstream-openbsd/android/include/arc4random.h
+@@ -59,11 +59,6 @@ static inline int _rs_allocate(struct _rs** rsp, struct _rsx** rsxp) {
+     async_safe_fatal("arc4random data allocation failed: %m");
+   }
+ 
+-  // Equivalent to OpenBSD's minherit(MAP_INHERIT_ZERO).
+-  if (madvise(p, size, MADV_WIPEONFORK) == -1) {
+-    async_safe_fatal("arc4random data MADV_WIPEONFORK failed: %m");
+-  }
+-
+   // Give the allocation a name to make tombstones more intelligible.
+   prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, p, size, "arc4random data");
+ 

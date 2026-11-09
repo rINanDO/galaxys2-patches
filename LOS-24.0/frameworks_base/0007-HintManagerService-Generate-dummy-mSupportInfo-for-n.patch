@@ -1,0 +1,42 @@
+From d78b9e9dbebdad866ae94999b7e6982cdf0f13e4 Mon Sep 17 00:00:00 2001
+From: electimon <electimon@gmail.com>
+Date: Tue, 1 Apr 2025 14:00:10 -0400
+Subject: [PATCH 07/18] HintManagerService: Generate dummy mSupportInfo for non
+ power AIDL devices
+
+* Before it would generate dummy info when the IPower AIDL version
+  was too old. Now we will generate it when IPower is just completely
+  unavailable as well, avoiding a crash from accessing an
+  uninitialized mSupportInfo.
+
+test: sailfish boot :D
+Change-Id: Ibf43d0bfea9fd6cdeae35248e4dde58c01d3ef3b
+Signed-off-by: electimon <electimon@gmail.com>
+---
+ .../com/android/server/power/hint/HintManagerService.java    | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/services/core/java/com/android/server/power/hint/HintManagerService.java b/services/core/java/com/android/server/power/hint/HintManagerService.java
+index 5d9e51289a1d..0390d3a672ac 100644
+--- a/services/core/java/com/android/server/power/hint/HintManagerService.java
++++ b/services/core/java/com/android/server/power/hint/HintManagerService.java
+@@ -330,6 +330,8 @@ public final class HintManagerService extends SystemService {
+             } catch (RemoteException e) {
+                 throw new IllegalStateException("Could not contact PowerHAL!", e);
+             }
++        } else {
++            mSupportInfo = getDummySupportInfo();
+         }
+         if (mSupportInfo.headroom.isCpuSupported) {
+             mCpuHeadroomCache = new HeadroomCache<>(2, mSupportInfo.headroom.cpuMinIntervalMillis);
+@@ -370,7 +372,10 @@ public final class HintManagerService extends SystemService {
+         } catch (RemoteException e) {
+             throw new IllegalStateException("Could not contact PowerHAL!", e);
+         }
++        return getDummySupportInfo();
++    }
+ 
++    private SupportInfo getDummySupportInfo() {
+         SupportInfo supportInfo = new SupportInfo();
+         supportInfo.usesSessions = isHintSessionSupported();
+         // Global boosts & modes aren't currently relevant for HMS clients

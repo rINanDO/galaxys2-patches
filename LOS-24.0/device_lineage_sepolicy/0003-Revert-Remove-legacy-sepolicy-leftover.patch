@@ -1,0 +1,24 @@
+From 89109197a303ed2ee208d1d034c8d78ca9405d89 Mon Sep 17 00:00:00 2001
+From: khalvat-M <mmba313@gmail.com>
+Date: Sun, 2 Jun 2024 13:21:30 +0330
+Subject: [PATCH 3/3] Revert "Remove legacy sepolicy leftover"
+
+This reverts commit 2be3f5c341494ae1bb3044fb44955501034e19aa.
+---
+ common/sepolicy.mk | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/common/sepolicy.mk b/common/sepolicy.mk
+index 9a1620d..1a55071 100644
+--- a/common/sepolicy.mk
++++ b/common/sepolicy.mk
+@@ -25,6 +25,9 @@ BOARD_VENDOR_SEPOLICY_DIRS += \
+     device/lineage/sepolicy/common/vendor
+ endif
+ 
++# Selectively include legacy rules defined by the products
++-include device/lineage/sepolicy/legacy-common/sepolicy.mk
++
+ # Include atv rules on atv product
+ ifeq ($(PRODUCT_IS_ATV), true)
+ include device/lineage/sepolicy/atv/sepolicy.mk

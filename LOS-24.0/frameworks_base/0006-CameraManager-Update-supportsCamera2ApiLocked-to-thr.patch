@@ -1,0 +1,47 @@
+From a1ecba4fd2f09ffda592971c9900479ccc4a0169 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 4 Jul 2026 22:21:25 +0200
+Subject: [PATCH 06/18] CameraManager: Update supportsCamera2ApiLocked to throw
+ RemoteException on service unavailability
+
+Change-Id: Id01744db4a1e70316c095cd8b1f3513b153522af
+---
+ .../android/hardware/camera2/CameraManager.java | 17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/core/java/android/hardware/camera2/CameraManager.java b/core/java/android/hardware/camera2/CameraManager.java
+index c88004693b91..fae9a4f803b8 100644
+--- a/core/java/android/hardware/camera2/CameraManager.java
++++ b/core/java/android/hardware/camera2/CameraManager.java
+@@ -2142,7 +2142,7 @@ public final class CameraManager {
+      * @param cameraId a non-{@code null} camera identifier
+      * @return {@code false} if the legacy shim needs to be used, {@code true} otherwise.
+      */
+-    private boolean supportsCamera2ApiLocked(String cameraId) {
++    private boolean supportsCamera2ApiLocked(String cameraId) throws RemoteException {
+         return supportsCameraApiLocked(cameraId, API_VERSION_2);
+     }
+ 
+@@ -2152,14 +2152,15 @@ public final class CameraManager {
+      * @param cameraId a non-{@code null} camera identifier
+      * @param apiVersion the version, i.e. {@code API_VERSION_1} or {@code API_VERSION_2}
+      * @return {@code true} if connecting will work for that device version.
+-     *
+-     * TODO: ICameraService#supportsCameraApi was removed upstream and frameworks/av has not
+-     * restored it (a real fix needs native HAL-version detection in CameraService without
+-     * reintroducing the mInterfaceMutex deadlock noted in that revert). Until that lands, always
+-     * report no camera2 support so every camera routes through the legacy HALv1 shim.
+      */
+-    private boolean supportsCameraApiLocked(String cameraId, int apiVersion) {
+-        return false;
++    private boolean supportsCameraApiLocked(String cameraId, int apiVersion)
++            throws RemoteException {
++        ICameraService cameraService = CameraManagerGlobal.get().getCameraService();
++        if (cameraService == null) {
++            throw new ServiceSpecificException(ICameraService.ERROR_DISCONNECTED,
++                    "Camera service is currently unavailable");
++        }
++        return cameraService.supportsCameraApi(cameraId, apiVersion);
+     }
+ 
+     /**

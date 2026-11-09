@@ -1,0 +1,73 @@
+From afca3acb213021becab385eebe346269ac62ae8a Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 12 Oct 2026 15:39:40 +0200
+Subject: [PATCH 12/14] LoopbackEventHandler: don't abort when BPF ring buffers
+ are unavailable
+
+Same bug class as the LocalNetEventHandler fix (1a37eb72a8), different
+ring buffer. system_server aborted during ConnectivityService init on
+this device:
+
+  E LoopbackEventHandler: BpfRingbuf init failed: failed to retrieve
+    ringbuffer at /sys/fs/bpf/netd_shared/map_netd_loopback_access_ringbuf:
+    Function not implemented
+  F libc: Fatal signal 6 (SIGABRT) ... system_server
+
+GetPoller() built its BpfRingbuf<LoopbackAccessEvent> with the single-arg
+BpfRingbuf(path) constructor, which is documented in BpfRingbuf.h as
+"Full construction that aborts on error (use Create/Init to handle
+errors)". This device's 3.10 kernel has no BPF ring buffer support at
+all (no CONFIG_BPF_SYSCALL equivalent), so Init() always fails here,
+and the constructor's abort() took down system_server every boot.
+
+Switch to the non-aborting BpfRingbuf<Value>::Create(path) factory
+(already used correctly elsewhere, e.g. BpfRingbufSized::Create), which
+returns a Result instead of aborting. On failure, log a warning and
+return nullptr from GetPoller(), same as the pre-existing
+RingbufEventPoller::Create() failure path right below it. Start() and
+Stop() already null-check GetPoller()'s return value, and the single
+caller (BpfEventPoller.cpp's init, via LoopbackEventHandler::Start())
+already ignores the bool return, so loopback access usage reporting is
+simply unavailable on this device instead of crash-looping the whole
+system server.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Change-Id: Ife03bab631128dbca62dd3c178aa316643c646c5
+---
+ .../libs/libeventpolling/LoopbackEventHandler.cpp | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/service/native/libs/libeventpolling/LoopbackEventHandler.cpp b/service/native/libs/libeventpolling/LoopbackEventHandler.cpp
+index 942bbf653b..eb3a98d4c1 100644
+--- a/service/native/libs/libeventpolling/LoopbackEventHandler.cpp
++++ b/service/native/libs/libeventpolling/LoopbackEventHandler.cpp
+@@ -53,8 +53,19 @@ bpf::RingbufEventPoller<LoopbackAccessEvent> *
+ LoopbackEventHandler::GetPoller() {
+     static bpf::RingbufEventPoller<LoopbackAccessEvent> *const sPoller =
+         []() -> bpf::RingbufEventPoller<LoopbackAccessEvent> * {
+-        auto rb = std::make_unique<BpfRingbuf<LoopbackAccessEvent>>(
++        // Use the non-aborting Create() factory: devices without BPF ring
++        // buffer support in the kernel (e.g. no CONFIG_BPF_SYSCALL at all)
++        // can't ever create this, and that's not a fatal condition for the
++        // rest of the system - loopback access usage reporting is simply
++        // unavailable. The single-arg BpfRingbuf(path) constructor this
++        // intentionally avoids aborts on the same failure (see BpfRingbuf.h).
++        auto rbResult = BpfRingbuf<LoopbackAccessEvent>::Create(
+             LOOPBACK_ACCESS_RINGBUF_NETD_PATH);
++        if (!rbResult.ok()) {
++            ALOGW("Failed to create loopback access ring buffer: %s",
++                  rbResult.error().message().c_str());
++            return nullptr;
++        }
+ 
+         auto callback = [](const std::vector<LoopbackAccessEvent> &events) {
+             for (const LoopbackAccessEvent &event : events) {
+@@ -66,7 +77,7 @@ LoopbackEventHandler::GetPoller() {
+         };
+ 
+         auto result = RingbufEventPoller<LoopbackAccessEvent>::Create(
+-            std::move(callback), std::move(rb));
++            std::move(callback), std::move(rbResult.value()));
+ 
+         if (!result.ok()) {
+             ALOGE("Failed to create RingbufEventPoller: %s",

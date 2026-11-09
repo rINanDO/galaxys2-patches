@@ -1,0 +1,32 @@
+From ba06a71bfd769b06ce5358fa1931ac3ee60fe1ac Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 7 Oct 2026 16:53:25 +0200
+Subject: [PATCH 17/17] IpClientLinkObserver: fix
+ updateInterfaceLinkStateChanged
+
+setInterfaceLinkStateLocked, used in the restored NetworkObserver
+callback block, doesn't exist in this class; the field it was meant to
+update (mInterfaceLinkState) is set directly everywhere else in this
+file, followed by a callback notification. Do the same here, matching
+the pattern in updateInterfaceRemoved() and the netlink-parsing path.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Change-Id: Ib919a0235967d221ad1887a72fb4a188ced1ea6f
+---
+ src/android/net/ip/IpClientLinkObserver.java | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/android/net/ip/IpClientLinkObserver.java b/src/android/net/ip/IpClientLinkObserver.java
+index de1a7c1b6..38dd2e7fa 100644
+--- a/src/android/net/ip/IpClientLinkObserver.java
++++ b/src/android/net/ip/IpClientLinkObserver.java
+@@ -384,7 +384,8 @@ public class IpClientLinkObserver implements NetworkObserver {
+     }
+ 
+     private synchronized void updateInterfaceLinkStateChanged(boolean state) {
+-        setInterfaceLinkStateLocked(state);
++        mInterfaceLinkState = state;
++        mCallback.update(mInterfaceLinkState);
+     }
+ 
+     private void updateInterfaceDnsServerInfo(long lifetime, final String[] addresses) {

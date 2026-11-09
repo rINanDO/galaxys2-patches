@@ -1,0 +1,66 @@
+From 0236fa5787e1ea9ae2eb0105097953ef1882f1b6 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 31 Jan 2026 16:18:32 +0100
+Subject: [PATCH 02/14] DnsBpfHelper: Support no bpf usecase
+
+Change-Id: I9fdcfd1e9aaa4d34e0429b06572e470a9292b1af
+---
+ bpf/dns_helper/DnsBpfHelper.cpp | 43 +++------------------------------
+ 1 file changed, 3 insertions(+), 40 deletions(-)
+
+diff --git a/bpf/dns_helper/DnsBpfHelper.cpp b/bpf/dns_helper/DnsBpfHelper.cpp
+index 835efee8d2..10e15048b2 100644
+--- a/bpf/dns_helper/DnsBpfHelper.cpp
++++ b/bpf/dns_helper/DnsBpfHelper.cpp
+@@ -33,48 +33,11 @@ namespace net {
+     }                                                                                              \
+   } while (0)
+ 
+-// copied from BpfHandler.cpp
+-static bool mainlineNetBpfLoadDone() {
+-  return !access("/sys/fs/bpf/netd_shared/mainline_done", F_OK);
+-}
+-
+-// copied from BpfHandler.cpp
+-static inline void waitForNetProgsLoaded() {
+-  // infinite loop until success with 5/10/20/40/60/60/60... delay
+-  for (int delay = 5;; delay *= 2) {
+-    if (delay > 60) delay = 60;
+-    if (base::WaitForProperty("init.svc.mdnsd_netbpfload", "stopped", std::chrono::seconds(delay)))
+-      break;
+-    LOG(WARNING) << "Waited " << delay << "s for init.svc.mdnsd_netbpfload=stopped, still waiting.";
+-  }
+-  if (!mainlineNetBpfLoadDone()) {
+-    LOG(ERROR) << "FATAL: init.svc.mdnsd_netbpfload=stopped, yet !mainlineNetBpfLoadDone";
+-    // mdnsd_netbpfload is marked 'reboot_on_failure', init should start a reboot very soon now,
+-    // spamming logs with an abort is pointless
+-    for (;;);
+-  }
+-}
+-
+ base::Result<void> DnsBpfHelper::init() {
+-  if (!android::modules::sdklevel::IsAtLeastT()) {
+-    LOG(INFO) << "performing Android S mainline NetBpfload magic!";
+-    if (!mainlineNetBpfLoadDone()) {
+-      // We're on S/Sv2 & it's the first time netd is starting up (unless crashlooping)
+-      if (!base::SetProperty("ctl.start", "mdnsd_netbpfload")) {
+-        LOG(ERROR) << "Failed to set property ctl.start=mdnsd_netbpfload, see dmesg for reason.";
+-        return base::Error(ENOEXEC);
+-      }
+-
+-      LOG(INFO) << "Waiting for Networking BPF programs";
+-      waitForNetProgsLoaded();
+-      LOG(INFO) << "Networking BPF programs are loaded";
+-    }
+-    return {};
+-  }
++  mConfigurationMap.init(CONFIGURATION_MAP_PATH);
++  mUidOwnerMap.init(UID_OWNER_MAP_PATH);
++  mDataSaverEnabledMap.init(DATA_SAVER_ENABLED_MAP_PATH);
+ 
+-  RETURN_IF_RESULT_NOT_OK(mConfigurationMap.init(CONFIGURATION_MAP_PATH));
+-  RETURN_IF_RESULT_NOT_OK(mUidOwnerMap.init(UID_OWNER_MAP_PATH));
+-  RETURN_IF_RESULT_NOT_OK(mDataSaverEnabledMap.init(DATA_SAVER_ENABLED_MAP_PATH));
+   return {};
+ }
+ 

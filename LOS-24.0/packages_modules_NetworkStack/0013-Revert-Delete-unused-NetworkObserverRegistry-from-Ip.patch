@@ -1,0 +1,377 @@
+From 9b8bcb0d856ed3055477bd1bfbf62f3b78a0dbda Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 7 Oct 2026 05:00:14 +0200
+Subject: [PATCH 13/17] Revert "Delete unused NetworkObserverRegistry from
+ IpClientLinkObserver."
+
+This reverts commit 6e237302b8abe17bafb8dfd857514e84708f81a4.
+
+Change-Id: I40e82d0ba505cc4ae11f49502a8d2a77b07b72a3
+---
+ src/android/net/ip/IpClient.java              | 18 +++++++++++----
+ src/android/net/ip/IpClientLinkObserver.java  | 23 +++++++++++++++----
+ .../android/server/NetworkStackService.java   | 14 ++++++++---
+ .../net/ip/IpClientIntegrationTestCommon.java | 13 +++++++----
+ .../unit/src/android/net/ip/IpClientTest.java | 13 +++++++----
+ .../networkstack/NetworkStackServiceTest.kt   | 20 ++++++++--------
+ 6 files changed, 69 insertions(+), 32 deletions(-)
+
+diff --git a/src/android/net/ip/IpClient.java b/src/android/net/ip/IpClient.java
+index e5927c0f0..ff63acc54 100644
+--- a/src/android/net/ip/IpClient.java
++++ b/src/android/net/ip/IpClient.java
+@@ -199,6 +199,7 @@ import com.android.networkstack.metrics.NetworkStackStatsLog;
+ import com.android.networkstack.packets.NeighborAdvertisement;
+ import com.android.networkstack.packets.NeighborSolicitation;
+ import com.android.networkstack.util.NetworkStackUtils;
++import com.android.server.NetworkObserverRegistry;
+ import com.android.server.NetworkStackService.NetworkStackServiceManager;
+ 
+ import java.io.File;
+@@ -823,6 +824,7 @@ public class IpClient extends StateMachine {
+     private final Dependencies mDependencies;
+     private final ConnectivityManager mCm;
+     private final INetd mNetd;
++    private final NetworkObserverRegistry mObserverRegistry;
+     private final IpClientLinkObserver mLinkObserver;
+     private final WakeupMessage mProvisioningTimeoutAlarm;
+     private final WakeupMessage mDhcpActionTimeoutAlarm;
+@@ -1109,13 +1111,14 @@ public class IpClient extends StateMachine {
+     }
+ 
+     public IpClient(Context context, String ifName, IIpClientCallbacks callback,
+-            NetworkStackServiceManager nssManager) {
+-        this(context, ifName, callback, nssManager, new Dependencies());
++            NetworkObserverRegistry observerRegistry, NetworkStackServiceManager nssManager) {
++        this(context, ifName, callback, observerRegistry, nssManager, new Dependencies());
+     }
+ 
+     @VisibleForTesting
+     public IpClient(Context context, String ifName, IIpClientCallbacks callback,
+-            NetworkStackServiceManager nssManager, Dependencies deps) {
++            NetworkObserverRegistry observerRegistry, NetworkStackServiceManager nssManager,
++            Dependencies deps) {
+         super(IpClient.class.getSimpleName() + "." + ifName);
+         Objects.requireNonNull(ifName);
+         Objects.requireNonNull(callback);
+@@ -1130,6 +1133,7 @@ public class IpClient extends StateMachine {
+         mMetricsLog = deps.getIpConnectivityLog();
+         mNetworkQuirkMetrics = deps.getNetworkQuirkMetrics();
+         mCm = mContext.getSystemService(ConnectivityManager.class);
++        mObserverRegistry = observerRegistry;
+         mIpMemoryStore = deps.getIpMemoryStore(context, nssManager);
+ 
+         sSmLogs.putIfAbsent(mInterfaceName, new SharedLog(MAX_LOG_RECORDS, mTag));
+@@ -1278,8 +1282,10 @@ public class IpClient extends StateMachine {
+                     public void onIpv6AddressRemoved(final Inet6Address address) {
+                         // The update of Gratuitous NA target addresses set or unsolicited
+                         // multicast NS source addresses set should be only accessed from the
+-                        // handler thread of IpClient StateMachine. This can be done by either
+-                        // sending a message to StateMachine or posting a handler.
++                        // handler thread of IpClient StateMachine, keeping the behaviour
++                        // consistent with relying on the non-blocking NetworkObserver callbacks,
++                        // see {@link registerObserverForNonblockingCallback}. This can be done
++                        // by either sending a message to StateMachine or posting a handler.
+                         if (address.isLinkLocalAddress()) return;
+                         getHandler().post(() -> {
+                             mLog.log("Remove IPv6 GUA " + address
+@@ -1472,9 +1478,11 @@ public class IpClient extends StateMachine {
+     }
+ 
+     private void startStateMachineUpdaters() {
++        mObserverRegistry.registerObserverForNonblockingCallback(mLinkObserver);
+     }
+ 
+     private void stopStateMachineUpdaters() {
++        mObserverRegistry.unregisterObserver(mLinkObserver);
+         mLinkObserver.clearInterfaceParams();
+         mLinkObserver.shutdown();
+     }
+diff --git a/src/android/net/ip/IpClientLinkObserver.java b/src/android/net/ip/IpClientLinkObserver.java
+index 6fff3ee49..aac34ffb5 100644
+--- a/src/android/net/ip/IpClientLinkObserver.java
++++ b/src/android/net/ip/IpClientLinkObserver.java
+@@ -67,6 +67,9 @@ import com.android.net.module.util.netlink.StructIfinfoMsg;
+ import com.android.net.module.util.netlink.StructNdOptPref64;
+ import com.android.net.module.util.netlink.StructNdOptRdnss;
+ import com.android.net.module.util.netlink.StructPrefixMsg;
++import com.android.networkstack.apishim.NetworkInformationShimImpl;
++import com.android.networkstack.apishim.common.NetworkInformationShim;
++import com.android.server.NetworkObserver;
+ 
+ import java.net.Inet6Address;
+ import java.net.InetAddress;
+@@ -82,9 +85,10 @@ import java.util.concurrent.TimeUnit;
+ /**
+  * Keeps track of link configuration received from Netd.
+  *
+- * An instance of this class is constructed by passing in an interface name and a callback. When
+- * the class receives update notifications, it applies the update to its local LinkProperties, and
+- * if something has changed, notifies its owner of the update via the callback.
++ * An instance of this class is constructed by passing in an interface name and a callback. The
++ * owner is then responsible for registering the tracker with NetworkObserverRegistry. When the
++ * class receives update notifications, it applies the update to its local LinkProperties, and if
++ * something has changed, notifies its owner of the update via the callback.
+  *
+  * The owner can then call {@code getLinkProperties()} in order to find out
+  * what changed. If in the meantime the LinkProperties stored here have changed,
+@@ -95,11 +99,20 @@ import java.util.concurrent.TimeUnit;
+  *
+  * Threading model: This class is not thread-safe, i.e. all accesses occur on the IpClient handler.
+  *
+- * TODO: pass the LinkProperties directly to the update() callback.
++ * - The owner of this class is expected to create it, register it, and call
++ *   getLinkProperties or clearLinkProperties on its thread.
++ * - Most of the methods in the class are implementing NetworkObserver and are called
++ *   on the handler used to register the observer.
++ * - All accesses to mLinkProperties must be synchronized(this). All the other
++ *   member variables are immutable once the object is constructed.
++ *
++ * TODO: Now that all the methods are called on the handler thread, remove synchronization and
++ *       pass the LinkProperties to the update() callback.
++ * TODO: Stop extending NetworkObserver and get events from netlink directly.
+  *
+  * @hide
+  */
+-public class IpClientLinkObserver {
++public class IpClientLinkObserver implements NetworkObserver {
+     private final String mTag;
+ 
+     /**
+diff --git a/src/com/android/server/NetworkStackService.java b/src/com/android/server/NetworkStackService.java
+index 17b8edbb7..54e6f5f2e 100644
+--- a/src/com/android/server/NetworkStackService.java
++++ b/src/com/android/server/NetworkStackService.java
+@@ -190,9 +190,9 @@ public class NetworkStackService extends Service {
+         /** @see IpClient */
+         @NonNull
+         public IpClient makeIpClient(@NonNull Context context, @NonNull String ifName,
+-                @NonNull IIpClientCallbacks cb,
++                @NonNull IIpClientCallbacks cb, @NonNull NetworkObserverRegistry observerRegistry,
+                 @NonNull NetworkStackServiceManager nsServiceManager) {
+-            return new IpClient(context, ifName, cb, nsServiceManager);
++            return new IpClient(context, ifName, cb, observerRegistry, nsServiceManager);
+         }
+     }
+ 
+@@ -207,6 +207,7 @@ public class NetworkStackService extends Service {
+         private final PermissionChecker mPermChecker;
+         private final Dependencies mDeps;
+         private final INetd mNetd;
++        private final NetworkObserverRegistry mObserverRegistry;
+         @GuardedBy("mIpClients")
+         private final ArrayList<WeakReference<IpClient>> mIpClients = new ArrayList<>();
+         private final IpMemoryStoreService mIpMemoryStoreService;
+@@ -303,6 +304,7 @@ public class NetworkStackService extends Service {
+             mDeps = deps;
+             mNetd = INetd.Stub.asInterface(
+                     (IBinder) context.getSystemService(Context.NETD_SERVICE));
++            mObserverRegistry = new NetworkObserverRegistry();
+             mIpMemoryStoreService = mDeps.makeIpMemoryStoreService(context);
+             final HandlerThread notifierThread = new HandlerThread(
+                     NetworkStackNotifier.class.getSimpleName());
+@@ -320,6 +322,12 @@ public class NetworkStackService extends Service {
+                 netdHash = HASH_UNKNOWN;
+             }
+             updateNetdAidlVersion(netdVersion, netdHash);
++
++            try {
++                mObserverRegistry.register(mNetd);
++            } catch (RemoteException e) {
++                mLog.e("Error registering observer on Netd", e);
++            }
+         }
+ 
+         private void updateNetdAidlVersion(final int version, final String hash) {
+@@ -382,7 +390,7 @@ public class NetworkStackService extends Service {
+             mPermChecker.enforceNetworkStackCallingPermission();
+             updateNetworkStackAidlVersion(cb.getInterfaceVersion(), cb.getInterfaceHash());
+             final IpClient ipClient = mDeps.makeIpClient(
+-                    mContext, ifName, cb, this);
++                    mContext, ifName, cb, mObserverRegistry, this);
+ 
+             synchronized (mIpClients) {
+                 final Iterator<WeakReference<IpClient>> it = mIpClients.iterator();
+diff --git a/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java b/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
+index e278cae07..a481eb5b8 100644
+--- a/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
++++ b/tests/integration/common/android/net/ip/IpClientIntegrationTestCommon.java
+@@ -234,6 +234,7 @@ import com.android.networkstack.metrics.NetworkQuirkMetrics;
+ import com.android.networkstack.packets.NeighborAdvertisement;
+ import com.android.networkstack.packets.NeighborSolicitation;
+ import com.android.networkstack.util.NetworkStackUtils;
++import com.android.server.NetworkObserverRegistry;
+ import com.android.server.NetworkStackService.NetworkStackServiceManager;
+ import com.android.testutils.CompatUtil;
+ import com.android.testutils.ConnectivityDiagnosticsCollector;
+@@ -394,6 +395,7 @@ public abstract class IpClientIntegrationTestCommon {
+     @Mock private PackageManager mPackageManager;
+     @Mock private Dhcp6AddrRegTracker mDhcp6AddrRegTracker;
+     @Spy private INetd mNetd;
++    private NetworkObserverRegistry mNetworkObserverRegistry;
+ 
+     protected IpClient mIpc;
+     protected Dependencies mDependencies;
+@@ -1054,8 +1056,8 @@ public abstract class IpClientIntegrationTestCommon {
+     }
+ 
+     private IpClient makeIpClient() throws Exception {
+-        IpClient ipc =
+-                new IpClient(mContext, mIfaceName, mCb, mNetworkStackServiceManager, mDependencies);
++        IpClient ipc = new IpClient(mContext, mIfaceName, mCb, mNetworkObserverRegistry,
++                mNetworkStackServiceManager, mDependencies);
+         // Wait for IpClient to enter its initial state. Otherwise, additional setup steps or tests
+         // that mock IpClient's dependencies might interact with those mocks while IpClient is
+         // starting. This would cause UnfinishedStubbingExceptions as mocks cannot be interacted
+@@ -1072,6 +1074,8 @@ public abstract class IpClientIntegrationTestCommon {
+         when(mContext.getSystemService(eq(Context.NETD_SERVICE))).thenReturn(netdIBinder);
+         assertNotNull(mNetd);
+ 
++        mNetworkObserverRegistry = new NetworkObserverRegistry();
++        mNetworkObserverRegistry.register(mNetd);
+         mIpc = makeIpClient();
+ 
+         // Tell the IpMemoryStore immediately to answer any question about network attributes with a
+@@ -2530,8 +2534,9 @@ public abstract class IpClientIntegrationTestCommon {
+         final String addr2 = "192.0.2.3";
+         final int prefixLength = 26;
+ 
+-        // IpClient gets IP addresses directly from netlink instead of from netd, just
+-        // add the addresses directly and wait to see if IpClient has seen the address.
++        // IpClient gets IP addresses directly from netlink instead of from netd, unnecessary
++        // to rely on the NetworkObserver callbacks to confirm new added address update. Just
++        // add the addresses directly and wait to see if IpClient has seen the address
+         mNetd.interfaceAddAddress(iface, addr1, prefixLength);
+         mNetd.interfaceAddAddress(iface, addr2, prefixLength);
+ 
+diff --git a/tests/unit/src/android/net/ip/IpClientTest.java b/tests/unit/src/android/net/ip/IpClientTest.java
+index 147b0f1fe..7bedb9372 100644
+--- a/tests/unit/src/android/net/ip/IpClientTest.java
++++ b/tests/unit/src/android/net/ip/IpClientTest.java
+@@ -123,6 +123,7 @@ import com.android.net.module.util.netlink.StructRtMsg;
+ import com.android.networkstack.R;
+ import com.android.networkstack.ipmemorystore.IpMemoryStoreService;
+ import com.android.networkstack.metrics.NetworkQuirkMetrics;
++import com.android.server.NetworkObserverRegistry;
+ import com.android.server.NetworkStackService;
+ import com.android.testutils.DevSdkIgnoreRule;
+ import com.android.testutils.DevSdkIgnoreRule.IgnoreUpTo;
+@@ -194,6 +195,7 @@ public class IpClientTest {
+ 
+     @Mock private Context mContext;
+     @Mock private ConnectivityManager mCm;
++    @Mock private NetworkObserverRegistry mObserverRegistry;
+     @Mock private INetd mNetd;
+     @Mock private Resources mResources;
+     @Mock private IIpClientCallbacks mCb;
+@@ -260,7 +262,7 @@ public class IpClientTest {
+         setTestInterfaceParams(ifname);
+ 
+         final IpClient ipc = runAsShell(READ_DEVICE_CONFIG, () -> {
+-            return new IpClient(mContext, ifname, mCb, mNetworkStackServiceManager, mDependencies);
++            return new IpClient(mContext, ifname, mCb, mObserverRegistry, mNetworkStackServiceManager, mDependencies);
+         });
+         verify(mNetd, timeout(TEST_TIMEOUT_MS).times(1)).interfaceSetEnableIPv6(ifname, false);
+         verify(mNetd, timeout(TEST_TIMEOUT_MS).times(1)).interfaceClearAddrs(ifname);
+@@ -269,6 +271,7 @@ public class IpClientTest {
+         verify(mDependencies).makeIpClientNetlinkMonitor(any(), any(), any(), anyInt(),
+                 any(), processorCaptor.capture());
+         mNetlinkMessageProcessor = processorCaptor.getValue();
++        reset(mObserverRegistry);
+         reset(mNetd);
+         // Verify IpClient doesn't call onLinkPropertiesChange() when it starts.
+         verify(mCb, never()).onLinkPropertiesChange(any());
+@@ -404,7 +407,7 @@ public class IpClientTest {
+         setTestInterfaceParams(null);
+         try {
+             final IpClient ipc = runAsShell(READ_DEVICE_CONFIG, () -> {
+-                return new IpClient(mContext, null, mCb, mNetworkStackServiceManager,
++                return new IpClient(mContext, null, mCb, mObserverRegistry, mNetworkStackServiceManager,
+                     mDependencies);
+             });
+             ipc.shutdown();
+@@ -420,7 +423,7 @@ public class IpClientTest {
+         setTestInterfaceParams(ifname);
+         try {
+             final IpClient ipc = runAsShell(READ_DEVICE_CONFIG, () -> {
+-                return new IpClient(mContext, ifname, null, mNetworkStackServiceManager,
++                return new IpClient(mContext, ifname, null, mObserverRegistry, mNetworkStackServiceManager,
+                     mDependencies);
+             });
+             ipc.shutdown();
+@@ -434,7 +437,7 @@ public class IpClientTest {
+     public void testInvalidInterfaceDoesNotThrow() throws Exception {
+         setTestInterfaceParams(TEST_IFNAME);
+         final IpClient ipc = runAsShell(READ_DEVICE_CONFIG, () -> {
+-            return new IpClient(mContext, TEST_IFNAME, mCb, mNetworkStackServiceManager,
++            return new IpClient(mContext, TEST_IFNAME, mCb, mObserverRegistry, mNetworkStackServiceManager,
+             mDependencies);
+         });
+         verifyNoMoreInteractions(mIpMemoryStore);
+@@ -445,7 +448,7 @@ public class IpClientTest {
+     public void testInterfaceNotFoundFailsImmediately() throws Exception {
+         setTestInterfaceParams(null);
+         final IpClient ipc = runAsShell(READ_DEVICE_CONFIG, () -> {
+-            return new IpClient(mContext, TEST_IFNAME, mCb, mNetworkStackServiceManager,
++            return new IpClient(mContext, TEST_IFNAME, mCb, mObserverRegistry, mNetworkStackServiceManager,
+             mDependencies);
+         });
+         ipc.startProvisioning(new ProvisioningConfiguration());
+diff --git a/tests/unit/src/com/android/networkstack/NetworkStackServiceTest.kt b/tests/unit/src/com/android/networkstack/NetworkStackServiceTest.kt
+index 7f47f8be8..1b0dde4b4 100644
+--- a/tests/unit/src/com/android/networkstack/NetworkStackServiceTest.kt
++++ b/tests/unit/src/com/android/networkstack/NetworkStackServiceTest.kt
+@@ -34,20 +34,13 @@ import android.os.Process
+ import androidx.test.ext.junit.runners.AndroidJUnit4
+ import androidx.test.filters.SmallTest
+ import com.android.net.module.util.Inet4AddressUtils.inet4AddressToIntHTH
+-import com.android.networkstack.ipmemorystore.IpMemoryStoreService
+ import com.android.server.NetworkStackService.Dependencies
+ import com.android.server.NetworkStackService.NetworkStackConnector
+ import com.android.server.NetworkStackService.PermissionChecker
+ import com.android.server.connectivity.NetworkMonitor
++import com.android.networkstack.ipmemorystore.IpMemoryStoreService
+ import com.android.testutils.DevSdkIgnoreRule
+ import com.android.testutils.assertThrows
+-import java.io.FileDescriptor
+-import java.io.PrintWriter
+-import java.io.StringWriter
+-import java.net.Inet4Address
+-import kotlin.reflect.KVisibility
+-import kotlin.reflect.full.declaredMemberFunctions
+-import kotlin.test.assertEquals
+ import org.junit.Rule
+ import org.junit.Test
+ import org.junit.runner.RunWith
+@@ -57,6 +50,13 @@ import org.mockito.Mockito.eq
+ import org.mockito.Mockito.mock
+ import org.mockito.Mockito.times
+ import org.mockito.Mockito.verify
++import java.io.FileDescriptor
++import java.io.PrintWriter
++import java.io.StringWriter
++import java.net.Inet4Address
++import kotlin.reflect.KVisibility
++import kotlin.reflect.full.declaredMemberFunctions
++import kotlin.test.assertEquals
+ 
+ private val TEST_NETD_VERSION = 9991001
+ private val TEST_NETD_HASH = "test_netd_hash"
+@@ -84,7 +84,7 @@ class NetworkStackServiceTest {
+                 any(),
+                 any()
+         )
+-        doReturn(mockIpClient).`when`(this).makeIpClient(any(), any(), any(), any())
++        doReturn(mockIpClient).`when`(this).makeIpClient(any(), any(), any(), any(), any())
+     }
+     private val netd = mock(INetd::class.java).apply {
+         doReturn(TEST_NETD_VERSION).`when`(this).interfaceVersion
+@@ -175,7 +175,7 @@ class NetworkStackServiceTest {
+ 
+         connector.makeIpClient(TEST_IFACE, mockIpClientCb)
+ 
+-        verify(deps).makeIpClient(any(), eq(TEST_IFACE), any(), any())
++        verify(deps).makeIpClient(any(), eq(TEST_IFACE), any(), any(), any())
+         verify(mockIpClientCb).onIpClientCreated(any())
+ 
+         // Call some methods one more time with a shared version number and hash to verify no

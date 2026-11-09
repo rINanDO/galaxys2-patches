@@ -1,0 +1,46 @@
+From 2be4ac13d766331da3fd10a555a249f83d40a65b Mon Sep 17 00:00:00 2001
+From: Yaroslav Zviezda <acroreiser@gmail.com>
+Date: Tue, 2 Apr 2024 23:57:39 +0300
+Subject: [PATCH 07/17] Revert "[BR13] dump Device Configs to dumpsys"
+
+This reverts commit 3a666f3bc7df47de78b05906a206fb4b2ac9d078.
+
+Change-Id: Id285e5d3d27d7495e57b8a34ec9d72423053531d
+---
+ src/com/android/server/NetworkStackService.java | 16 ----------------
+ 1 file changed, 16 deletions(-)
+
+diff --git a/src/com/android/server/NetworkStackService.java b/src/com/android/server/NetworkStackService.java
+index dd59b1121..824335724 100644
+--- a/src/com/android/server/NetworkStackService.java
++++ b/src/com/android/server/NetworkStackService.java
+@@ -24,8 +24,6 @@ import static android.net.util.RawSocketUtils.sendRawPacketDownStream;
+ 
+ import static com.android.net.module.util.DeviceConfigUtils.getResBooleanConfig;
+ import static com.android.net.module.util.FeatureVersions.FEATURE_IS_UID_NETWORKING_BLOCKED;
+-import static com.android.networkstack.util.NetworkStackUtils.IGNORE_TCP_INFO_FOR_BLOCKED_UIDS;
+-import static com.android.networkstack.util.NetworkStackUtils.SKIP_TCP_POLL_IN_LIGHT_DOZE;
+ import static com.android.server.util.PermissionUtil.checkDumpPermission;
+ 
+ import android.app.Service;
+@@ -446,20 +444,6 @@ public class NetworkStackService extends Service {
+                 return;
+             }
+ 
+-            pw.println("Device Configs:");
+-            pw.increaseIndent();
+-            pw.println("SKIP_TCP_POLL_IN_LIGHT_DOZE="
+-                    + DeviceConfigUtils.isNetworkStackFeatureNotChickenedOut(
+-                            mContext, SKIP_TCP_POLL_IN_LIGHT_DOZE));
+-            pw.println("FEATURE_IS_UID_NETWORKING_BLOCKED=" + DeviceConfigUtils.isFeatureSupported(
+-                            mContext, FEATURE_IS_UID_NETWORKING_BLOCKED));
+-            pw.println("IGNORE_TCP_INFO_FOR_BLOCKED_UIDS="
+-                    + DeviceConfigUtils.isNetworkStackFeatureNotChickenedOut(mContext,
+-                            IGNORE_TCP_INFO_FOR_BLOCKED_UIDS));
+-            pw.decreaseIndent();
+-            pw.println();
+-
+-
+             pw.println("NetworkStack logs:");
+             mLog.dump(fd, pw, args);
+ 

@@ -1,0 +1,23 @@
+From e8aecfad3735deab5155fc0c60c5158e3c907c4c Mon Sep 17 00:00:00 2001
+From: Pierre-Hugues Husson <phh@phh.me>
+Date: Wed, 26 Oct 2022 18:13:56 -0400
+Subject: [PATCH 2/4] Don't abort in case of cgroup/bpf setup fail, since some
+ devices dont have BPF
+
+---
+ server/main.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/server/main.cpp b/server/main.cpp
+index be9a1d03..e84899e4 100644
+--- a/server/main.cpp
++++ b/server/main.cpp
+@@ -147,7 +147,7 @@ int main(const int argc, const char* argv[]) {
+ 
+     if (libnetd_updatable_init(cg2_path.c_str())) {
+         ALOGE("libnetd_updatable_init failed");
+-        exit(1);
++        //exit(1);
+     }
+     gLog.info("libnetd_updatable_init success");
+ 

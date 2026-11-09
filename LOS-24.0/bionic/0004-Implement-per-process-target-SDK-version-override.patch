@@ -1,0 +1,52 @@
+From 2852e1b197feb271b09fd359a17e64bc41125bfc Mon Sep 17 00:00:00 2001
+From: Danny Baumann <dannybaumann@web.de>
+Date: Wed, 29 Aug 2018 11:21:52 +0200
+Subject: [PATCH 4/9] Implement per-process target SDK version override.
+
+Change-Id: Id11b5d76708787d66afc94c9d3dc9fc7b3c6eb79
+Signed-off-by: Dominggoes Isakh <drjisakh@gmail.com>
+---
+ linker/Android.bp |  5 ++++-
+ linker/linker.cpp | 13 ++++++++++++-
+ 2 files changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/linker/Android.bp b/linker/Android.bp
+index 12f3682e9..74ab6a928 100644
+--- a/linker/Android.bp
++++ b/linker/Android.bp
+@@ -111,7 +111,10 @@ cc_defaults {
+     })
+         + select(soong_config_variable("bionic", "ld_shim_libs"), {
+            any @ flag_val: ["-DLD_SHIM_LIBS=" + flag_val],
+-           default: []}),
++           default: []})
++        + select(soong_config_variable("bionic", "sdk_version_overrides"), {
++        any @ flag_val: ["-DSDK_VERSION_OVERRIDES=" + flag_val],
++        default: []}),
+     asflags: linker_common_flags,
+ 
+     product_variables: {
+diff --git a/linker/linker.cpp b/linker/linker.cpp
+index c857e0dd3..37e86c5a8 100644
+--- a/linker/linker.cpp
++++ b/linker/linker.cpp
+@@ -3827,7 +3827,18 @@ std::vector<android_namespace_t*> init_default_namespaces(const char* executable
+     }
+   }
+ 
+-  set_application_target_sdk_version(config->target_sdk_version());
++  uint32_t target_sdk = config->target_sdk_version();
++#ifdef SDK_VERSION_OVERRIDES
++  for (const auto& entry : android::base::Split(SDK_VERSION_OVERRIDES, " ")) {
++    auto splitted = android::base::Split(entry, "=");
++    if (splitted.size() == 2 && splitted[0] == executable_path) {
++      target_sdk = static_cast<uint32_t>(std::stoul(splitted[1]));
++      break;
++    }
++  }
++  DEBUG("Target SDK for %s = %d", executable_path, target_sdk);
++#endif
++  set_application_target_sdk_version(target_sdk);
+ 
+   std::vector<android_namespace_t*> created_namespaces;
+   created_namespaces.reserve(namespaces.size());

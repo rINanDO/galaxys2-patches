@@ -1,0 +1,45 @@
+From 80da94da5fae092bd320c737f2bd6ecd7e3bbd5e Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 4 Nov 2026 19:30:52 +0100
+Subject: [PATCH 14/14] NetBpfLoader: Skip loading when the kernel has no bpf()
+ syscall
+
+Without the bpf() syscall none of the programs or maps can be created,
+but netbpfload, uprobestatsbpfload and the platform bpfloader still
+parse every ELF object and log each failure. On a 3.0 kernel this keeps
+init waiting in exec_start bpfloader for ~1.4 s before netd and zygote
+can start. Probe for the syscall once and report the programs as loaded.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I0617a86e570caf0fd08feeaab2c113bc047772dd
+---
+ bpf/loader/NetBpfLoad.cpp | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/bpf/loader/NetBpfLoad.cpp b/bpf/loader/NetBpfLoad.cpp
+index 6e87f05de9..31488dc319 100644
+--- a/bpf/loader/NetBpfLoad.cpp
++++ b/bpf/loader/NetBpfLoad.cpp
+@@ -1803,6 +1803,22 @@ static int doLoad(char** argv, char * const envp[]) {
+         // nothing we can do.
+     }
+ 
++    // Without the bpf() syscall nothing below can succeed, and parsing every
++    // ELF object of this and the platform loaders takes more than a second
++    // of the boot on slow devices. Report the programs as loaded and stop.
++    {
++        errno = 0;
++        unique_fd probe(createMap(BPF_MAP_TYPE_ARRAY, sizeof(int), sizeof(int), 1, 0));
++        if (!probe.ok() && errno == ENOSYS) {
++            ALOGW("Kernel has no bpf() syscall, skipping all bpf programs.");
++            if (!SetProperty("bpf.progs_loaded", "1")) {
++                ALOGE("Failed to set bpf.progs_loaded property to 1.");
++                return 125;
++            }
++            return 0;
++        }
++    }
++
+     auto start = steady_clock::now();
+     // Load all ELF objects, create programs and maps, and pin them
+     if (!loadAllObjects()) {

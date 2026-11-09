@@ -1,0 +1,39 @@
+From b4032f69315572f1fbd42c3cb3084656ddead7fa Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 5 Nov 2026 16:07:06 +0100
+Subject: [PATCH 16/18] KeyGestureController: Pass Menu and Assist keys on to
+ the policy
+
+The hardware key rebinding hotfix returns false for KEYCODE_MENU and
+KEYCODE_ASSIST in interceptShortcutsBeforeKeyCapture, so that
+PhoneWindowManager handles them. Since 23.2, PhoneWindowManager's
+interceptKeyBeforeDispatching is only called at the end of that
+function, so the early return skips it and Lineage's press and long
+press actions for these keys never run (e.g. long press Menu does not
+open recent apps).
+
+Break out of the switch instead, so the keys reach
+PhoneWindowManager.interceptKeyBeforeDispatching like the other keys.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Ibdb070cb36f11abcb09e27b37be5676c58799b8b
+---
+ .../java/com/android/server/input/KeyGestureController.java  | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/services/core/java/com/android/server/input/KeyGestureController.java b/services/core/java/com/android/server/input/KeyGestureController.java
+index e195f1c2f6c0..1f8f66c23840 100644
+--- a/services/core/java/com/android/server/input/KeyGestureController.java
++++ b/services/core/java/com/android/server/input/KeyGestureController.java
+@@ -915,8 +915,9 @@ final class KeyGestureController {
+                 break;
+             case KeyEvent.KEYCODE_ASSIST:
+             case KeyEvent.KEYCODE_MENU:
+-                // Let policy handle it in PhoneWindowManager.interceptKeyBeforeQueueing
+-                return false;
++                // Let PhoneWindowManager handle these (press and long press
++                // actions) via interceptKeyBeforeDispatching below.
++                break;
+             case KeyEvent.KEYCODE_VOICE_ASSIST:
+                 Slog.wtf(TAG, "KEYCODE_VOICE_ASSIST should be handled in"
+                         + " interceptKeyBeforeQueueing");

@@ -1,0 +1,138 @@
+From 257bd78f0add19648eba1e695d34f3709fc966c6 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 12 Oct 2026 16:45:57 +0200
+Subject: [PATCH 13/14] BpfNetMaps: guard local-net-access map access against
+ missing BPF
+
+Wi-Fi softboot: system_server threw an uncaught NullPointerException on
+the ConnectivityServiceThread as soon as Wi-Fi obtained an IP address
+and ConnectivityService pushed updated LinkProperties:
+
+  *** FATAL EXCEPTION IN SYSTEM PROCESS: ConnectivityServiceThread
+  java.lang.NullPointerException: Attempt to invoke interface method
+    'void IBpfMap.updateEntry(Struct, Struct)' on a null object reference
+    at BpfNetMaps.incrementLnpGenerationId(BpfNetMaps.java:2400)
+    at BpfNetMaps.addLocalNetAccess(BpfNetMaps.java:1832)
+    at ConnectivityService.addLocalAddressesToBpfMap(ConnectivityService.java:11702)
+    at ConnectivityService.updateLocalNetworkAddresses(ConnectivityService.java:11477)
+    at ConnectivityService.updateInterfaces(ConnectivityService.java:11408)
+    at ConnectivityService.updateLinkProperties(ConnectivityService.java:11058)
+
+Root cause: the whole "local network access" (B+) feature's maps
+(sLocalNetAccessMap, sLocalNetBlockedUidMap, sLocalNetUidHostAllowlistMap,
+sLocalNetCacheGenerationIdMap) are only ever assigned inside
+initBpfMaps()'s isAtLeastB() block, which sits after this method's own
+"if (sConfigurationMap == null) return;" early-out (sConfigurationMap
+is this file's established "is BPF available at all" sentinel, already
+used as a guard in several other methods in this file). On this
+device's BPF-less 3.10 kernel sConfigurationMap is always null, so
+initBpfMaps() returns before ever reaching that block, and all four
+local-net-access maps stay permanently null - but none of the public
+methods that use them (added for the newer local-net-access feature)
+had picked up the same null-check convention the rest of the file uses.
+
+Add "if (sConfigurationMap == null) return <default>;" to every
+local-net-access entry point that dereferences one of these maps
+directly: incrementLnpGenerationId, updateLocalNetAccessMap,
+updateLocalNetUidHostAllowlistMap (the three shared private helpers,
+covering addLocalNetAccess/addLocalNetUidAccess/addLocalNetUidHostAccess
+for free), plus removeLocalNetAccess, getLocalNetAccess,
+addUidToLocalNetBlockMap, isUidBlockedFromUsingLocalNetwork,
+removeUidFromLocalNetBlockMap, removeLocalNetUidAccess, and
+removeLocalNetHostAllowlistForInterface. Default returns match each
+method's existing error-path convention (e.g. getLocalNetAccess already
+defaults to "true"/allowed on ErrnoException).
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Change-Id: Ie041d95ccf7df788c64fd470aed188844e6b87d0
+---
+ service/src/com/android/server/BpfNetMaps.java | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/service/src/com/android/server/BpfNetMaps.java b/service/src/com/android/server/BpfNetMaps.java
+index 1bc50c13a6..5967ed43f9 100644
+--- a/service/src/com/android/server/BpfNetMaps.java
++++ b/service/src/com/android/server/BpfNetMaps.java
+@@ -1847,6 +1847,7 @@ public class BpfNetMaps {
+     public void removeLocalNetAccess(final int lpmBitlen, @Nullable final String iface,
+             final InetAddress address, final int protocol, final int remotePort) {
+         throwIfPre25Q2("removeLocalNetAccess is not available on pre-B devices");
++        if (sConfigurationMap == null) return;
+         final int ifIndex;
+         if (iface == null) {
+             ifIndex = 0;
+@@ -1887,6 +1888,7 @@ public class BpfNetMaps {
+     public boolean getLocalNetAccess(final int lpmBitlen, @Nullable final String iface,
+             final InetAddress address, final int protocol, final int remotePort) {
+         throwIfPre25Q2("getLocalNetAccess is not available on pre-B devices");
++        if (sConfigurationMap == null) return true;
+         final int ifIndex;
+         if (iface == null) {
+             ifIndex = 0;
+@@ -1951,6 +1953,7 @@ public class BpfNetMaps {
+     @RequiresApi(Build.VERSION_CODES.CUR_DEVELOPMENT)
+     public void addUidToLocalNetBlockMap(final int uid) {
+         throwIfPre25Q2("addUidToLocalNetBlockMap is not available on pre-B devices");
++        if (sConfigurationMap == null) return;
+         try {
+             sLocalNetBlockedUidMap.updateEntry(new U32(uid), new Bool(true));
+         } catch (ErrnoException e) {
+@@ -1965,6 +1968,7 @@ public class BpfNetMaps {
+     @RequiresApi(Build.VERSION_CODES.CUR_DEVELOPMENT)
+     public boolean isUidBlockedFromUsingLocalNetwork(final int uid) {
+         throwIfPre25Q2("isUidBlockedFromUsingLocalNetwork is not available on pre-B devices");
++        if (sConfigurationMap == null) return false;
+         try {
+             final Bool value = sLocalNetBlockedUidMap.getValue(new U32(uid));
+             return value == null ? false : value.val;
+@@ -1982,6 +1986,7 @@ public class BpfNetMaps {
+     @RequiresApi(Build.VERSION_CODES.CUR_DEVELOPMENT)
+     public void removeUidFromLocalNetBlockMap(final int uid) {
+         throwIfPre25Q2("removeUidFromLocalNetBlockMap is not available on pre-B devices");
++        if (sConfigurationMap == null) return;
+         try {
+             sLocalNetBlockedUidMap.deleteEntry(new U32(uid));
+         } catch (ErrnoException e) {
+@@ -2016,6 +2021,7 @@ public class BpfNetMaps {
+     @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+     public void removeLocalNetUidAccess(final int uid, @NonNull final String iface) {
+         throwIfPre25Q2("removeLocalNetUidAccess is not available on pre-B devices");
++        if (sConfigurationMap == null) return;
+         final int ifIndex = mInterfaceTracker.getInterfaceIndex(iface);
+         if (ifIndex == 0) {
+             Log.e(TAG, "Failed to get if index, skip removeLocalNetUidAccess for uid: " + uid
+@@ -2058,6 +2064,7 @@ public class BpfNetMaps {
+     @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+     public void removeLocalNetHostAllowlistForInterface(final int ifIndex) {
+         throwIfPre25Q2("removeLocalNetHostAllowlistForInterface is not available on pre-B devices");
++        if (sConfigurationMap == null) return;
+         synchronized (sLocalNetAccessLock) {
+             incrementLnpGenerationId(true);
+             try {
+@@ -2392,6 +2399,10 @@ public class BpfNetMaps {
+ 
+     @GuardedBy("sLocalNetAccessLock")
+     private void incrementLnpGenerationId(boolean expectEven) throws IllegalStateException {
++        // sLocalNetCacheGenerationIdMap (like every other local-net-access map) is never
++        // initialized when there's no BPF support (see initBpfMaps's early
++        // "if (sConfigurationMap == null) return;"), so skip the bump rather than NPE.
++        if (sConfigurationMap == null) return;
+         if (expectEven != ((sLnpGenerationID & 1) == 0)) {
+             throw new IllegalStateException(
+                     "Parity error in the local net cache generation ID. This should never happen.");
+@@ -2406,6 +2417,7 @@ public class BpfNetMaps {
+ 
+     @GuardedBy("sLocalNetAccessLock")
+     private void updateLocalNetAccessMap(final LocalNetAccessKey key, final boolean isAllowed) {
++        if (sConfigurationMap == null) return;
+         int eventType =
+                 CORE_NETWORKING_CRITICAL_COUNTS_EVENT_OCCURRED__EVENT_TYPE__CRITICAL_COUNTS_EVENT_TYPE_LNP_TRIE_NET_OK;
+         try {
+@@ -2427,6 +2439,7 @@ public class BpfNetMaps {
+     @GuardedBy("sLocalNetAccessLock")
+     private void updateLocalNetUidHostAllowlistMap(final LocalNetUidHostAllowlistKey key,
+             final boolean isAllowed) {
++        if (sConfigurationMap == null) return;
+         int eventType =
+                 CORE_NETWORKING_CRITICAL_COUNTS_EVENT_OCCURRED__EVENT_TYPE__CRITICAL_COUNTS_EVENT_TYPE_LNP_TRIE_HOST_OK;
+         try {

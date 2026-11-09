@@ -1,0 +1,23 @@
+From 128cb0fd0c1df9a41fbfd99f4ead80763e392ebd Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 16 Feb 2026 17:52:19 +0100
+Subject: [PATCH 3/3] bpfloader: Don't panic on creating bpf-directory
+
+Change-Id: I6179e18fb5edda0503d07b2c2783eeeeb13c053a
+---
+ loader/bpfloader.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/loader/bpfloader.rs b/loader/bpfloader.rs
+index 594b5ea..47bb7f9 100644
+--- a/loader/bpfloader.rs
++++ b/loader/bpfloader.rs
+@@ -762,7 +762,7 @@ fn main() {
+     info!("Loading legacy BPF progs");
+ 
+     if let Err(e) = create_dir(Path::new("/sys/fs/bpf/vendor")) {
+-        panic!("Error during mkdir /sys/fs/bpf/vendor: {e}");
++        error!("Error during mkdir /sys/fs/bpf/vendor: {e}");
+     };
+ 
+     // SAFETY: Linking in the existing legacy vendor bpfloader functionality.

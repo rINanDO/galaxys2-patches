@@ -1,0 +1,41 @@
+From 1c3e95f9495bb712f09f30581b5080a964372fc6 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 7 Oct 2026 16:50:58 +0200
+Subject: [PATCH 16/17] IpClientLinkObserver: drop dead NetworkInformationShim
+ references
+
+The NetworkObserverRegistry revert's conflict resolution pulled in an
+import and field for com.android.networkstack.apishim.*.
+NetworkInformationShim(Impl), which no longer exists anywhere in this
+tree (the apishim abstraction was removed upstream in favor of direct
+SdkLevel checks, same as ShimUtils/ConstantsShim elsewhere in
+NetworkStack). The mShim field was never assigned or read, so this was
+simply dead code accidentally restored during the revert; remove it.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Change-Id: Ia9a34915e3ad290dfaade8f2e823154c066e1c47
+---
+ src/android/net/ip/IpClientLinkObserver.java | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/src/android/net/ip/IpClientLinkObserver.java b/src/android/net/ip/IpClientLinkObserver.java
+index f6c4968cd..de1a7c1b6 100644
+--- a/src/android/net/ip/IpClientLinkObserver.java
++++ b/src/android/net/ip/IpClientLinkObserver.java
+@@ -68,8 +68,6 @@ import com.android.net.module.util.netlink.StructIfinfoMsg;
+ import com.android.net.module.util.netlink.StructNdOptPref64;
+ import com.android.net.module.util.netlink.StructNdOptRdnss;
+ import com.android.net.module.util.netlink.StructPrefixMsg;
+-import com.android.networkstack.apishim.NetworkInformationShimImpl;
+-import com.android.networkstack.apishim.common.NetworkInformationShim;
+ import com.android.server.NetworkObserver;
+ 
+ import java.net.Inet6Address;
+@@ -217,7 +215,6 @@ public class IpClientLinkObserver implements NetworkObserver {
+     private final String mClatInterfaceName;
+     private final IpClientNetlinkMonitor mNetlinkMonitor;
+     private final boolean mNetlinkEventParsingEnabled;
+-    private final NetworkInformationShim mShim;
+     private final AlarmManager.OnAlarmListener mExpirePref64Alarm;
+     // Map of prefix in PIO with P flag and its preferred lifetime expiry in milliseconds since boot
+     private final Map<IpPrefix, Long> mDhcp6PdPreferredPrefixes = new ArrayMap<>();

@@ -1,0 +1,34 @@
+From a6c91b62cc368ce885e1c49a33fb0348e5379f9c Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 7 Nov 2026 10:22:09 +0100
+Subject: [PATCH 11/11] vibrator: legacy: Don't advertise the on() completion
+ callback
+
+Vibrator::on() ignores its callback, but getCapabilities() reports
+CAP_ON_CALLBACK. VibrationThread then waits for a completion that never
+comes until CALLBACKS_EXTRA_TIMEOUT (1 s) runs out, so even a short keyboard
+click occupies the vibrator for about a second and the key presses during
+that time are dropped.
+
+Report no capabilities, so the framework times the vibration itself.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Ide5c06b16335f3c7ba0589c443eb3e2327cf668e
+---
+ vibrator/aidl-legacy/Vibrator.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/vibrator/aidl-legacy/Vibrator.cpp b/vibrator/aidl-legacy/Vibrator.cpp
+index aca2ecc..48920e1 100644
+--- a/vibrator/aidl-legacy/Vibrator.cpp
++++ b/vibrator/aidl-legacy/Vibrator.cpp
+@@ -38,7 +38,8 @@ Vibrator::Vibrator() {
+ 
+ ndk::ScopedAStatus Vibrator::getCapabilities(int32_t* _aidl_return) {
+     ALOGV("Vibrator reporting capabilities");
+-    *_aidl_return = IVibrator::CAP_ON_CALLBACK;
++    // on() has no way to report completion, so let the framework time it.
++    *_aidl_return = 0;
+     return ndk::ScopedAStatus::ok();
+ }
+ 

@@ -1,0 +1,28 @@
+From 74246fd1c94210e8b9edc11007bfffa4b93f96fb Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 9 Nov 2026 09:24:34 +0100
+Subject: [PATCH 2/2] Hack: Disable treble for now
+
+PRODUCT_FULL_TREBLE is gone from the build system in LineageOS 24.0 and
+gen_build_prop.py always writes ro.treble.enabled=true. Write false, so
+linkerconfig generates the non-Treble configuration for this device.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I05602f6644ef645466eb0e492183c2188d5b2601
+---
+ scripts/gen_build_prop.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/gen_build_prop.py b/scripts/gen_build_prop.py
+index 639967ea4..1af525bb4 100644
+--- a/scripts/gen_build_prop.py
++++ b/scripts/gen_build_prop.py
+@@ -332,7 +332,7 @@ def append_additional_system_props(args):
+ 
+   # We may be able to remove this property now and update all clients to assume
+   # that treble is enabled.
+-  props.append(f"ro.treble.enabled=true")
++  props.append(f"ro.treble.enabled=false")
+ 
+   # Set ro.llndk.api_level to show the maximum vendor API level that the LLNDK
+   # in the system partition supports.

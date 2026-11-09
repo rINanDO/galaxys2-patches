@@ -1,0 +1,35 @@
+From 2ad9a5eca9127112f7e442187cc6003abe322b9b Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Fri, 6 Nov 2026 10:30:55 +0100
+Subject: [PATCH] Wifi: Default the Software PNO flag to on
+
+Software PNO needs both the config_wifiSwPnoEnabled resource and the
+software_pno_enabled DeviceConfig flag, which defaults to off and can
+only be set at runtime. A device without hardware PNO has no way to turn
+it on from its overlay.
+
+Default the flag to on, so the resource alone decides. The resource is
+false unless a device overlay sets it, so other devices do not change.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I2d0af23280866a62915e607dbfa4bc1d8733e9fb
+---
+ service/java/com/android/server/wifi/DeviceConfigFacade.java | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/service/java/com/android/server/wifi/DeviceConfigFacade.java b/service/java/com/android/server/wifi/DeviceConfigFacade.java
+index 9b44a4dbc6..b1a76d06c5 100644
+--- a/service/java/com/android/server/wifi/DeviceConfigFacade.java
++++ b/service/java/com/android/server/wifi/DeviceConfigFacade.java
+@@ -404,8 +404,10 @@ public class DeviceConfigFacade {
+                 "application_qos_policy_api_enabled", true);
+         mAdjustPollRssiIntervalEnabled =
+                 DeviceConfig.getBoolean(NAMESPACE, "adjust_poll_rssi_interval_enabled", false);
++        // On by default: config_wifiSwPnoEnabled (false unless a device
++        // overlay sets it) still decides whether Software PNO is used.
+         mSoftwarePnoEnabled = DeviceConfig.getBoolean(NAMESPACE,
+-                "software_pno_enabled", false);
++                "software_pno_enabled", true);
+         mIncludePasspointSsidsInPnoScans = DeviceConfig.getBoolean(NAMESPACE,
+                 "include_passpoint_ssids_in_pno_scans", true);
+         mHandleRssiOrganicKernelFailuresEnabled = DeviceConfig.getBoolean(NAMESPACE,

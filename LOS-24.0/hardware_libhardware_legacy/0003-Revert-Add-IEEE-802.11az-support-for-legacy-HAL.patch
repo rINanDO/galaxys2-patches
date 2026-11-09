@@ -1,0 +1,254 @@
+From 891e755246302a1faef5d00095e8ddce208df136 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 15 Sep 2025 13:05:43 -0400
+Subject: [PATCH 3/3] Revert "Add IEEE 802.11az support for legacy HAL"
+
+This reverts commit 7ea82025564a69ef585ca96f7f373e00109dc8d6.
+---
+ include/hardware_legacy/rtt.h      | 126 +++++------------------------
+ include/hardware_legacy/wifi_hal.h |   3 -
+ 2 files changed, 22 insertions(+), 107 deletions(-)
+
+diff --git a/include/hardware_legacy/rtt.h b/include/hardware_legacy/rtt.h
+index 63c3325..ce17443 100644
+--- a/include/hardware_legacy/rtt.h
++++ b/include/hardware_legacy/rtt.h
+@@ -50,34 +50,28 @@ typedef enum {
+ 
+ /* RTT Measurement Preamble */
+ typedef enum {
+-    WIFI_RTT_PREAMBLE_INVALID = 0x0,
+-    WIFI_RTT_PREAMBLE_LEGACY  = 0x1,
+-    WIFI_RTT_PREAMBLE_HT      = 0x2,
+-    WIFI_RTT_PREAMBLE_VHT     = 0x4,
+-    WIFI_RTT_PREAMBLE_HE      = 0x8,
+-    WIFI_RTT_PREAMBLE_EHT     = 0x10,
+-} wifi_rtt_preamble ;
++    WIFI_RTT_PREAMBLE_LEGACY = 0x1,
++    WIFI_RTT_PREAMBLE_HT     = 0x2,
++    WIFI_RTT_PREAMBLE_VHT    = 0x4,
++    WIFI_RTT_PREAMBLE_HE     = 0x8,
++    WIFI_RTT_PREAMBLE_EHT    = 0x10,
++} wifi_rtt_preamble;
+ 
+ /* RTT Type */
+ typedef enum {
+-    RTT_TYPE_1_SIDED          = 0x1,
+-    /* Deprecated. Use RTT_TYPE_2_SIDED_11MC instead. */
+-    RTT_TYPE_2_SIDED          = 0x2,
+-    RTT_TYPE_2_SIDED_11MC     = RTT_TYPE_2_SIDED,
+-    RTT_TYPE_2_SIDED_11AZ_NTB = 0x3,
+-
++    RTT_TYPE_1_SIDED = 0x1,
++    RTT_TYPE_2_SIDED = 0x2,
+ } wifi_rtt_type;
+ 
+ /* RTT configuration */
+ typedef struct {
+     mac_addr addr;                 // peer device mac address
+-    wifi_rtt_type type;            // 1-sided or 2-sided RTT (11mc and 11az)
++    wifi_rtt_type type;            // 1-sided or 2-sided RTT
+     rtt_peer_type peer;            // optional - peer device hint (STA, P2P, AP)
+     wifi_channel_info channel;     // Required for STA-AP mode, optional for P2P, NBD etc.
+     unsigned burst_period;         // Time interval between bursts (units: 100 ms).
+                                    // Applies to 1-sided and 2-sided RTT multi-burst requests.
+                                    // Range: 0-31, 0: no preference by initiator (2-sided RTT)
+-                                   // Note: Applicable for 11mc only.
+     unsigned num_burst;            // Total number of RTT bursts to be executed. It will be
+                                    // specified in the same way as the parameter "Number of
+                                    // Burst Exponent" found in the FTM frame format. It
+@@ -88,7 +82,6 @@ typedef struct {
+                                    // number of RTT results is the following:
+                                    // for 1-sided RTT: max num of RTT results = (2^num_burst)*(num_frames_per_burst)
+                                    // for 2-sided RTT: max num of RTT results = (2^num_burst)*(num_frames_per_burst - 1)
+-                                   // Note: Applicable for 11mc only.
+     unsigned num_frames_per_burst; // num of frames per burst.
+                                    // Minimum value = 1, Maximum value = 31
+                                    // For 2-sided this equals the number of FTM frames
+@@ -96,7 +89,6 @@ typedef struct {
+                                    // equals the number of FTM frames that the
+                                    // initiator will request that the responder send
+                                    // in a single frame.
+-                                   // Note: Applicable for 11mc only.
+     unsigned num_retries_per_rtt_frame; // number of retries for a failed RTT frame. Applies
+                                         // to 1-sided RTT only. Minimum value = 0, Maximum value = 3
+ 
+@@ -106,7 +98,7 @@ typedef struct {
+                                    // Minimum value = 0, Maximum value = 3
+     byte LCI_request;              // 1: request LCI, 0: do not request LCI
+     byte LCR_request;              // 1: request LCR, 0: do not request LCR
+-    unsigned burst_duration;       // Applies to 1-sided and 2-sided 11mc RTT. Valid values will
++    unsigned burst_duration;       // Applies to 1-sided and 2-sided RTT. Valid values will
+                                    // be 2-11 and 15 as specified by the 802.11mc std for
+                                    // the FTM parameter burst duration. In a multi-burst
+                                    // request, if responder overrides with larger value,
+@@ -118,22 +110,10 @@ typedef struct {
+     wifi_rtt_bw bw;                // RTT BW to be used in the RTT frames
+ } wifi_rtt_config;
+ 
+-/* RTT configuration v3 (11az support)*/
+-typedef struct {
+-    wifi_rtt_config rtt_config;
+-    byte ntb_min_measurement_time_millis; // 11az Non-Trigger-based (non-TB) minimum measurement
+-                                          // time in milliseconds
+-    byte ntb_max_measurement_time_millis; // 11az Non-Trigger-based (non-TB) maximum measurement
+-                                          // time in milliseconds
+-    byte tx_ltf_repetition_count;         // Multiple transmissions of HE-LTF symbols in an HE
+-                                          // Ranging NDP. A value of 1 indicates no repetition.
+-} wifi_rtt_config_v3;
+-
+ /* RTT results */
+ typedef struct {
+     mac_addr addr;                // device mac address
+-    unsigned burst_num;           // burst number in a multi-burst request. Note: Applicable to
+-                                  // 1-sided RTT and 2-sided IEEE 802.11mc only.
++    unsigned burst_num;           // burst number in a multi-burst request
+     unsigned measurement_number;  // Total RTT measurement frames attempted
+     unsigned success_number;      // Total successful RTT measurement frames
+     byte  number_per_burst_peer;  // Maximum number of "FTM frames per burst" supported by
+@@ -159,7 +139,6 @@ typedef struct {
+     wifi_timespan rtt;            // round trip time in picoseconds
+     wifi_timespan rtt_sd;         // rtt standard deviation in picoseconds
+     wifi_timespan rtt_spread;     // difference between max and min rtt times recorded in picoseconds
+-                                  // Note: Only applicable for IEEE 802.11mc
+     int distance_mm;              // distance in mm (optional)
+     int distance_sd_mm;           // standard deviation in mm (optional)
+     int distance_spread_mm;       // difference between max and min distance recorded in mm (optional)
+@@ -167,9 +146,9 @@ typedef struct {
+     int burst_duration;           // in ms, actual time taken by the FW to finish one burst
+                                   // measurement. Applies to 1-sided and 2-sided RTT.
+     int negotiated_burst_num;     // Number of bursts allowed by the responder. Applies
+-                                  // to 2-sided 11mc RTT only.
+-    wifi_information_element *LCI; // for 11mc and 11az only
+-    wifi_information_element *LCR; // for 11mc and 11az only
++                                  // to 2-sided RTT only.
++    wifi_information_element *LCI; // for 11mc only
++    wifi_information_element *LCR; // for 11mc only
+ } wifi_rtt_result;
+ 
+ /* RTT results version 2 */
+@@ -181,61 +160,21 @@ typedef struct {
+                                   // Cap the average close to a specific valid RttBw.
+ } wifi_rtt_result_v2;
+ 
+-/* RTT results v3 (11az support)*/
+-typedef struct {
+-  wifi_rtt_result_v2 rtt_result;
+-  int tx_ltf_repetition_count;         // 11az Transmit LTF repetitions used to get this result.
+-  int ntb_min_measurement_time_millis; // Minimum non-trigger based (non-TB) dynamic measurement
+-                                       // time in milliseconds assigned by the 11az responder.
+-  int ntb_max_measurement_time_millis; // Maximum non-trigger based (non-TB) dynamic measurement
+-                                       // time in milliseconds assigned by the 11az responder.
+-} wifi_rtt_result_v3;
+-
+-
+ /* RTT result callbacks */
+ typedef struct {
+     /*
+-     * This callback is deprecated on Android 14 and onwards. Newer implementations should support
+-     * on_rtt_results_v2 callback.
+-     */
+-    void (*on_rtt_results) (wifi_request_id id,
+-                            unsigned num_results,
+-                            wifi_rtt_result *rtt_result[]);
+-
+-    /*
+-     * Called when vendor implementation supports sending RTT results version 2.
+-     *
+-     * Note: This callback is deprecated on Android 15 onwards. Newer implementation should support
+-     * on_rtt_results_v3.
++     * This callback is deprecated on Android 14 and onwards.
++     * Newer implementations should support on_rtt_results_v2 callback
+      */
+-    void (*on_rtt_results_v2) (wifi_request_id id,
+-                               unsigned num_results,
+-                               wifi_rtt_result_v2 *rtt_result_v2[]);
++    void (*on_rtt_results) (wifi_request_id id, unsigned num_results, wifi_rtt_result *rtt_result[]);
++    /* Called when vendor implementation supports sending RTT results version 2 */
++    void (*on_rtt_results_v2) (wifi_request_id id, unsigned num_results, wifi_rtt_result_v2 *rtt_result_v2[]);
+ } wifi_rtt_event_handler;
+ 
+ /* API to request RTT measurement */
+ wifi_error wifi_rtt_range_request(wifi_request_id id, wifi_interface_handle iface,
+         unsigned num_rtt_config, wifi_rtt_config rtt_config[], wifi_rtt_event_handler handler);
+ 
+-/* RTT result v3 callback (11az support) */
+-typedef struct {
+-    /*
+-     * Called when vendor implementation supports sending RTT results version 3 (Added support for
+-     * 11az ranging)
+-     */
+-    void (*on_rtt_results_v3) (wifi_request_id id,
+-                               unsigned num_results,
+-                               wifi_rtt_result_v3 *rtt_result_v3[]);
+-} wifi_rtt_event_handler_v3;
+-
+-
+-/* v3 API to request RTT measurement(11az support).  */
+-wifi_error wifi_rtt_range_request_v3(wifi_request_id id,
+-                                     wifi_interface_handle iface,
+-                                     unsigned num_rtt_config,
+-                                     wifi_rtt_config_v3 rtt_config_v3[],
+-                                     wifi_rtt_event_handler_v3 handler);
+-
+ /* API to cancel RTT measurements */
+ wifi_error wifi_rtt_range_cancel(wifi_request_id id,  wifi_interface_handle iface,
+         unsigned num_devices, mac_addr addr[]);
+@@ -281,37 +220,16 @@ typedef struct {
+     byte rtt_one_sided_supported;  // if 1-sided rtt data collection is supported
+     byte rtt_ftm_supported;        // if ftm rtt data collection is supported
+     byte lci_support;              // if initiator supports LCI request. Applies to 2-sided RTT
+-                                   // (applies to both 11mc and 11az).
+     byte lcr_support;              // if initiator supports LCR request. Applies to 2-sided RTT
+-                                   // (applies to both 11mc and 11az).
+-    byte preamble_support;         // bit mask indicates what preamble is supported by 11mc
+-                                   // initiator
+-    byte bw_support;               // bit mask indicates what BW is supported by 11mc initiator
++    byte preamble_support;         // bit mask indicates what preamble is supported by initiator
++    byte bw_support;               // bit mask indicates what BW is supported by initiator
+     byte responder_supported;      // if 11mc responder mode is supported
+     byte mc_version;               // draft 11mc spec version supported by chip. For instance,
+                                    // version 4.0 should be 40 and version 4.3 should be 43 etc.
+ } wifi_rtt_capabilities;
+ 
+-
+ /*  RTT capabilities of the device */
+-wifi_error wifi_get_rtt_capabilities(wifi_interface_handle iface,
+-                                     wifi_rtt_capabilities *capabilities);
+-
+-/* RTT Capabilities v3 (11az support) */
+-typedef struct {
+-    wifi_rtt_capabilities rtt_capab;
+-    byte az_preamble_support;       // bit mask indicates what preamble is supported by the 11az
+-                                    // initiator
+-    byte az_bw_support;             // bit mask indicates what BW is supported by 11az initiator
+-    byte ntb_initiator_supported;   // if 11az non-TB initiator is supported
+-    byte ntb_responder_supported;   // if 11az non-TB responder is supported
+-    byte max_tx_ltf_repetition_count;// maximum HE LTF repetitions the 11az initiator is capable of
+-                                    // transmitting in the preamble of I2R NDP
+-} wifi_rtt_capabilities_v3;
+-
+-/*  RTT capabilities v3 of the device (11az support) */
+-wifi_error wifi_get_rtt_capabilities_v3(wifi_interface_handle iface,
+-                                        wifi_rtt_capabilities_v3 *capabilities);
++wifi_error wifi_get_rtt_capabilities(wifi_interface_handle iface, wifi_rtt_capabilities *capabilities);
+ 
+ /* debugging definitions */
+ enum {
+diff --git a/include/hardware_legacy/wifi_hal.h b/include/hardware_legacy/wifi_hal.h
+index 583a0c1..7d18d37 100644
+--- a/include/hardware_legacy/wifi_hal.h
++++ b/include/hardware_legacy/wifi_hal.h
+@@ -769,12 +769,9 @@ typedef struct {
+     wifi_error (* wifi_get_valid_channels)(wifi_interface_handle,int, int, wifi_channel *, int *);
+     wifi_error (* wifi_rtt_range_request)(wifi_request_id, wifi_interface_handle, unsigned,
+             wifi_rtt_config[], wifi_rtt_event_handler);
+-    wifi_error (* wifi_rtt_range_request_v3)(wifi_request_id, wifi_interface_handle, unsigned,
+-            wifi_rtt_config_v3[], wifi_rtt_event_handler_v3);
+     wifi_error (* wifi_rtt_range_cancel)(wifi_request_id,  wifi_interface_handle, unsigned,
+             mac_addr[]);
+     wifi_error (* wifi_get_rtt_capabilities)(wifi_interface_handle, wifi_rtt_capabilities *);
+-    wifi_error (* wifi_get_rtt_capabilities_v3)(wifi_interface_handle, wifi_rtt_capabilities_v3 *);
+     wifi_error (* wifi_rtt_get_responder_info)(wifi_interface_handle iface,
+             wifi_rtt_responder *responder_info);
+     wifi_error (* wifi_enable_responder)(wifi_request_id id, wifi_interface_handle iface,

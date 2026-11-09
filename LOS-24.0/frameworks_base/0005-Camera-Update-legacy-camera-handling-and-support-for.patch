@@ -1,0 +1,213 @@
+From 68ae49d20804b9f532dda688b13d544d046ab3df Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 4 Jul 2026 22:08:18 +0200
+Subject: [PATCH 05/18] Camera: Update legacy camera handling and support for
+ new metadata structure
+
+Change-Id: Ia9afe20c658a6705817467bbfe54b3c712bd3fdb
+---
+ .../hardware/camera2/CameraManager.java       | 22 +++-------
+ .../camera2/legacy/CameraDeviceUserShim.java  | 40 ++++++++++++++++++-
+ .../camera2/legacy/LegacyCameraDevice.java    |  5 ++-
+ ...ware_camera2_legacy_LegacyCameraDevice.cpp |  9 ++++-
+ 4 files changed, 53 insertions(+), 23 deletions(-)
+
+diff --git a/core/java/android/hardware/camera2/CameraManager.java b/core/java/android/hardware/camera2/CameraManager.java
+index 6eb3db36dd5c..c88004693b91 100644
+--- a/core/java/android/hardware/camera2/CameraManager.java
++++ b/core/java/android/hardware/camera2/CameraManager.java
+@@ -2152,25 +2152,13 @@ public final class CameraManager {
+      * @param cameraId a non-{@code null} camera identifier
+      * @param apiVersion the version, i.e. {@code API_VERSION_1} or {@code API_VERSION_2}
+      * @return {@code true} if connecting will work for that device version.
++     *
++     * TODO: ICameraService#supportsCameraApi was removed upstream and frameworks/av has not
++     * restored it (a real fix needs native HAL-version detection in CameraService without
++     * reintroducing the mInterfaceMutex deadlock noted in that revert). Until that lands, always
++     * report no camera2 support so every camera routes through the legacy HALv1 shim.
+      */
+     private boolean supportsCameraApiLocked(String cameraId, int apiVersion) {
+-        /*
+-         * Possible return values:
+-         * - NO_ERROR => CameraX API is supported
+-         * - CAMERA_DEPRECATED_HAL => CameraX API is *not* supported (thrown as an exception)
+-         * - Remote exception => If the camera service died
+-         *
+-         * Anything else is an unexpected error we don't want to recover from.
+-         */
+-        try {
+-            ICameraService cameraService = CameraManagerGlobal.get().getCameraService();
+-            // If no camera service, no support
+-            if (cameraService == null) return false;
+-
+-            return cameraService.supportsCameraApi(cameraId, apiVersion);
+-        } catch (RemoteException e) {
+-            // Camera service is now down, no support for any API level
+-        }
+         return false;
+     }
+ 
+diff --git a/core/java/android/hardware/camera2/legacy/CameraDeviceUserShim.java b/core/java/android/hardware/camera2/legacy/CameraDeviceUserShim.java
+index 4f7be154d1e6..89469522c61e 100644
+--- a/core/java/android/hardware/camera2/legacy/CameraDeviceUserShim.java
++++ b/core/java/android/hardware/camera2/legacy/CameraDeviceUserShim.java
+@@ -21,6 +21,7 @@ import android.hardware.Camera;
+ import android.hardware.Camera.CameraInfo;
+ import android.hardware.camera2.CameraAccessException;
+ import android.hardware.camera2.CameraCharacteristics;
++import android.hardware.camera2.CameraMetadataInfo;
+ import android.hardware.camera2.CaptureRequest;
+ import android.hardware.camera2.ICameraDeviceCallbacks;
+ import android.hardware.camera2.ICameraDeviceUser;
+@@ -31,6 +32,7 @@ import android.hardware.camera2.impl.PhysicalCaptureResultInfo;
+ import android.hardware.camera2.params.OutputConfiguration;
+ import android.hardware.camera2.params.SessionConfiguration;
+ import android.hardware.camera2.utils.SubmitInfo;
++import android.hardware.common.fmq.MQDescriptor;
+ import android.os.ConditionVariable;
+ import android.os.IBinder;
+ import android.os.Looper;
+@@ -212,6 +214,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
+         private static final int PREPARED = 4;
+         private static final int REPEATING_REQUEST_ERROR = 5;
+         private static final int REQUEST_QUEUE_EMPTY = 6;
++        private static final int CLIENT_SHARED_ACCESS_PRIORITY_CHANGED = 7;
+ 
+         private final HandlerThread mHandlerThread;
+         private Handler mHandler;
+@@ -253,7 +256,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
+         }
+ 
+         @Override
+-        public void onResultReceived(final CameraMetadataNative result,
++        public void onResultReceived(final CameraMetadataInfo result,
+                 final CaptureResultExtras resultExtras,
+                 PhysicalCaptureResultInfo physicalResults[]) {
+             Object[] resultArray = new Object[] { result, resultExtras };
+@@ -284,6 +287,13 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
+             getHandler().sendMessage(msg);
+         }
+ 
++        @Override
++        public void onClientSharedAccessPriorityChanged(boolean primaryClient) {
++            Message msg = getHandler().obtainMessage(CLIENT_SHARED_ACCESS_PRIORITY_CHANGED,
++                    /* arg1 */ primaryClient ? 1 : 0, /* arg2 */ 0);
++            getHandler().sendMessage(msg);
++        }
++
+         @Override
+         public IBinder asBinder() {
+             // This is solely intended to be used for in-process binding.
+@@ -324,7 +334,7 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
+                         }
+                         case RESULT_RECEIVED: {
+                             Object[] resultArray = (Object[]) msg.obj;
+-                            CameraMetadataNative result = (CameraMetadataNative) resultArray[0];
++                            CameraMetadataInfo result = (CameraMetadataInfo) resultArray[0];
+                             CaptureResultExtras resultExtras = (CaptureResultExtras) resultArray[1];
+                             mCallbacks.onResultReceived(result, resultExtras,
+                                     new PhysicalCaptureResultInfo[0]);
+@@ -346,6 +356,11 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
+                             mCallbacks.onRequestQueueEmpty();
+                             break;
+                         }
++                        case CLIENT_SHARED_ACCESS_PRIORITY_CHANGED: {
++                            boolean primaryClient = msg.arg1 != 0;
++                            mCallbacks.onClientSharedAccessPriorityChanged(primaryClient);
++                            break;
++                        }
+                         default:
+                             throw new IllegalArgumentException(
+                                 "Unknown callback message " + msg.what);
+@@ -442,6 +457,13 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
+         return mLegacyDevice.submitRequest(request, streaming);
+     }
+ 
++    @Override
++    public SubmitInfo startStreaming(int[] streamIdxArray, int[] surfaceIdxArray) {
++        String err = "Streaming requests are not supported on legacy devices";
++        Log.e(TAG, err);
++        throw new ServiceSpecificException(ICameraService.ERROR_INVALID_OPERATION, err);
++    }
++
+     @Override
+     public SubmitInfo submitRequestList(CaptureRequest[] request, boolean streaming) {
+         if (DEBUG) {
+@@ -792,6 +814,20 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
+         return mLegacyDevice.getAudioRestriction();
+     }
+ 
++    @Override
++    public boolean isPrimaryClient() {
++        // Legacy devices do not support shared camera access, so the sole client is always
++        // the primary client.
++        return true;
++    }
++
++    @Override
++    public MQDescriptor<Byte, Byte> getCaptureResultMetadataQueue() {
++        // Legacy devices deliver results directly via onResultReceived rather than through the
++        // fast message queue, so an empty descriptor is sufficient here.
++        return new MQDescriptor<Byte, Byte>();
++    }
++
+     @Override
+     public ICameraOfflineSession switchToOffline(ICameraDeviceCallbacks cbs,
+             int[] offlineOutputIds) {
+diff --git a/core/java/android/hardware/camera2/legacy/LegacyCameraDevice.java b/core/java/android/hardware/camera2/legacy/LegacyCameraDevice.java
+index a0e6cabfe5cd..f0e98daae687 100644
+--- a/core/java/android/hardware/camera2/legacy/LegacyCameraDevice.java
++++ b/core/java/android/hardware/camera2/legacy/LegacyCameraDevice.java
+@@ -20,6 +20,7 @@ import android.graphics.ImageFormat;
+ import android.graphics.SurfaceTexture;
+ import android.hardware.Camera;
+ import android.hardware.camera2.CameraCharacteristics;
++import android.hardware.camera2.CameraMetadataInfo;
+ import android.hardware.camera2.CaptureRequest;
+ import android.hardware.camera2.impl.CameraDeviceImpl;
+ import android.hardware.camera2.impl.CaptureResultExtras;
+@@ -257,8 +258,8 @@ public class LegacyCameraDevice implements AutoCloseable {
+                                 holder.getRequestId());
+                     }
+                     try {
+-                        mDeviceCallbacks.onResultReceived(result, extras,
+-                                new PhysicalCaptureResultInfo[0]);
++                        mDeviceCallbacks.onResultReceived(CameraMetadataInfo.metadata(result),
++                                extras, new PhysicalCaptureResultInfo[0]);
+                     } catch (RemoteException e) {
+                         throw new IllegalStateException(
+                                 "Received remote exception during onCameraError callback: ", e);
+diff --git a/core/jni/android_hardware_camera2_legacy_LegacyCameraDevice.cpp b/core/jni/android_hardware_camera2_legacy_LegacyCameraDevice.cpp
+index 21c5d0273ddd..65dd76d23cc6 100644
+--- a/core/jni/android_hardware_camera2_legacy_LegacyCameraDevice.cpp
++++ b/core/jni/android_hardware_camera2_legacy_LegacyCameraDevice.cpp
+@@ -13,6 +13,7 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
++#undef ANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION // TODO:remove this and fix code
+ 
+ #define LOG_TAG "Legacy-CameraDevice-JNI"
+ // #define LOG_NDEBUG 0
+@@ -397,7 +398,10 @@ static sp<ANativeWindow> getNativeWindow(JNIEnv* env, jobject surface) {
+ 
+ static sp<ANativeWindow> getSurfaceTextureNativeWindow(JNIEnv* env, jobject thiz) {
+     sp<IGraphicBufferProducer> producer(SurfaceTexture_getProducer(env, thiz));
+-    sp<Surface> surfaceTextureClient(producer != NULL ? new Surface(producer) : NULL);
++    sp<Surface> surfaceTextureClient;
++    if (producer != NULL) {
++        surfaceTextureClient = new Surface(producer);
++    }
+     return surfaceTextureClient;
+ }
+ 
+@@ -721,7 +725,8 @@ static jint LegacyCameraDevice_nativeSetSurfaceOrientation(JNIEnv* env, jobject
+ 
+     int32_t transform = 0;
+ 
+-    if ((err = CameraUtils::getRotationTransform(staticMetadata, 0, /*out*/&transform)) != NO_ERROR) {
++    if ((err = CameraUtils::getRotationTransform(staticMetadata, 0,
++            /*enableTransformInverseDisplay*/false, /*out*/&transform)) != NO_ERROR) {
+         ALOGE("%s: Invalid rotation transform %s (%d)", __FUNCTION__, strerror(-err),
+                 err);
+         return err;

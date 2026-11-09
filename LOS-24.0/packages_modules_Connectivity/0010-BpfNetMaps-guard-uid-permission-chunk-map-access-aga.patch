@@ -1,0 +1,81 @@
+From 3684522a1188718c72a7b18ef3ee708006607665 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 12 Oct 2026 09:59:44 +0200
+Subject: [PATCH 10/14] BpfNetMaps: guard uid permission chunk map access
+ against missing BPF
+
+Bootanimation now gets further than ever (past the earlier power HAL
+and AdvancedProtectionService fixes), but system_server is still
+crash-looping - this time on ConnectivityServiceInitializer, 3 times
+in the captured logcat with the identical trace:
+
+  RuntimeException: Failed to create service ConnectivityServiceInitializer
+  Caused by: NullPointerException: Attempt to invoke interface method
+    '...IBpfMap.getValue(...)' on a null object reference
+    at BpfNetMaps.setChunkPermListForUids(BpfNetMaps.java:1606)
+    at PermissionMonitor.lambda$new$0(PermissionMonitor.java:503)
+    ... at ConnectivityService.<init>(ConnectivityService.java:2634)
+
+Root cause: this device's 3.10 kernel predates eBPF entirely, so this
+tree already carries a local "private static final boolean hasBpf =
+false;" (BpfNetMaps.java:177) to make BPF-dependent code degrade
+gracefully. initBpfMaps() respects that: getConfigurationMap() returns
+null when hasBpf is false, and the very first line of initBpfMaps()
+is "if (sConfigurationMap == null) return;" - so the whole method
+bails before ever reaching getUidPermissionChunkMap(), leaving
+sUidPermissionChunkMap permanently null. That's consistent with the
+rest of the class's own convention: removeRule() already does
+"if (sUidOwnerMap == null) return;" for exactly this reason.
+
+The problem is that sPermissionMapUidMigrationEnabled (which gates
+throwIfUidMigrationIsDisabled()) is set independently of hasBpf, so
+"migration enabled" and "chunk map actually initialized" can disagree
+on a no-BPF device: migration reads as enabled, the early-exit guard
+that every other map getter in this file already has was simply never
+added to the three call sites that touch sUidPermissionChunkMap
+directly (setChunkPermListForUids, forEachUidPermission,
+getChunkPermForUid - the latter two reachable from
+removePermissionsForUserId/dumpUidPermissionChunkMap too). Added the
+same null-check-and-no-op pattern to all three, matching removeRule()'s
+existing convention instead of introducing a new one.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Change-Id: I309b036fc196e61dc0b02f95a5a60175ac9e98ef
+---
+ service/src/com/android/server/BpfNetMaps.java | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/service/src/com/android/server/BpfNetMaps.java b/service/src/com/android/server/BpfNetMaps.java
+index 11bc3851af..1bc50c13a6 100644
+--- a/service/src/com/android/server/BpfNetMaps.java
++++ b/service/src/com/android/server/BpfNetMaps.java
+@@ -1589,6 +1589,13 @@ public class BpfNetMaps {
+             "setChunkPermListForUids is not available when flag permission_map_uid_migration" +
+             " is disabled");
+ 
++        // On devices without BPF support, initBpfMaps() returns early (see the
++        // sConfigurationMap == null check) before ever reaching
++        // getUidPermissionChunkMap(), so sUidPermissionChunkMap stays null even though
++        // migration itself is considered "enabled". Same no-op-on-missing-map convention
++        // already used by removeRule()'s sUidOwnerMap check above.
++        if (sUidPermissionChunkMap == null) return;
++
+         // group UIDs by chunkId
+         final ArrayMap<Integer, ArraySet<Integer>> uidsByChunkId = groupPermissionsIdsBy(
+             permissionsUids,
+@@ -1771,6 +1778,7 @@ public class BpfNetMaps {
+     private void forEachUidPermission(
+         ThrowingBiConsumer<Integer, Integer> action
+     ) throws ErrnoException {
++        if (sUidPermissionChunkMap == null) return;
+         sUidPermissionChunkMap.forEach((chunkId, chunk) -> {
+             for(int index = 0; index < chunk.val.length; index++) {
+                 int shift = 0;
+@@ -2110,6 +2118,7 @@ public class BpfNetMaps {
+         throwIfUidMigrationIsDisabled(
+             "getChunkPermForUid is not available when flag" +
+             " permission_map_uid_migration is disabled");
++        if (sUidPermissionChunkMap == null) return PERMISSION_BIT_NONE;
+         try {
+             UidPermissionChunk uidPermissionChunk = sUidPermissionChunkMap.getValue(
+                 new S32(getChunkId(uid)));

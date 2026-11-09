@@ -1,0 +1,48 @@
+From b878ba13a0fb2c0dfbc5fa26eeeff86d28e9527e Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 7 Oct 2026 22:16:36 +0200
+Subject: [PATCH 09/14] NetBpfLoad: neutralize the 25Q4/26Q4 kernel-version
+ aborts too
+
+The original 'NetBpfLoader: Support no bpf usecase' patch removed the
+hard return from every kernel-version gate that existed at the time
+(S/T's 4.9, U's 4.14, V's 4.19, 25Q2's 5.4). Upstream has since added
+two more gates for 25Q4 (5.10) and 26Q4 (5.15) that didn't exist when
+that patch was written, and their 'return 7;' is still live.
+
+Since this is a 26Q2 build, isAtLeast25Q4 is true, and this kernel is
+3.10, so doLoad() would hit this return before ever reaching the
+execve() handoff into 'netbpfload done' that sets bpf.progs_loaded.
+netbpfload.rc's 'wait_for_prop bpf.progs_loaded 1' would then block
+forever, hanging boot before netd ever starts -- a much worse failure
+mode than the reboot-loop the original patch guarded against.
+
+Audited the rest of this function and the other no-bpf-usecase patches
+(system/bpf's Loader.cpp/bpfloader.rs, netd's Controllers.cpp,
+BpfNetMaps.java's initBpfMaps()) for the same pattern; this was the
+only live one.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Change-Id: Idc2dd28e9993ebfd810f8a765d5c17060a34a5eb
+---
+ bpf/loader/NetBpfLoad.cpp | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/bpf/loader/NetBpfLoad.cpp b/bpf/loader/NetBpfLoad.cpp
+index a50cbb9943..6e87f05de9 100644
+--- a/bpf/loader/NetBpfLoad.cpp
++++ b/bpf/loader/NetBpfLoad.cpp
+@@ -1573,13 +1573,11 @@ static int doLoad(char** argv, char * const envp[]) {
+     // see also: //system/netd/tests/kernel_test.cpp TestKernel510
+     if (isAtLeast25Q4 && !isAtLeastKernelVersion(5, 10)) {
+         ALOGE("Android 25Q4 requires kernel 5.10.");
+-        return 7;
+     }
+ 
+     // 26Q4 bumps the kernel requirement up to 5.15
+     if (isAtLeast26Q4 && !isAtLeastKernelVersion(5, 15)) {
+         ALOGE("Android 26Q4 requires kernel 5.15.");
+-        return 7;
+     }
+ 
+     // Technically already required by U, but only enforce on V+

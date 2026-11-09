@@ -1,0 +1,48 @@
+From 141b32026b4eada41770f0ade0abf1375becbc2e Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Fri, 6 Nov 2026 16:29:11 +0100
+Subject: [PATCH 17/17] ACodec: Keep the buffer size when switching surfaces in
+ non-meta mode
+
+In non-metadata mode handleSetSurface moves the registered buffers to the
+new surface and disallows allocation, but sets the surface to the current
+port size. The SEC AVC decoder aligns its port height after the buffers
+were allocated, so a 1280x674 video asks for 1280x688. dequeueBuffer then
+drops each free buffer as needing reallocation, and with none left it waits
+forever. Video stops on the first frame while audio keeps playing.
+
+Set the new surface to the size of the registered buffers.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I1f8cb5bc06106f24c190f0f3ac3ab27f73dfceda
+---
+ media/libstagefright/ACodec.cpp | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/media/libstagefright/ACodec.cpp b/media/libstagefright/ACodec.cpp
+index a7b9965032..c288089c44 100644
+--- a/media/libstagefright/ACodec.cpp
++++ b/media/libstagefright/ACodec.cpp
+@@ -813,6 +813,22 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
+         return err;
+     }
+ 
++    // In non-meta mode the registered buffers are moved to the new surface and
++    // cannot be reallocated. The port size can differ from their size, as some
++    // decoders align it after the buffers were allocated. The surface would then
++    // drop them all on dequeue, leaving nothing to decode into.
++    if (!storingMetadataInDecodedBuffers() && !buffers.empty()
++            && buffers[0].mGraphicBuffer != NULL) {
++        const sp<GraphicBuffer> &graphicBuffer = buffers[0].mGraphicBuffer;
++        err = native_window_set_buffers_dimensions(
++                nativeWindow, graphicBuffer->getWidth(), graphicBuffer->getHeight());
++        if (err != 0) {
++            ALOGE("native_window_set_buffers_dimensions failed: %s (%d)", strerror(-err),
++                    -err);
++            return err;
++        }
++    }
++
+     // need to enable allocation when attaching
+     surface->getIGraphicBufferProducer()->allowAllocation(true);
+ 

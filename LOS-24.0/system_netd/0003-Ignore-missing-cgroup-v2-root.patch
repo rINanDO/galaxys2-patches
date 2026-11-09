@@ -1,0 +1,23 @@
+From 6db292a343396930c947890c1583badc6d7e83cb Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sat, 24 Jan 2026 22:57:54 +0100
+Subject: [PATCH 3/4] Ignore missing cgroup v2 root
+
+Change-Id: Ib2ca475c3d1fd0da6ff1701eb970a6c1be90f6ac
+---
+ server/main.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/server/main.cpp b/server/main.cpp
+index e84899e4..de508d1e 100644
+--- a/server/main.cpp
++++ b/server/main.cpp
+@@ -142,7 +142,7 @@ int main(const int argc, const char* argv[]) {
+     std::string cg2_path;
+     if (!CgroupGetControllerPath(CGROUPV2_HIERARCHY_NAME, &cg2_path)) {
+         ALOGE("Failed to find cgroup v2 root %s", strerror(errno));
+-        exit(1);
++        //exit(1);
+     }
+ 
+     if (libnetd_updatable_init(cg2_path.c_str())) {
