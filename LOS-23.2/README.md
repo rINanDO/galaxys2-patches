@@ -311,6 +311,11 @@ in patches. The main ones:
 - **Kernel panic when apps change cgroup**: a thread that exited while
   system_server moved its process to another cgroup hit
   `BUG_ON(!newcg)`. Such threads are skipped now.
+- **Kernel panic or frozen display when the screen turns off**: the
+  display's kthread_worker still touched a work item after running it,
+  and the flush item lives on surfaceflinger's stack, so the worker wrote
+  to and woke stale stack memory. The worker no longer touches the item,
+  as in Linux 3.8.
 - **Native crash backtraces**: `PTRACE_GETREGSET` works on ARM, and
   children of a seizing tracer start in a trap stop, so `crash_dump` gets
   registers and tombstones have backtraces.
