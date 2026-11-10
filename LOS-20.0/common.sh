@@ -35,6 +35,7 @@ PATCHED_REPOS=(
     "system/core                      system_core"
     "system/libhwbinder               system_libhwbinder"
     "system/netd                      system_netd"
+    "system/vold                      system_vold"
     "vendor/lineage                   vendor_lineage"
 )
 

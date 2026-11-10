@@ -151,6 +151,10 @@ kernel feature. Grouped by the problem they solve:
   finds a service's processes in its memcg group (`/dev/memcg/apps`).
   Before, init killed nothing when it stopped a service, so after a
   surfaceflinger crash zygote never restarted and the screen stayed black.
+- **Storage after a framework restart** (`system_vold`): vold detaches the
+  old FUSE mount on `/storage/emulated` when it unmounts the volume. On this
+  kernel it was left behind on top of the new one, and the adb shell and
+  native daemons got "Transport endpoint is not connected" for `/sdcard`.
 - **Framework tweaks for this device** (`frameworks_base` 0013-0023):
   - no warning dialogs about a vendor mismatch or an app's old target SDK;
   - the brightness slider curve for panels reporting a max brightness of
