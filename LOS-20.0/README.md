@@ -193,8 +193,12 @@ phone.
   1 MB of it.
 - **Memory reservations** (27 MB more RAM): FIMD 18 MB to 6 MB, JPEG 20 MB to
   12 MB, and no FIMC3 reservation, because those regions were not fully used.
+- **Accelerometer at boot**: the k3dh driver's test class device no longer
+  gets a dev_t. ueventd created `/dev/accelerometer` for it as well as for
+  the real misc device, and when it won the race the accelerometer, compass
+  and orientation sensors (and auto-rotate) stayed dead until a reboot.
 
-### Device (`device/samsung/galaxys2-common`)
+### Device (`device/samsung/galaxys2-common`, `device/samsung/i9100`)
 
 - **Power HAL** (`power.smdk4210`): uses the pegasusq boost controls to hold
   1.2 GHz on both cores for 1 s on touch, 2 s on app launch and 2 s when the
@@ -213,6 +217,12 @@ phone.
   Aperture uses CameraX, which only allows preview + 480p recording on this
   LEGACY camera, and crashes in video mode if the camera2 shim offers
   1280x720 previews. Open Camera with the original camera API records 720p.
+- **Sensors**: the sensors HAL in system_server can write the `enable` and
+  `poll_delay` nodes of the gyro, light and proximity input devices
+  (`sysfs_sensor` label, owned by system), so it can switch them on and set
+  their rate. Before, the light sensor sent no events. The
+  i9100 libsensors waits up to 3 s for the `compass_sensor` input node,
+  which could appear late and leave auto-rotate dead until a reboot.
 
 ### WebView
 
