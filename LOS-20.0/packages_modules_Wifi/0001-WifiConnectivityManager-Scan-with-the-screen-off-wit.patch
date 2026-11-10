@@ -1,0 +1,130 @@
+From 494798bddd4fd247a42abf1d721855ccf199de9a Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 10 Nov 2026 08:15:15 +0100
+Subject: [PATCH] WifiConnectivityManager: Scan with the screen off without
+ hardware PNO
+
+With the screen off and Wifi disconnected, only a disconnected PNO scan
+looks for saved networks. When the scanner has no hardware PNO
+(config_wifi_background_scan_support is false, or the driver has no
+scheduled scan) it rejects the request with REASON_INVALID_REQUEST
+"not supported". After 5 retries nothing scans until the screen turns
+on again, so Wifi stays disconnected, e.g. after the country code
+update disconnects it at boot or after the access point restarted.
+
+Remember that PNO is unsupported and run a full single scan instead,
+repeated every 2 minutes while the screen is off and Wifi is
+disconnected. The results go through the normal network selection.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Ic3ccd0c8db03680de2f649c369e30cc8f1bfe8b2
+---
+ .../server/wifi/WifiConnectivityManager.java  | 46 ++++++++++++++++++-
+ 1 file changed, 45 insertions(+), 1 deletion(-)
+
+diff --git a/service/java/com/android/server/wifi/WifiConnectivityManager.java b/service/java/com/android/server/wifi/WifiConnectivityManager.java
+index c1ee633e05..1ce59c35b1 100644
+--- a/service/java/com/android/server/wifi/WifiConnectivityManager.java
++++ b/service/java/com/android/server/wifi/WifiConnectivityManager.java
+@@ -96,6 +96,8 @@ public class WifiConnectivityManager {
+             "WifiConnectivityManager Restart Scan";
+     public static final String DELAYED_PARTIAL_SCAN_TIMER_TAG =
+             "WifiConnectivityManager Schedule Delayed Partial Scan Timer";
++    public static final String NO_PNO_SCAN_TIMER_TAG =
++            "WifiConnectivityManager Screen Off Scan Without PNO";
+ 
+     private static final long RESET_TIME_STAMP = Long.MIN_VALUE;
+     // Constants to indicate whether a scan should start immediately or
+@@ -112,6 +114,9 @@ public class WifiConnectivityManager {
+     // Number of milli-seconds to delay before retry starting
+     // a previously failed scan
+     private static final int RESTART_SCAN_DELAY_MS = 2 * 1000; // 2 seconds
++    // Single scan interval when the screen is off, Wifi is disconnected and the scanner
++    // has no hardware PNO to look for saved networks.
++    private static final int NO_PNO_SCAN_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+     // Restricted channel list age out value.
+     private static final long CHANNEL_LIST_AGE_MS = 60 * 60 * 1000; // 1 hour
+     // This is the time interval for the connection attempt rate calculation. Connection attempt
+@@ -205,6 +210,8 @@ public class WifiConnectivityManager {
+     private long mLastPeriodicSingleScanTimeStamp = RESET_TIME_STAMP;
+     private long mLastNetworkSelectionTimeStamp = RESET_TIME_STAMP;
+     private boolean mPnoScanStarted = false;
++    // Set once the scanner rejected a disconnected PNO scan as not supported
++    private boolean mHwPnoUnsupported = false;
+     private Object mDelayedPnoScanToken = new Object();
+     private boolean mDelayedPnoScanPending = false;
+     private boolean mPeriodicScanTimerSet = false;
+@@ -275,6 +282,14 @@ public class WifiConnectivityManager {
+                 }
+             };
+ 
++    // Repeats the screen-off single scan on devices without hardware PNO
++    private final AlarmManager.OnAlarmListener mNoPnoScanListener =
++            new AlarmManager.OnAlarmListener() {
++                public void onAlarm() {
++                    startConnectivityScan(SCAN_IMMEDIATELY);
++                }
++            };
++
+     // A single scan will be rescheduled up to MAX_SCAN_RESTART_ALLOWED times
+     // if the start scan command failed. An timer is used here to make it a deferred retry.
+     private class RestartSingleScanListener implements AlarmManager.OnAlarmListener {
+@@ -1043,6 +1058,16 @@ public class WifiConnectivityManager {
+             localLog("PnoScanListener onFailure:"
+                     + " reason: " + reason + " description: " + description);
+ 
++            // Without hardware PNO nothing would look for saved networks until the screen
++            // turns on again. Fall back to periodic single scans instead of retrying.
++            if (reason == WifiScanner.REASON_INVALID_REQUEST) {
++                mHwPnoUnsupported = true;
++                mPnoScanStarted = false;
++                mScanRestartCount = 0;
++                startScreenOffScanWithoutPno();
++                return;
++            }
++
+             // reschedule the scan
+             if (mScanRestartCount++ < MAX_SCAN_RESTART_ALLOWED) {
+                 scheduleDelayedConnectivityScan(RESTART_SCAN_DELAY_MS);
+@@ -2422,11 +2447,29 @@ public class WifiConnectivityManager {
+             startPeriodicScan(scanImmediately);
+         } else {
+             if (mWifiState == WIFI_STATE_DISCONNECTED && !mPnoScanStarted) {
+-                startDisconnectedPnoScan();
++                if (mHwPnoUnsupported) {
++                    startScreenOffScanWithoutPno();
++                } else {
++                    startDisconnectedPnoScan();
++                }
+             }
+         }
+     }
+ 
++    // Screen off and disconnected without hardware PNO: scan now and again after
++    // NO_PNO_SCAN_INTERVAL_MS, so a saved network that comes back is joined.
++    private void startScreenOffScanWithoutPno() {
++        if (mScreenOn || mWifiState != WIFI_STATE_DISCONNECTED) {
++            return;
++        }
++        localLog("startScreenOffScanWithoutPno");
++        mAlarmManager.cancel(mNoPnoScanListener);
++        startSingleScan(true, WIFI_WORK_SOURCE, WifiScanner.SCAN_TYPE_HIGH_ACCURACY);
++        mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
++                mClock.getElapsedSinceBootMillis() + NO_PNO_SCAN_INTERVAL_MS,
++                NO_PNO_SCAN_TIMER_TAG, mNoPnoScanListener, mEventHandler);
++    }
++
+     // Stop connectivity scan if there is any.
+     private void stopConnectivityScan() {
+         // Due to b/28020168, timer based single scan will be scheduled
+@@ -2434,6 +2477,7 @@ public class WifiConnectivityManager {
+         cancelPeriodicScanTimer();
+         cancelDelayedPartialScan();
+         stopPnoScan();
++        mAlarmManager.cancel(mNoPnoScanListener);
+     }
+ 
+     /**
+-- 
+2.37.2
+

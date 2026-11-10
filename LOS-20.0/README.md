@@ -180,6 +180,13 @@ kernel feature. Grouped by the problem they solve:
   download buttons) used to give an empty tab and no download. Jelly now
   follows the address that window loads, so the download prompt appears.
   Downloads that need a POST request still fail.
+- **Wi-Fi reconnect with the screen off** (`packages_modules_Wifi` 0001): the
+  bcmdhd driver has no scheduled scan, so Android's PNO scans fail. With the
+  screen off, Wi-Fi used to stop scanning after 5 failures and stay
+  disconnected until the screen came on, for example after the country-code
+  disconnect a minute after boot. When PNO is unsupported, Android now runs a
+  normal scan every 2 minutes while the screen is off and Wi-Fi is
+  disconnected.
 
 ## Fixes in the device and kernel repos
 
@@ -228,6 +235,15 @@ phone.
   their rate. Before, the light sensor sent no events. The
   i9100 libsensors waits up to 3 s for the `compass_sensor` input node,
   which could appear late and leave auto-rotate dead until a reboot.
+
+### Hardware (`hardware/samsung`)
+
+- **Gralloc** (`gralloc.exynos4`): cloned buffer handles are shorter than
+  the full handle struct, and gralloc read fields past their end. When a handle
+  ended at a page boundary, surfaceflinger crashed during boot and the
+  framework restarted. Those fields (backing store, producer and consumer
+  usage) are removed; the getters use the handle's usage and UMP id instead.
+  Cherry-picked from the LOS-23.2 branch.
 
 ### WebView
 

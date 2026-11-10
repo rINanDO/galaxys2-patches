@@ -30,6 +30,7 @@ PATCHED_REPOS=(
     "packages/modules/adb             packages_modules_adb"
     "packages/modules/Connectivity    packages_modules_Connectivity"
     "packages/modules/NetworkStack    packages_modules_NetworkStack"
+    "packages/modules/Wifi            packages_modules_Wifi"
     "system/bpf                       system_bpf"
     "system/core                      system_core"
     "system/libhwbinder               system_libhwbinder"
