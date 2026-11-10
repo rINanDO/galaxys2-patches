@@ -220,6 +220,11 @@ phone.
   run, because the display driver may free it by then (upstream
   `fc039483db7f`). The LOS-23.2 ION heap growth (34 MB to 52 MB) is not
   ported; the composer falls back to the GPU when ION is full instead.
+- **Memory cgroup removal**: removing a memcg group no longer loops forever
+  when its charges can't be moved to the parent; after 20 passes without
+  progress `rmdir` fails with EBUSY. Init removes a service's group after
+  killing it, and with zygote's group the shutdown hung until the reboot
+  watchdog fired, so `adb reboot recovery` came back up in Android.
 
 ### Device (`device/samsung/galaxys2-common`, `device/samsung/i9100`)
 

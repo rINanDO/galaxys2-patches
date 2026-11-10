@@ -1,4 +1,4 @@
-From f8fd4c13f25a0dad3829f6d95c18e72a0439ca7c Mon Sep 17 00:00:00 2001
+From 19443c67a1a0b74cf6ecca87017a46ade2c102b0 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Tue, 10 Nov 2026 21:16:36 +0100
 Subject: [PATCH] libprocessgroup: Use the memcg group when cgroup v2 isn't
@@ -21,11 +21,11 @@ available either, kill the process group of the initial pid.
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Change-Id: I3ed4307109dab336c5f445a218672d61a51d13af
 ---
- libprocessgroup/processgroup.cpp | 30 +++++++++++++++++++++++++++---
- 1 file changed, 27 insertions(+), 3 deletions(-)
+ libprocessgroup/processgroup.cpp | 35 ++++++++++++++++++++++++++++----
+ 1 file changed, 31 insertions(+), 4 deletions(-)
 
 diff --git a/libprocessgroup/processgroup.cpp b/libprocessgroup/processgroup.cpp
-index 267e62c67..55e91cda6 100644
+index 267e62c67..9529249b0 100644
 --- a/libprocessgroup/processgroup.cpp
 +++ b/libprocessgroup/processgroup.cpp
 @@ -418,7 +418,27 @@ static int DoKillProcessGroupOnce(const char* cgroup, uid_t uid, int initialPid,
@@ -57,16 +57,22 @@ index 267e62c67..55e91cda6 100644
      const char* cgroup = hierarchy_root_path.c_str();
  
      std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-@@ -465,7 +485,7 @@ static int KillProcessGroup(uid_t uid, int initialPid, int signal, int retries,
+@@ -463,9 +483,12 @@ static int KillProcessGroup(uid_t uid, int initialPid, int signal, int retries,
+                       << " in " << static_cast<int>(ms) << "ms";
+         }
  
-         int err = RemoveProcessGroup(cgroup, uid, initialPid, retries);
+-        int err = RemoveProcessGroup(cgroup, uid, initialPid, retries);
++        // In the memcg group the processes are gone once cgroup.procs is
++        // empty, so EBUSY means the kernel couldn't move the group's memory
++        // charges. Retrying won't help; empty groups are removed later.
++        int err = RemoveProcessGroup(cgroup, uid, initialPid, use_memcg_apps ? 1 : retries);
  
 -        if (isMemoryCgroupSupported() && UsePerAppMemcg()) {
 +        if (!use_memcg_apps && isMemoryCgroupSupported() && UsePerAppMemcg()) {
              std::string memcg_apps_path;
              if (CgroupGetMemcgAppsPath(&memcg_apps_path) &&
                  RemoveProcessGroup(memcg_apps_path.c_str(), uid, initialPid, retries) < 0) {
-@@ -558,7 +578,11 @@ int createProcessGroup(uid_t uid, int initialPid, bool memControl) {
+@@ -558,7 +581,11 @@ int createProcessGroup(uid_t uid, int initialPid, bool memControl) {
          }
      }
  
