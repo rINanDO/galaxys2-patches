@@ -209,6 +209,10 @@ phone.
   gets a dev_t. ueventd created `/dev/accelerometer` for it as well as for
   the real misc device, and when it won the race the accelerometer, compass
   and orientation sensors (and auto-rotate) stayed dead until a reboot.
+- **s3cfb kthread worker**: a work item is no longer touched after it has
+  run, because the display driver may free it by then (upstream
+  `fc039483db7f`). The LOS-23.2 ION heap growth (34 MB to 52 MB) is not
+  ported; the composer falls back to the GPU when ION is full instead.
 
 ### Device (`device/samsung/galaxys2-common`, `device/samsung/i9100`)
 
@@ -235,6 +239,10 @@ phone.
   their rate. Before, the light sensor sent no events. The
   i9100 libsensors waits up to 3 s for the `compass_sensor` input node,
   which could appear late and leave auto-rotate dead until a reboot.
+- **ION for all apps**: every `untrusted_app` domain can open
+  `/dev/ion`, not only `untrusted_app_27`. Gralloc runs in the app process,
+  and without ION the buffers of newer apps (and their video) came from UMP
+  with no physical address, so the composer could not scan them out.
 
 ### Hardware (`hardware/samsung`)
 
@@ -244,6 +252,32 @@ phone.
   framework restarted. Those fields (backing store, producer and consumer
   usage) are removed; the getters use the handle's usage and UMP id instead.
   Cherry-picked from the LOS-23.2 branch.
+- **Hardware composer overlays** (`hwcomposer.exynos4`): cherry-picked from
+  LOS-23.2. A full-screen app goes straight to FIMD window 0, the status bar
+  to its own window, and video is scaled and converted by FIMC, so less is
+  composed on the Mali-400. Measured with 10 scroll pairs in Settings:
+  janky frames went from about 5% (GPU only) to about 1%, and the 90th
+  percentile frame time from 24 ms to 18 ms. During video playback
+  surfaceflinger uses about 30% CPU instead of 39%. The properties
+  `debug.hwc.app_overlay`, `debug.hwc.rgb_overlay` and
+  `debug.hwc.video_overlay` (all `true` by default) turn each kind off.
+  On top of the cherry-pick:
+  - FIMC writes rows with a pitch of the width rounded up to 16 pixels, so
+    the overlay buffers and the FIMD stride use that width too. This should
+    stop shearing of videos whose scaled width isn't a multiple of 16.
+  - When ION has no memory for the overlay buffers, the composer uses the
+    GPU for 60 frames instead of showing a broken window.
+  - Acquire fences are closed on every path, including the client target's
+    fence on frames that don't need it. Before, surfaceflinger leaked
+    about 350 fences per scroll test.
+  - The panel size comes from `/sys/class/graphics/fb0/modes`. The kernel
+    sets fb0's size to window 0's, so after a surfaceflinger restart during
+    video the display could come back as a 480x35 strip.
+- **Color saturation**: the overlays can only be used when surfaceflinger
+  has no color matrix. An old `persist.sys.sf.color_saturation` of 1.1
+  ("Boosted" from earlier builds) forces every layer to the GPU, and this
+  device has no color modes in Settings to reset it. Check it with
+  `getprop persist.sys.sf.color_saturation` and set it to `1.0`.
 
 ### WebView
 
@@ -259,4 +293,9 @@ After a dirty flash that adds, removes or updates an app, delete
 `/data/system/package_cache/*` in TWRP before booting, or Android keeps the
 old package information (for example the previous WebView version).
 
-The hardware composer overlays from LOS-23.2 are not backported yet.
+### Known issues
+
+- If surfaceflinger crashes, init can't stop zygote: libprocessgroup looks
+  for the process group under `/sys/fs/cgroup`, which this kernel doesn't
+  have. Zygote stays in `stopping` and the UI stays black until you reboot
+  or `kill -9` zygote.
