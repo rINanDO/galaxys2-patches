@@ -175,6 +175,11 @@ kernel feature. Grouped by the problem they solve:
     host programs with CFLAGS only.
 - **Off-mode charger** (`system_core` 0003): the home button also wakes the
   screen.
+- **Browser downloads** (`packages_apps_Jelly` 0001): a window opened by a
+  script or a button (`window.open()`, a form with `target=_blank`, most
+  download buttons) used to give an empty tab and no download. Jelly now
+  follows the address that window loads, so the download prompt appears.
+  Downloads that need a POST request still fail.
 
 ## Fixes in the device and kernel repos
 

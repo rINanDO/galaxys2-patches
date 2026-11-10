@@ -25,6 +25,7 @@ PATCHED_REPOS=(
     "frameworks/native                frameworks_native"
     "hardware/interfaces              hardware_interfaces"
     "hardware/lineage/interfaces      hardware_lineage_interfaces"
+    "packages/apps/Jelly              packages_apps_Jelly"
     "packages/apps/Settings           packages_apps_Settings"
     "packages/modules/adb             packages_modules_adb"
     "packages/modules/Connectivity    packages_modules_Connectivity"

@@ -1,0 +1,96 @@
+From 9cf6772abd9c36c46eb25f967973dbd490b26b7f Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 10 Nov 2026 07:15:03 +0100
+Subject: [PATCH] Jelly: Follow windows opened without a link
+
+onCreateWindow only opened the hit-tested link URL in a new tab. A
+window opened by a script or a button (window.open(), target=_blank on a
+form, most download buttons) has no link under the finger, so Jelly
+opened an empty tab and dropped the request, and the download never
+started.
+
+For those, hand the page a hidden WebView and open the first address it
+loads in a new tab, or offer it as a download when the response is a
+file. Requests that need a POST body still can't be repeated in the new
+tab.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Iad44092abcefb992e4cdb74481fcbb229e4a5225
+---
+ .../lineageos/jelly/webview/ChromeClient.kt   | 52 ++++++++++++++++++-
+ 1 file changed, 51 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/org/lineageos/jelly/webview/ChromeClient.kt b/app/src/main/java/org/lineageos/jelly/webview/ChromeClient.kt
+index 80d1a8b..79a5afc 100644
+--- a/app/src/main/java/org/lineageos/jelly/webview/ChromeClient.kt
++++ b/app/src/main/java/org/lineageos/jelly/webview/ChromeClient.kt
+@@ -14,7 +14,9 @@ import android.webkit.GeolocationPermissions
+ import android.webkit.MimeTypeMap
+ import android.webkit.ValueCallback
+ import android.webkit.WebChromeClient
++import android.webkit.WebResourceRequest
+ import android.webkit.WebView
++import android.webkit.WebViewClient
+ import android.widget.Toast
+ import org.lineageos.jelly.R
+ import org.lineageos.jelly.history.HistoryProvider
+@@ -86,7 +88,55 @@ internal class ChromeClient(
+     ): Boolean {
+         val result = view.hitTestResult
+         val url = result.extra
+-        openInNewTab(activity, url, incognito)
++        if (!url.isNullOrEmpty() && (result.type == WebView.HitTestResult.SRC_ANCHOR_TYPE ||
++                    result.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE)
++        ) {
++            openInNewTab(activity, url, incognito)
++            return true
++        }
++
++        // The window was opened by a script or a button (window.open(), a form or a
++        // download button), so there is no link URL to hit-test. Hand the page a
++        // hidden WebView and open the first address it loads in a new tab, or offer
++        // it as a download if the response is a file.
++        val popup = WebView(view.context)
++        var handled = false
++        fun finish(target: String?, download: (() -> Unit)? = null) {
++            if (handled) return
++            handled = true
++            if (download != null) {
++                download()
++            } else if (!target.isNullOrEmpty() && target != "about:blank") {
++                openInNewTab(activity, target, incognito)
++            }
++            popup.post { popup.destroy() }
++        }
++        popup.settings.javaScriptEnabled = view.settings.javaScriptEnabled
++        popup.settings.userAgentString = view.settings.userAgentString
++        popup.webViewClient = object : WebViewClient() {
++            override fun shouldOverrideUrlLoading(
++                v: WebView, request: WebResourceRequest
++            ): Boolean {
++                finish(request.url.toString())
++                return true
++            }
++
++            override fun onPageStarted(v: WebView, pageUrl: String?, favicon: Bitmap?) {
++                if (pageUrl != null && pageUrl != "about:blank") {
++                    v.stopLoading()
++                    finish(pageUrl)
++                }
++            }
++        }
++        popup.setDownloadListener { dlUrl, userAgent, contentDisposition, mimeType, length ->
++            finish(dlUrl) {
++                activity.downloadFileAsk(dlUrl, userAgent, contentDisposition, mimeType, length)
++            }
++        }
++        (resultMsg.obj as WebView.WebViewTransport).webView = popup
++        resultMsg.sendToTarget()
++        // Don't keep a popup that never loads anything
++        view.postDelayed({ finish(null) }, 60_000)
+         return true
+     }
+ }
+-- 
+2.37.2
+
