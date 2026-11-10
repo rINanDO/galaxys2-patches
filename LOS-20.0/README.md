@@ -143,11 +143,14 @@ kernel feature. Grouped by the problem they solve:
   sepolicy and a "Protect battery" toggle in Settings to stop charging
   early.
 - **Binder and services that need newer kernels** (`frameworks_native`,
-  `system_libhwbinder`, `system_core` 0002): `gpuservice` is disabled (its
-  GPU memory accounting needs BPF), libbinder and libhwbinder log instead of
-  aborting when a process shrinks its thread pool, installd operations have
-  no timeout, and init no longer treats a failure to create a process group
-  as fatal.
+  `system_libhwbinder`, `system_core` 0002, 0004): `gpuservice` is
+  disabled (its GPU memory accounting needs BPF), libbinder and libhwbinder
+  log instead of aborting when a process shrinks its thread pool, installd
+  operations have no timeout, and init no longer treats a failure to create
+  a process group as fatal. This kernel has no cgroup v2, so libprocessgroup
+  finds a service's processes in its memcg group (`/dev/memcg/apps`).
+  Before, init killed nothing when it stopped a service, so after a
+  surfaceflinger crash zygote never restarted and the screen stayed black.
 - **Framework tweaks for this device** (`frameworks_base` 0013-0023):
   - no warning dialogs about a vendor mismatch or an app's old target SDK;
   - the brightness slider curve for panels reporting a max brightness of
@@ -292,10 +295,3 @@ builds, and the package manager only rebuilds its parser cache when it does.
 After a dirty flash that adds, removes or updates an app, delete
 `/data/system/package_cache/*` in TWRP before booting, or Android keeps the
 old package information (for example the previous WebView version).
-
-### Known issues
-
-- If surfaceflinger crashes, init can't stop zygote: libprocessgroup looks
-  for the process group under `/sys/fs/cgroup`, which this kernel doesn't
-  have. Zygote stays in `stopping` and the UI stays black until you reboot
-  or `kill -9` zygote.
