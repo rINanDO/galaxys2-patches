@@ -166,11 +166,66 @@ kernel feature. Grouped by the problem they solve:
 - **adb over USB** (`packages_modules_adb`): adbd falls back to the old
   blocking FunctionFS code, which this kernel needs.
 - **Build and kernel** (`build_make`, `vendor_lineage` 0001-0002):
-  - `BOARD_NO_RECOVERY_PATCH`: recovery is part of the kernel image, so no
-    recovery patch is created;
+  - `BOARD_NO_RECOVERY_PATCH`: no recovery patch is created. The zip only
+    writes the system and KERNEL partitions, so the recovery in the RECOVERY
+    partition (TWRP) is kept;
   - `BOARD_CUSTOM_KERNEL_MK`: `galaxys2-common` builds the uncompressed
     ramdisk before the kernel, which embeds it;
   - `-fuse-ld=lld` in the kernel's host CFLAGS, because Linux 3.0 links its
     host programs with CFLAGS only.
 - **Off-mode charger** (`system_core` 0003): the home button also wakes the
   screen.
+
+## Fixes in the device and kernel repos
+
+These live in the forks listed in `galaxys2-20.0.xml`, not in patches. They
+were backported from the LOS-23.2 work after checking them on a running 20.0
+phone.
+
+### Kernel (`kernel/samsung/smdk4412`)
+
+- **Native crash reports**: `PTRACE_GETREGSET` works on ARM, and children of
+  a seizing tracer start in a trap stop. Without this, `crash_dump` aborts
+  with `Check failed: 0 == stop_signal` and no tombstone is written.
+- **vmalloc space**: the kernel now reserves 256 MB, and the bootloader's
+  later `vmalloc=144m` can no longer shrink it. With 144 MB only about 29 MB
+  was still free 8 minutes after boot, and every binder process takes about
+  1 MB of it.
+- **Memory reservations** (27 MB more RAM): FIMD 18 MB to 6 MB, JPEG 20 MB to
+  12 MB, and no FIMC3 reservation, because those regions were not fully used.
+
+### Device (`device/samsung/galaxys2-common`)
+
+- **Power HAL** (`power.smdk4210`): uses the pegasusq boost controls to hold
+  1.2 GHz on both cores for 1 s on touch, 2 s on app launch and 2 s when the
+  screen turns on. The boost is off while battery saver is active.
+- **ANR timeouts** are doubled with `ro.hw_timeout_multiplier=2`.
+- **Audio**: the primary output runs at 44.1 kHz, which saves resampling most
+  music and video, and `audio_effects.xml` is installed in `/vendor/etc`.
+- **Memory**: zram is 512 MB and uses both cores
+  (`max_comp_streams=2`), and the low memory killer levels are capped at
+  120 MB, so more cached apps are swapped instead of killed.
+- **Reboot to recovery**: the HIDDEN partition (`mmcblk0p12`, used as
+  `/misc`) is labeled `misc_block_device`. With its old
+  `preload_block_device` label init could not write the bootloader message,
+  so `adb reboot recovery` never reached recovery.
+- **Camera app**: Open Camera (the F-Droid build) replaces Aperture.
+  Aperture uses CameraX, which only allows preview + 480p recording on this
+  LEGACY camera, and crashes in video mode if the camera2 shim offers
+  1280x720 previews. Open Camera with the original camera API records 720p.
+
+### WebView
+
+`galaxys2-20.0.xml` pins the WebView prebuilt to 145
+(`f547731aef7f92fed845d822d9fec66ddad04cd3`). Newer versions need GLES 3 and
+lose GPU rendering on the Mali-400. 145 gets no more security updates.
+
+### Dirty flashing
+
+`ro.build.version.incremental` (the build ID) doesn't change between these
+builds, and the package manager only rebuilds its parser cache when it does.
+After a dirty flash that adds, removes or updates an app, delete
+`/data/system/package_cache/*` in TWRP before booting, or Android keeps the
+old package information (for example the previous WebView version).
+
+The hardware composer overlays from LOS-23.2 are not backported yet.
