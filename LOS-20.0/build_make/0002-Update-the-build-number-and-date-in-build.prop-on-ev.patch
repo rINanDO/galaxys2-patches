@@ -1,0 +1,68 @@
+From c36a302a9cc904987430c247be61baea75aa6d5c Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 11 Nov 2026 00:30:05 +0100
+Subject: [PATCH] Update the build number and date in build.prop on every build
+
+Without BUILD_NUMBER the build number is "eng.<user>.<date>" from the
+time kati last ran, and the build.prop files only had an order-only
+dependency on it and on the build date. Incremental builds kept the old
+values, and since the package manager names its parser cache after
+ro.build.version.incremental, a dirty flash kept stale package data.
+
+Regenerate build_number.txt from build_date.txt, which soong_ui writes
+on every build, and make the build.prop files depend on both.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Id13f692a0ce28a5af7788be225369922c49ad82c
+---
+ core/main.mk    | 9 +++++++++
+ core/sysprop.mk | 4 ++--
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/core/main.mk b/core/main.mk
+index 771e10464..03b9bd7ca 100644
+--- a/core/main.mk
++++ b/core/main.mk
+@@ -50,8 +50,17 @@ $(shell mkdir -p $(SOONG_OUT_DIR) && \
+ BUILD_NUMBER_FILE := $(SOONG_OUT_DIR)/build_number.txt
+ .KATI_READONLY := BUILD_NUMBER_FILE
+ $(KATI_obsolete_var BUILD_NUMBER,See https://android.googlesource.com/platform/build/+/master/Changes.md#BUILD_NUMBER)
++ifeq ($(strip $(HAS_BUILD_NUMBER)),false)
++# The build number above is only computed when kati runs, which incremental
++# builds often skip, so build.prop kept an old build number (and the package
++# manager kept its parser cache, which is keyed on it). Regenerate it from the
++# build date, which soong_ui writes on every build.
++$(BUILD_NUMBER_FILE): $(BUILD_DATETIME_FILE)
++	echo -n eng.$(shell echo '$(BUILD_USERNAME)' | cut -c1-6).$$(date -d @$$(cat $<) +%Y%m%d.%H%M%S) > $@
++else
+ $(BUILD_NUMBER_FILE):
+ 	touch $@
++endif
+ 
+ DATE_FROM_FILE := date -d @$(BUILD_DATETIME_FROM_FILE)
+ .KATI_READONLY := DATE_FROM_FILE
+diff --git a/core/sysprop.mk b/core/sysprop.mk
+index 5ff93a13e..01e48e9d1 100644
+--- a/core/sysprop.mk
++++ b/core/sysprop.mk
+@@ -109,7 +109,7 @@ $(if $(filter true,$(BUILD_BROKEN_DUP_SYSPROP)),\
+     $(eval _option := --allow-dup)\
+ )
+ 
+-$(2): $(POST_PROCESS_PROPS) $(INTERNAL_BUILD_ID_MAKEFILE) $(3) $(6)
++$(2): $(POST_PROCESS_PROPS) $(INTERNAL_BUILD_ID_MAKEFILE) $(BUILD_DATETIME_FILE) $(BUILD_NUMBER_FILE) $(3) $(6)
+ 	$(hide) echo Building $$@
+ 	$(hide) mkdir -p $$(dir $$@)
+ 	$(hide) rm -f $$@ && touch $$@
+@@ -259,7 +259,7 @@ $(strip $(subst _,-, $(firstword $(1))))
+ endef
+ 
+ gen_from_buildinfo_sh := $(call intermediates-dir-for,PACKAGING,system_build_prop)/buildinfo.prop
+-$(gen_from_buildinfo_sh): $(INTERNAL_BUILD_ID_MAKEFILE) $(API_FINGERPRINT) | $(BUILD_DATETIME_FILE) $(BUILD_NUMBER_FILE)
++$(gen_from_buildinfo_sh): $(INTERNAL_BUILD_ID_MAKEFILE) $(API_FINGERPRINT) $(BUILD_DATETIME_FILE) $(BUILD_NUMBER_FILE)
+ 	$(hide) TARGET_BUILD_TYPE="$(TARGET_BUILD_VARIANT)" \
+ 	        TARGET_BUILD_FLAVOR="$(TARGET_BUILD_FLAVOR)" \
+ 	        TARGET_DEVICE="$(TARGET_DEVICE)" \
+-- 
+2.37.2
+

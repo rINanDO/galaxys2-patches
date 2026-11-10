@@ -180,6 +180,11 @@ kernel feature. Grouped by the problem they solve:
     ramdisk before the kernel, which embeds it;
   - `-fuse-ld=lld` in the kernel's host CFLAGS, because Linux 3.0 links its
     host programs with CFLAGS only.
+  - the build number (`ro.build.version.incremental`) and build date in
+    `build.prop` are updated on every build (`build_make` 0002). Before,
+    incremental builds kept the values from the last time kati ran, and the
+    package manager, which names its parser cache after the build number,
+    kept stale package information after a dirty flash.
 - **Off-mode charger** (`system_core` 0003): the home button also wakes the
   screen.
 - **Browser downloads** (`packages_apps_Jelly` 0001): a window opened by a
@@ -287,20 +292,12 @@ phone.
     video the display could come back as a 480x35 strip.
 - **Color saturation**: the overlays can only be used when surfaceflinger
   has no color matrix. An old `persist.sys.sf.color_saturation` of 1.1
-  ("Boosted" from earlier builds) forces every layer to the GPU, and this
-  device has no color modes in Settings to reset it. Check it with
-  `getprop persist.sys.sf.color_saturation` and set it to `1.0`.
+  ("Boosted" from earlier builds) forced every layer to the GPU, and this
+  device has no color modes in Settings to reset it. `init.smdk4210.rc`
+  now sets it back to 1.0 before surfaceflinger starts.
 
 ### WebView
 
 `galaxys2-20.0.xml` pins the WebView prebuilt to 145
 (`f547731aef7f92fed845d822d9fec66ddad04cd3`). Newer versions need GLES 3 and
 lose GPU rendering on the Mali-400. 145 gets no more security updates.
-
-### Dirty flashing
-
-`ro.build.version.incremental` (the build ID) doesn't change between these
-builds, and the package manager only rebuilds its parser cache when it does.
-After a dirty flash that adds, removes or updates an app, delete
-`/data/system/package_cache/*` in TWRP before booting, or Android keeps the
-old package information (for example the previous WebView version).
