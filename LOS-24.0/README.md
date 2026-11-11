@@ -470,8 +470,53 @@ Android 17 changes that needed fixes on top of the 23.2 port:
 - **Apps always told memory is low**: the kernel has no `MemAvailable`
   (added in 3.14), so `ActivityManager.MemoryInfo` reported `availMem = 0`
   and `lowMemory = true`. Backported to `/proc/meminfo`.
+- **Old apps can't be installed**: Android 17 refuses apps that target an
+  SDK below 24. `frameworks_base` 0020 adds a property that turns the block
+  off for every installer (userdebug builds; the shell can set it, apps
+  can't):
 
-Known issues: no mobile network yet.
+  ```
+  adb shell setprop persist.debug.pm.allow_low_target_sdk 1
+  ```
+
+  Installed apps keep working after it's set back to 0.
+- **Root**: Magisk installs from TWRP; see below.
+
+Known issues: no mobile network yet. `adb install` fails with `splice
+failed: EINVAL`; `adb install --no-streaming` works.
+
+## Root with Magisk
+
+The S2 has no boot image: Android's ramdisk is built into the zImage, so
+Magisk can't patch it in place. Instead, the kernel's stage 1 init boots a
+ramdisk from a slot on the HIDDEN partition when the slot holds a valid
+copy of its own ramdisk, and a TWRP zip writes the Magisk-patched copy
+there. The KERNEL partition isn't touched.
+
+1. Build the zips from a Magisk release APK:
+
+   ```
+   device/samsung/galaxys2-common/magisk/make-magisk-zips.sh Magisk-v31.1.apk <output-dir>
+   ```
+
+   This makes `i9100-magisk-v<version>-installer.zip` and
+   `i9100-magisk-uninstaller.zip`.
+2. Boot TWRP with a kernel that has the slot (it leaves the stock ramdisk at
+   `/.stock-boot.cpio`) and flash the installer zip. It runs Magisk's own
+   flash script on the stock ramdisk, without the addon.d step, and passes
+   the pre-init partition (`mmcblk0p10`), which Magisk only detects by
+   itself in Android.
+3. Boot Android and install `/sdcard/ROMS/Magisk.apk`, or use
+   `adb install --no-streaming`.
+
+Notes:
+
+- Don't use Install or Reinstall for Magisk in the app: it would patch the
+  KERNEL partition. To update Magisk, build and flash new zips.
+- A ROM build with a different ramdisk turns the slot off by itself (it was
+  made from another ramdisk) and boots without Magisk; flash the installer
+  zip again. Builds with the same ramdisk keep Magisk.
+- The uninstaller zip clears the slot and removes Magisk from `/data/adb`.
 
 The sections above describe what the patches and forks did on 23.2, where the
 ROM was in daily use. See `../LOS-23.2/README.md` for its working features and
