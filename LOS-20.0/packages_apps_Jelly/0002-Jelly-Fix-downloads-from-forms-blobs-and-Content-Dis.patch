@@ -1,0 +1,872 @@
+From 34347e5d878ddb55c69260a5baa6b39270b3917b Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 11 Nov 2026 23:15:45 +0100
+Subject: [PATCH] Jelly: Fix downloads from forms, blobs and
+ Content-Disposition names
+
+- Parse Content-Disposition as RFC 6266 does: filename* (RFC 5987) wins
+  over filename, any disposition type, quoted or unquoted names with
+  other parameters after them, and percent-encoded names. Before, only
+  "attachment; filename=..." at the end of the header was understood and
+  most downloads were named after the URL ("cd1.pdf", "plain.zip;
+  size=22").
+- Use the name from <a download="..."> when the server gives none, and
+  give DownloadManager the server's MIME type instead of one guessed from
+  the URL.
+- Downloads that answer a form POST were fetched again with GET by
+  DownloadManager and failed. A script injected into each page records
+  POST form submissions (submit events and form.submit()); when the
+  download arrives, Jelly sends the same POST itself, with the cookies
+  only for a same-origin form, and saves the response in Downloads.
+  Forms with file inputs still fall back to GET.
+- blob: and data: URLs were dropped ("Cannot download non http or https
+  scheme"). data: URLs are decoded, and blob: URLs are read through the
+  page that made them; the script fetches a blob as soon as its link is
+  clicked, because pages usually revoke the URL right after.
+- The JavaScript interface only accepts calls with a secret that the
+  injected script has, and needs keep rules so R8 doesn't strip it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I8328aca8069bfb06405b079ae5c9c92e47ad885a
+---
+ app/Android.bp                                |   4 +
+ app/proguard-rules.pro                        |   4 +
+ app/proguard.flags                            |   6 +
+ .../java/org/lineageos/jelly/MainActivity.kt  | 113 +++++-
+ .../org/lineageos/jelly/utils/UrlUtils.kt     | 166 +++++++--
+ .../lineageos/jelly/webview/DownloadHelper.kt | 351 ++++++++++++++++++
+ .../org/lineageos/jelly/webview/WebClient.kt  |   6 +
+ .../org/lineageos/jelly/webview/WebViewExt.kt |   2 +
+ app/src/main/res/values/strings.xml           |   8 +
+ 9 files changed, 626 insertions(+), 34 deletions(-)
+ create mode 100644 app/proguard.flags
+ create mode 100644 app/src/main/java/org/lineageos/jelly/webview/DownloadHelper.kt
+
+diff --git a/app/Android.bp b/app/Android.bp
+index 2ffdec9..e482064 100644
+--- a/app/Android.bp
++++ b/app/Android.bp
+@@ -19,6 +19,10 @@ android_app {
+ 
+     product_specific: true,
+ 
++    optimize: {
++        proguard_flags_files: ["proguard.flags"],
++    },
++
+     overrides: [
+         "Browser2",
+         "CarHTMLViewer",
+diff --git a/app/proguard-rules.pro b/app/proguard-rules.pro
+index 7e4f02d..4727a59 100644
+--- a/app/proguard-rules.pro
++++ b/app/proguard-rules.pro
+@@ -18,6 +18,10 @@
+ -keepclassmembers class fqcn.of.javascript.interface.for.webview {
+    public *;
+ }
++-keepattributes RuntimeVisibleAnnotations
++-keepclassmembers class * {
++    @android.webkit.JavascriptInterface <methods>;
++}
+ 
+ # Uncomment this to preserve the line number information for
+ # debugging stack traces.
+diff --git a/app/proguard.flags b/app/proguard.flags
+new file mode 100644
+index 0000000..db7f507
+--- /dev/null
++++ b/app/proguard.flags
+@@ -0,0 +1,6 @@
++# The page script calls these through the JavaScript interface: keep them and
++# the annotation WebView looks for at runtime.
++-keepattributes RuntimeVisibleAnnotations
++-keepclassmembers class * {
++    @android.webkit.JavascriptInterface <methods>;
++}
+diff --git a/app/src/main/java/org/lineageos/jelly/MainActivity.kt b/app/src/main/java/org/lineageos/jelly/MainActivity.kt
+index 71e7ee3..4a95089 100644
+--- a/app/src/main/java/org/lineageos/jelly/MainActivity.kt
++++ b/app/src/main/java/org/lineageos/jelly/MainActivity.kt
+@@ -68,6 +68,7 @@ import org.lineageos.jelly.utils.SharedPreferencesExt
+ import org.lineageos.jelly.utils.TabUtils.openInNewTab
+ import org.lineageos.jelly.utils.UiUtils
+ import org.lineageos.jelly.utils.UrlUtils
++import org.lineageos.jelly.webview.DownloadHelper
+ import org.lineageos.jelly.webview.WebViewExt
+ import org.lineageos.jelly.webview.WebViewExtActivity
+ import java.io.File
+@@ -390,24 +391,43 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
+         mimeType: String?,
+         contentLength: Long
+     ) {
+-        val fileName = UrlUtils.guessFileName(url, contentDisposition, mimeType)
++        val downloads = webView.downloads
++        // A download that answers a form POST: DownloadManager can only GET it
++        val post = downloads.takePost(url)
++        val fileName = UrlUtils.guessFileName(
++            url, contentDisposition, mimeType, downloads.nameFor(url)
++        )
+         AlertDialog.Builder(this)
+             .setTitle(R.string.download_title)
+             .setMessage(getString(R.string.download_message, fileName))
+             .setPositiveButton(
+                 getString(R.string.download_positive)
+-            ) { _: DialogInterface?, _: Int -> fetchFile(url, userAgent, fileName) }
++            ) { _: DialogInterface?, _: Int ->
++                when {
++                    url == null -> Unit
++                    url.startsWith("blob:", ignoreCase = true) ->
++                        fetchBlob(url, fileName, mimeType)
++                    url.startsWith("data:", ignoreCase = true) ->
++                        fetchDataUrl(url, fileName, mimeType)
++                    post != null -> fetchPost(post, userAgent, fileName, mimeType)
++                    else -> fetchFile(url, userAgent, fileName, mimeType)
++                }
++            }
+             .setNegativeButton(
+                 getString(R.string.dismiss)
+             ) { dialog: DialogInterface, _: Int -> dialog.dismiss() }
+             .show()
+     }
+ 
+-    private fun fetchFile(url: String?, userAgent: String?, fileName: String) {
++    private fun fetchFile(url: String?, userAgent: String?, fileName: String, mimeType: String?) {
+         val request = try {
+             DownloadManager.Request(Uri.parse(url))
+         } catch (e: IllegalArgumentException) {
+             Log.e(TAG, "Cannot download non http or https scheme")
++            Snackbar.make(
++                constraintLayout, getString(R.string.download_failed, fileName),
++                Snackbar.LENGTH_LONG
++            ).show()
+             return
+         }
+ 
+@@ -421,10 +441,12 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
+             DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+         )
+         request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
++        // The server's type, else the one that goes with the file name
+         request.setMimeType(
+-            MimeTypeMap.getSingleton().getMimeTypeFromExtension(
+-                MimeTypeMap.getFileExtensionFromUrl(url)
+-            )
++            mimeType?.takeUnless { it.isEmpty() || it == "application/octet-stream" }
++                ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(
++                    fileName.substringAfterLast('.', "").lowercase()
++                ) ?: mimeType
+         )
+         userAgent?.let {
+             request.addRequestHeader("User-Agent", it)
+@@ -435,6 +457,85 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
+         getSystemService(DownloadManager::class.java).enqueue(request)
+     }
+ 
++    private fun fetchPost(
++        post: DownloadHelper.RecordedPost, userAgent: String?, fileName: String,
++        mimeType: String?
++    ) {
++        saveDirect(fileName) {
++            val conn = DownloadHelper.openPost(post, userAgent)
++            try {
++                val type = conn.contentType?.substringBefore(';')?.trim() ?: mimeType
++                DownloadHelper.saveToDownloads(this, fileName, type) { out ->
++                    conn.inputStream.use { DownloadHelper.copy(it, out) }
++                }?.let { it to type }
++            } finally {
++                conn.disconnect()
++            }
++        }
++    }
++
++    private fun fetchDataUrl(url: String, fileName: String, mimeType: String?) {
++        saveDirect(fileName) {
++            val (bytes, type) = DownloadHelper.decodeDataUrl(url) ?: return@saveDirect null
++            val t = type ?: mimeType
++            DownloadHelper.saveToDownloads(this, fileName, t) { it.write(bytes) }?.let { it to t }
++        }
++    }
++
++    private fun fetchBlob(url: String, fileName: String, mimeType: String?) {
++        webView.downloads.readBlob(url) { bytes, type ->
++            if (bytes == null) {
++                Snackbar.make(
++                    constraintLayout, getString(R.string.download_failed, fileName),
++                    Snackbar.LENGTH_LONG
++                ).show()
++                return@readBlob
++            }
++            saveDirect(fileName) {
++                val t = type ?: mimeType
++                DownloadHelper.saveToDownloads(this, fileName, t) { it.write(bytes) }
++                    ?.let { it to t }
++            }
++        }
++    }
++
++    /**
++     * Run a download that DownloadManager can't do on a background thread, and
++     * tell the user how it went. [work] returns the saved file and its type.
++     */
++    private fun saveDirect(fileName: String, work: () -> Pair<Uri, String?>?) {
++        Snackbar.make(
++            constraintLayout, getString(R.string.download_running, fileName),
++            Snackbar.LENGTH_SHORT
++        ).show()
++        uiScope.launch {
++            val result = withContext(Dispatchers.IO) {
++                runCatching(work).onFailure {
++                    Log.e(TAG, "Download of $fileName failed", it)
++                }.getOrNull()
++            }
++            if (result == null) {
++                Snackbar.make(
++                    constraintLayout, getString(R.string.download_failed, fileName),
++                    Snackbar.LENGTH_LONG
++                ).show()
++                return@launch
++            }
++            val (uri, type) = result
++            Snackbar.make(
++                constraintLayout, getString(R.string.download_done, fileName),
++                Snackbar.LENGTH_LONG
++            ).setAction(R.string.download_open) {
++                val intent = Intent(Intent.ACTION_VIEW)
++                    .setDataAndType(uri, type ?: contentResolver.getType(uri))
++                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++                runCatching { startActivity(intent) }.onFailure {
++                    Log.w(TAG, "No app to open $fileName", it)
++                }
++            }.show()
++        }
++    }
++
+     override fun showSheetMenu(url: String, shouldAllowDownload: Boolean) {
+         val sheet = BottomSheetDialog(this)
+         val view = layoutInflater.inflate(R.layout.sheet_actions, LinearLayout(this))
+diff --git a/app/src/main/java/org/lineageos/jelly/utils/UrlUtils.kt b/app/src/main/java/org/lineageos/jelly/utils/UrlUtils.kt
+index 68a2f1b..fadcfe2 100644
+--- a/app/src/main/java/org/lineageos/jelly/utils/UrlUtils.kt
++++ b/app/src/main/java/org/lineageos/jelly/utils/UrlUtils.kt
+@@ -61,30 +61,135 @@ object UrlUtils {
+     fun getFormattedUri(templateUri: String?, query: String?) =
+         URLUtil.composeSearchUrl(query, templateUri, "{searchTerms}")!!
+ 
+-    /** Regex used to parse content-disposition headers */
+-    private val CONTENT_DISPOSITION_PATTERN = Pattern.compile(
+-        "attachment;\\s*filename\\s*=\\s*(\"?)([^\"]*)\\1\\s*$",
+-        Pattern.CASE_INSENSITIVE
+-    )
+-
+     /**
+-     * Parse the Content-Disposition HTTP Header. The format of the header
+-     * is defined here: http://www.w3.org/Protocols/rfc2616/rfc2616-sec19.html
+-     * This header provides a filename for content that is going to be
+-     * downloaded to the file system. We only support the attachment type.
+-     * Note that RFC 2616 specifies the filename value must be double-quoted.
+-     * Unfortunately some servers do not quote the value so to maintain
+-     * consistent behaviour with other browsers, we allow unquoted values too.
++     * Parse the Content-Disposition HTTP Header (RFC 6266) and return the
++     * file name it suggests. filename* (RFC 5987, e.g. UTF-8''%E2%82%AC.txt)
++     * wins over filename. Any disposition type is accepted, other parameters
++     * may follow the file name, and unquoted or percent-encoded names are
++     * accepted as other browsers do.
+      */
+-    private fun parseContentDisposition(contentDisposition: String) = runCatching {
+-        val m = CONTENT_DISPOSITION_PATTERN.matcher(contentDisposition)
+-        if (m.find()) {
+-            return@runCatching m.group(2)
++    fun parseContentDisposition(contentDisposition: String): String? = runCatching {
++        var plain: String? = null
++        var extended: String? = null
++        for (param in splitHeaderParams(contentDisposition)) {
++            val eq = param.indexOf('=')
++            if (eq <= 0) continue
++            val value = param.substring(eq + 1).trim()
++            when (param.substring(0, eq).trim().lowercase(Locale.ROOT)) {
++                "filename*" -> extended = extended ?: decodeExtValue(unquote(value))
++                "filename" -> plain = plain ?: unquote(value).let { percentDecodeUtf8(it) ?: it }
++            }
+         }
+-
+-        return@runCatching null
++        sanitizeFileName(extended) ?: sanitizeFileName(plain)
+     }.getOrNull()
+ 
++    /** Split a header value on ';' outside quoted strings */
++    private fun splitHeaderParams(header: String): List<String> {
++        val parts = mutableListOf<String>()
++        val cur = StringBuilder()
++        var quoted = false
++        var i = 0
++        while (i < header.length) {
++            val c = header[i]
++            when {
++                quoted && c == '\\' && i + 1 < header.length -> {
++                    cur.append(c).append(header[i + 1])
++                    i++
++                }
++                c == '"' -> {
++                    quoted = !quoted
++                    cur.append(c)
++                }
++                c == ';' && !quoted -> {
++                    parts.add(cur.toString())
++                    cur.setLength(0)
++                }
++                else -> cur.append(c)
++            }
++            i++
++        }
++        parts.add(cur.toString())
++        return parts
++    }
++
++    private fun unquote(value: String): String {
++        if (value.length < 2 || !value.startsWith('"')) return value
++        val sb = StringBuilder()
++        var i = 1
++        while (i < value.length) {
++            val c = value[i]
++            if (c == '\\' && i + 1 < value.length) {
++                sb.append(value[i + 1])
++                i += 2
++                continue
++            }
++            if (c == '"') break
++            sb.append(c)
++            i++
++        }
++        return sb.toString()
++    }
++
++    /** RFC 5987 ext-value: charset'language'percent-encoded */
++    private fun decodeExtValue(value: String): String? {
++        val first = value.indexOf('\'')
++        val second = if (first >= 0) value.indexOf('\'', first + 1) else -1
++        if (second < 0) return null
++        val charset = runCatching {
++            java.nio.charset.Charset.forName(value.substring(0, first).trim())
++        }.getOrNull() ?: return null
++        return percentDecode(value.substring(second + 1), charset)
++    }
++
++    private fun percentDecode(value: String, charset: java.nio.charset.Charset): String? {
++        val out = java.io.ByteArrayOutputStream()
++        var i = 0
++        while (i < value.length) {
++            val c = value[i]
++            if (c == '%') {
++                if (i + 2 >= value.length) return null
++                val b = value.substring(i + 1, i + 3).toIntOrNull(16) ?: return null
++                out.write(b)
++                i += 3
++            } else {
++                out.write(c.toString().toByteArray(charset))
++                i++
++            }
++        }
++        return String(out.toByteArray(), charset)
++    }
++
++    /** Decode a plain filename that a server percent-encoded, if it is valid UTF-8 */
++    private fun percentDecodeUtf8(value: String): String? {
++        if (!value.contains(Regex("%[0-9A-Fa-f]{2}"))) return null
++        val decoder = Charsets.UTF_8.newDecoder()
++        return runCatching {
++            val bytes = percentDecode(value, Charsets.ISO_8859_1)
++                ?.toByteArray(Charsets.ISO_8859_1) ?: return null
++            decoder.decode(java.nio.ByteBuffer.wrap(bytes)).toString()
++        }.getOrNull()
++    }
++
++    /**
++     * Make a suggested name safe to use as a file name in Downloads: keep the
++     * last path segment and drop characters that FAT/sdcardfs or the shell
++     * would choke on. Returns null if nothing usable is left.
++     */
++    fun sanitizeFileName(name: String?): String? {
++        if (name == null) return null
++        var n = name.substring(maxOf(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1)
++        n = n.replace(Regex("[\\x00-\\x1f\\x7f\"*:<>?|]"), "_").trim().trim('.').trim()
++        if (n.length > 200) {
++            val dot = n.lastIndexOf('.')
++            n = if (dot > 0 && n.length - dot <= 16) {
++                n.substring(0, 200 - (n.length - dot)) + n.substring(dot)
++            } else {
++                n.substring(0, 200)
++            }
++        }
++        return n.ifEmpty { null }
++    }
++
+     /**
+      * Guesses canonical filename that a download would have, using
+      * the URL and contentDisposition. File extension, if not defined,
+@@ -92,13 +197,15 @@ object UrlUtils {
+      * @param url Url to the content
+      * @param contentDisposition Content-Disposition HTTP header or {@code null}
+      * @param mimeType Mime-type of the content or {@code null}
++     * @param downloadName value of the link's download attribute or {@code null}
+      *
+      * @return suggested filename
+      */
+     fun guessFileName(
+         url: String?,
+         contentDisposition: String?,
+-        mimeType: String?
++        mimeType: String?,
++        downloadName: String? = null
+     ): String {
+         var tempFilename: String? = null
+         var extension: String? = null
+@@ -106,18 +213,21 @@ object UrlUtils {
+         // If we couldn't do anything with the hint, move toward the content disposition
+         contentDisposition?.let { disposition ->
+             tempFilename = parseContentDisposition(disposition)
+-            tempFilename?.let {
+-                val index = it.lastIndexOf('/') + 1
+-                if (index > 0) {
+-                    tempFilename = it.substring(index)
+-                }
+-            }
+         }
+ 
+-        // If all the other http-related approaches failed, use the plain uri
++        // Then the name the page gave the link (<a download="name">)
+         if (tempFilename == null) {
++            tempFilename = sanitizeFileName(downloadName)
++        }
++
++        // If all the other http-related approaches failed, use the plain uri.
++        // data: and blob: URLs have no file name in them.
++        if (tempFilename == null && url != null &&
++            !url.startsWith("data:", ignoreCase = true) &&
++            !url.startsWith("blob:", ignoreCase = true)
++        ) {
+             runCatching { Uri.parse(url) }.getOrNull()?.let {
+-                tempFilename = it.lastPathSegment
++                tempFilename = sanitizeFileName(it.lastPathSegment)
+             }
+         }
+ 
+diff --git a/app/src/main/java/org/lineageos/jelly/webview/DownloadHelper.kt b/app/src/main/java/org/lineageos/jelly/webview/DownloadHelper.kt
+new file mode 100644
+index 0000000..0d8c6dd
+--- /dev/null
++++ b/app/src/main/java/org/lineageos/jelly/webview/DownloadHelper.kt
+@@ -0,0 +1,351 @@
++/*
++ * SPDX-FileCopyrightText: 2026 The LineageOS Project
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package org.lineageos.jelly.webview
++
++import android.content.ContentValues
++import android.content.Context
++import android.net.Uri
++import android.os.Build
++import android.os.Environment
++import android.os.Handler
++import android.os.Looper
++import android.provider.MediaStore
++import android.util.Base64
++import android.util.Log
++import android.webkit.CookieManager
++import android.webkit.JavascriptInterface
++import android.webkit.MimeTypeMap
++import android.webkit.WebView
++import org.json.JSONArray
++import java.io.File
++import java.io.FileOutputStream
++import java.io.IOException
++import java.io.InputStream
++import java.io.OutputStream
++import java.net.HttpURLConnection
++import java.net.URL
++import java.net.URLDecoder
++import java.net.URLEncoder
++import java.security.SecureRandom
++
++/**
++ * Downloads that DownloadManager can't do by itself: the response to a form
++ * POST (DownloadManager would fetch the URL again with GET), and blob: and
++ * data: URLs. A script injected into each page records POST form submissions
++ * and the names in <a download="...">, and reads blobs for us; it talks to
++ * this class through a JavaScript interface that only accepts calls carrying
++ * a secret the injected script got, so other frames and scripts that don't
++ * know it can't feed it data.
++ */
++class DownloadHelper(private val webView: WebView) {
++    class RecordedPost(
++        val url: String,
++        val pageUrl: String?,
++        val contentType: String,
++        val body: ByteArray,
++        val sameOrigin: Boolean,
++        val time: Long,
++    )
++
++    private val secret = ByteArray(16).also { SecureRandom().nextBytes(it) }
++        .joinToString("") { "%02x".format(it) }
++    private val mainHandler = Handler(Looper.getMainLooper())
++
++    private var lastPost: RecordedPost? = null
++    private val names = LinkedHashMap<String, Pair<String, Long>>()
++    private val blobCallbacks = mutableMapOf<String, (ByteArray?, String?) -> Unit>()
++    private var nextToken = 0
++
++    // Main frame URL, kept up to date from the main thread: the JavaScript
++    // interface is called on a background thread where WebView can't be used.
++    @Volatile
++    var pageUrl: String? = null
++
++    fun install() {
++        webView.addJavascriptInterface(Bridge(), BRIDGE_NAME)
++    }
++
++    /** Run the page script; called when a page starts and when it finishes. */
++    fun inject(view: WebView, url: String?) {
++        pageUrl = url
++        view.evaluateJavascript(script(), null)
++    }
++
++    /** The POST that produced a download of [url], if one was submitted just before. */
++    fun takePost(url: String?): RecordedPost? {
++        val post = lastPost ?: return null
++        if (url == null || stripFragment(post.url) != stripFragment(url) ||
++            System.currentTimeMillis() - post.time > RECORD_TTL_MS
++        ) {
++            return null
++        }
++        lastPost = null
++        return post
++    }
++
++    /** The download attribute of the link that started a download of [url]. */
++    fun nameFor(url: String?): String? {
++        val (name, time) = names[url ?: return null] ?: return null
++        return name.takeIf { System.currentTimeMillis() - time <= RECORD_TTL_MS }
++    }
++
++    /** Read a blob: URL through the page that created it. */
++    fun readBlob(url: String, callback: (ByteArray?, String?) -> Unit) {
++        val token = (nextToken++).toString()
++        blobCallbacks[token] = callback
++        val js = "window.__jellyDl && window.__jellyDl.readBlob(" +
++                JSONArray(listOf(url, token)).toString().removeSurrounding("[", "]") + ")"
++        webView.evaluateJavascript(js) { result ->
++            if (result != "true") {
++                blobCallbacks.remove(token)?.invoke(null, null)
++            }
++        }
++    }
++
++    private inner class Bridge {
++        @JavascriptInterface
++        fun recordPost(key: String, action: String, enctype: String, fields: String) {
++            if (key != secret) return
++            val page = pageUrl
++            val sameOrigin = origin(action) != null && origin(action) == origin(page)
++            val pairs = runCatching {
++                val arr = JSONArray(fields)
++                (0 until arr.length()).map {
++                    val p = arr.getJSONArray(it)
++                    p.getString(0) to p.getString(1)
++                }
++            }.getOrNull() ?: return
++            val (contentType, body) = encodeForm(enctype.lowercase(), pairs)
++            val post = RecordedPost(
++                action, page, contentType, body, sameOrigin, System.currentTimeMillis()
++            )
++            mainHandler.post { lastPost = post }
++        }
++
++        @JavascriptInterface
++        fun recordName(key: String, href: String, name: String) {
++            if (key != secret || name.isEmpty()) return
++            mainHandler.post {
++                names[href] = name to System.currentTimeMillis()
++                while (names.size > 16) {
++                    names.remove(names.keys.first())
++                }
++            }
++        }
++
++        @JavascriptInterface
++        fun blobData(key: String, token: String, dataUrl: String, type: String) {
++            if (key != secret) return
++            val bytes = if (dataUrl.isEmpty()) null else decodeDataUrl(dataUrl)?.first
++            mainHandler.post {
++                blobCallbacks.remove(token)?.invoke(bytes, type.ifEmpty { null })
++            }
++        }
++    }
++
++    private fun script() = """
++        (function () {
++          var K = '$secret', B = window.$BRIDGE_NAME;
++          if (!B || window.__jellyDl) return;
++          var blobs = {};
++          function keep(href) {
++            // Fetch a blob: URL right away: pages revoke it as soon as the click returns
++            if (href && href.indexOf('blob:') === 0 && !blobs[href]) {
++              blobs[href] = fetch(href).then(function (r) { return r.blob(); });
++              setTimeout(function () { delete blobs[href]; }, $RECORD_TTL_MS);
++            }
++          }
++          function link(a) {
++            if (!a || !a.href) return;
++            if (a.hasAttribute('download')) B.recordName(K, a.href, a.getAttribute('download') || '');
++            keep(a.href);
++          }
++          function form(f, s) {
++            try {
++              var m = ((s && s.getAttribute('formmethod')) || f.getAttribute('method') || 'get').toLowerCase();
++              if (m !== 'post') return;
++              var action = (s && s.hasAttribute('formaction')) ? s.formAction : f.action;
++              var enc = (s && s.getAttribute('formenctype')) || f.enctype || 'application/x-www-form-urlencoded';
++              var fd = s ? new FormData(f, s) : new FormData(f);
++              var pairs = [];
++              var files = false;
++              fd.forEach(function (v, k) { if (typeof v === 'string') pairs.push([k, v]); else files = true; });
++              if (!files) B.recordPost(K, action, enc, JSON.stringify(pairs));
++            } catch (e) {}
++          }
++          document.addEventListener('submit', function (e) { form(e.target, e.submitter); }, true);
++          document.addEventListener('click', function (e) {
++            link(e.target && e.target.closest ? e.target.closest('a[href]') : null);
++          }, true);
++          var submit = HTMLFormElement.prototype.submit;
++          HTMLFormElement.prototype.submit = function () { form(this, null); return submit.apply(this, arguments); };
++          var click = HTMLAnchorElement.prototype.click;
++          HTMLAnchorElement.prototype.click = function () { link(this); return click.apply(this, arguments); };
++          var open = window.open;
++          window.open = function (u) { try { keep(new URL(u, location.href).href); } catch (e) {} return open.apply(this, arguments); };
++          Object.defineProperty(window, '__jellyDl', { value: {
++            readBlob: function (href, token) {
++              var p = blobs[href] || fetch(href).then(function (r) { return r.blob(); });
++              p.then(function (b) {
++                if (b.size > $MAX_BLOB_BYTES) throw new Error('too big');
++                var fr = new FileReader();
++                fr.onload = function () { B.blobData(K, token, fr.result, b.type || ''); };
++                fr.onerror = function () { B.blobData(K, token, '', ''); };
++                fr.readAsDataURL(b);
++              }).catch(function () { B.blobData(K, token, '', ''); });
++              return true;
++            }
++          } });
++        })();
++    """.trimIndent()
++
++    companion object {
++        private const val TAG = "DownloadHelper"
++        private const val BRIDGE_NAME = "JellyDownloads"
++        private const val RECORD_TTL_MS = 60_000L
++        private const val MAX_BLOB_BYTES = 64L * 1024 * 1024
++
++        private fun stripFragment(url: String) = url.substringBefore('#')
++
++        private fun origin(url: String?): String? {
++            val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return null
++            val scheme = uri.scheme?.lowercase() ?: return null
++            val host = uri.host?.lowercase() ?: return null
++            val port = if (uri.port != -1) uri.port else when (scheme) {
++                "http" -> 80
++                "https" -> 443
++                else -> -1
++            }
++            return "$scheme://$host:$port"
++        }
++
++        private fun encodeForm(
++            enctype: String, pairs: List<Pair<String, String>>
++        ): Pair<String, ByteArray> = when (enctype) {
++            "multipart/form-data" -> {
++                val boundary = "----JellyFormBoundary" + System.nanoTime()
++                val sb = StringBuilder()
++                for ((k, v) in pairs) {
++                    sb.append("--").append(boundary).append("\r\n")
++                    sb.append("Content-Disposition: form-data; name=\"")
++                        .append(k.replace("\"", "%22").replace("\r", "%0D").replace("\n", "%0A"))
++                        .append("\"\r\n\r\n")
++                    sb.append(v).append("\r\n")
++                }
++                sb.append("--").append(boundary).append("--\r\n")
++                "multipart/form-data; boundary=$boundary" to sb.toString().toByteArray()
++            }
++            "text/plain" -> "text/plain" to pairs.joinToString("") { (k, v) -> "$k=$v\r\n" }
++                .toByteArray()
++            else -> "application/x-www-form-urlencoded" to pairs.joinToString("&") { (k, v) ->
++                URLEncoder.encode(k, "UTF-8") + "=" + URLEncoder.encode(v, "UTF-8")
++            }.toByteArray()
++        }
++
++        /** Decode a data: URL into its bytes and MIME type. */
++        fun decodeDataUrl(url: String): Pair<ByteArray, String?>? {
++            val comma = url.indexOf(',')
++            if (!url.startsWith("data:", ignoreCase = true) || comma < 0) return null
++            val meta = url.substring(5, comma).split(';')
++            val data = url.substring(comma + 1)
++            val bytes = runCatching {
++                if (meta.any { it.equals("base64", ignoreCase = true) }) {
++                    Base64.decode(URLDecoder.decode(data.replace("+", "%2B"), "UTF-8"),
++                        Base64.DEFAULT)
++                } else {
++                    URLDecoder.decode(data.replace("+", "%2B"), "UTF-8").toByteArray()
++                }
++            }.getOrNull() ?: return null
++            return bytes to meta.firstOrNull()?.takeIf { it.contains('/') }
++        }
++
++        /**
++         * Send a recorded POST again and return the response. Cookies are only
++         * sent when the form posted to the page's own origin: a cross-site POST
++         * wouldn't get SameSite cookies in the browser either.
++         */
++        fun openPost(post: RecordedPost, userAgent: String?): HttpURLConnection {
++            val conn = URL(post.url).openConnection() as HttpURLConnection
++            conn.requestMethod = "POST"
++            conn.doOutput = true
++            conn.instanceFollowRedirects = true
++            conn.connectTimeout = 30_000
++            conn.readTimeout = 60_000
++            conn.setRequestProperty("Content-Type", post.contentType)
++            userAgent?.let { conn.setRequestProperty("User-Agent", it) }
++            post.pageUrl?.let { page ->
++                conn.setRequestProperty("Referer", page)
++                origin(page)?.let { o ->
++                    conn.setRequestProperty("Origin", o.replace(Regex(":(80|443)$"), ""))
++                }
++            }
++            if (post.sameOrigin) {
++                CookieManager.getInstance().getCookie(post.url)?.takeUnless { it.isEmpty() }
++                    ?.let { conn.setRequestProperty("Cookie", it) }
++            }
++            conn.setFixedLengthStreamingMode(post.body.size)
++            conn.outputStream.use { it.write(post.body) }
++            if (conn.responseCode !in 200..299) {
++                val code = conn.responseCode
++                conn.disconnect()
++                throw IOException("HTTP $code")
++            }
++            return conn
++        }
++
++        /**
++         * Store a file in the public Downloads folder. Returns its content
++         * URI, or null when it failed.
++         */
++        fun saveToDownloads(
++            context: Context, fileName: String, mimeType: String?,
++            write: (OutputStream) -> Unit
++        ): Uri? {
++            val type = mimeType?.takeUnless { it == "application/octet-stream" }
++                ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(
++                    fileName.substringAfterLast('.', "").lowercase()
++                ) ?: "application/octet-stream"
++            return try {
++                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
++                    val resolver = context.contentResolver
++                    val values = ContentValues().apply {
++                        put(MediaStore.Downloads.DISPLAY_NAME, fileName)
++                        put(MediaStore.Downloads.MIME_TYPE, type)
++                        put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
++                        put(MediaStore.Downloads.IS_PENDING, 1)
++                    }
++                    val uri = resolver.insert(
++                        MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
++                        values
++                    ) ?: return null
++                    try {
++                        resolver.openOutputStream(uri)!!.use(write)
++                    } catch (e: Exception) {
++                        resolver.delete(uri, null, null)
++                        throw e
++                    }
++                    resolver.update(uri, ContentValues().apply {
++                        put(MediaStore.Downloads.IS_PENDING, 0)
++                    }, null, null)
++                    uri
++                } else {
++                    val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
++                        ?: return null
++                    val file = File(dir, fileName)
++                    FileOutputStream(file).use(write)
++                    Uri.fromFile(file)
++                }
++            } catch (e: Exception) {
++                Log.e(TAG, "Couldn't save $fileName", e)
++                null
++            }
++        }
++
++        fun copy(input: InputStream, output: OutputStream) {
++            input.copyTo(output, 64 * 1024)
++        }
++    }
++}
+diff --git a/app/src/main/java/org/lineageos/jelly/webview/WebClient.kt b/app/src/main/java/org/lineageos/jelly/webview/WebClient.kt
+index 07d65c3..c3ac0f7 100644
+--- a/app/src/main/java/org/lineageos/jelly/webview/WebClient.kt
++++ b/app/src/main/java/org/lineageos/jelly/webview/WebClient.kt
+@@ -40,9 +40,15 @@ internal class WebClient(private val urlBarLayout: UrlBarLayout) : WebViewClient
+         urlBarLayout.onPageLoadStarted(url)
+     }
+ 
++    override fun onPageCommitVisible(view: WebView, url: String) {
++        super.onPageCommitVisible(view, url)
++        (view as? WebViewExt)?.downloads?.inject(view, url)
++    }
++
+     override fun onPageFinished(view: WebView, url: String) {
+         super.onPageFinished(view, url)
+         urlBarLayout.onPageLoadFinished(view.certificate)
++        (view as? WebViewExt)?.downloads?.inject(view, url)
+     }
+ 
+     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+diff --git a/app/src/main/java/org/lineageos/jelly/webview/WebViewExt.kt b/app/src/main/java/org/lineageos/jelly/webview/WebViewExt.kt
+index 8dcfed6..82ba4e6 100644
+--- a/app/src/main/java/org/lineageos/jelly/webview/WebViewExt.kt
++++ b/app/src/main/java/org/lineageos/jelly/webview/WebViewExt.kt
+@@ -32,6 +32,7 @@ class WebViewExt @JvmOverloads constructor(
+     private var desktopMode = false
+     var lastLoadedUrl: String? = null
+         private set
++    val downloads = DownloadHelper(this)
+ 
+     private val sharedPreferencesExt by lazy { SharedPreferencesExt(context) }
+ 
+@@ -51,6 +52,7 @@ class WebViewExt @JvmOverloads constructor(
+ 
+     private fun setup() {
+         settings.javaScriptEnabled = sharedPreferencesExt.javascriptEnabled
++        downloads.install()
+         settings.javaScriptCanOpenWindowsAutomatically = sharedPreferencesExt.javascriptEnabled
+         settings.setGeolocationEnabled(sharedPreferencesExt.locationEnabled)
+         settings.setSupportMultipleWindows(true)
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 154b689..a765c1d 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -64,6 +64,14 @@
+     <string name="download_message">Do you want to download %1$s?</string>
+     <!-- Download dialog: button that starts the download -->
+     <string name="download_positive">Download</string>
++    <!-- Download started by the browser itself (form POST, blob: or data: URL): in progress -->
++    <string name="download_running">Downloading %1$s\u2026</string>
++    <!-- Download started by the browser itself: saved in the Downloads folder -->
++    <string name="download_done">%1$s saved to Downloads</string>
++    <!-- Download started by the browser itself: failed -->
++    <string name="download_failed">Couldn\'t download %1$s</string>
++    <!-- Snackbar action: open the downloaded file -->
++    <string name="download_open">Open</string>
+ 
+     <!-- Settings: title -->
+     <string name="settings_title">Settings</string>
+-- 
+2.37.2
+

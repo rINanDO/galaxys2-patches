@@ -191,7 +191,17 @@ kernel feature. Grouped by the problem they solve:
   script or a button (`window.open()`, a form with `target=_blank`, most
   download buttons) used to give an empty tab and no download. Jelly now
   follows the address that window loads, so the download prompt appears.
-  Downloads that need a POST request still fail.
+- **Browser download names and POST downloads** (`packages_apps_Jelly`
+  0002): file names come from the whole `Content-Disposition` header
+  (`filename*=UTF-8''...`, `inline`, unquoted names, extra parameters) or
+  from `<a download="...">`, not from the URL. Downloads that answer a
+  form POST are sent again as the same POST by Jelly (cookies only for a
+  same-origin form) instead of a GET that the server refuses, and blob:
+  and data: downloads are saved instead of dropped. These downloads go
+  straight to Downloads with a message instead of a DownloadManager
+  notification. The POST is sent twice (WebView's own request turns into
+  the download), so a form with a one-time token can still fail, and
+  forms that upload files still use GET.
 - **Wi-Fi reconnect with the screen off** (`packages_modules_Wifi` 0001): the
   bcmdhd driver has no scheduled scan, so Android's PNO scans fail. With the
   screen off, Wi-Fi used to stop scanning after 5 failures and stay
