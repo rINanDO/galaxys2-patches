@@ -1,0 +1,63 @@
+From ee344b9d97c30f6c9eb96586e387aeaaeac37e4e Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 11 Nov 2026 17:11:05 +0100
+Subject: [PATCH] PackageManager: Allow turning off the low target SDK install
+ block
+
+Android 17 refuses to install apps targeting an SDK below 24. adb can
+bypass that per install (--bypass-low-target-sdk-block), but installers
+on the device, like a file manager, can't. Add a property for that:
+
+  adb shell setprop persist.debug.pm.allow_low_target_sdk 1
+
+persist.debug.* can only be set by the shell on userdebug/eng builds, so
+apps can't turn it on themselves. Installed apps keep working after it is
+reset to 0; only new installs and updates are checked again.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I6d241ab9962f9c960770f38a28380e22d75eaa42
+---
+ .../com/android/server/pm/InstallPackageHelper.java | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/services/core/java/com/android/server/pm/InstallPackageHelper.java b/services/core/java/com/android/server/pm/InstallPackageHelper.java
+index 375af5c5c8fd..8cf7ecef53a2 100644
+--- a/services/core/java/com/android/server/pm/InstallPackageHelper.java
++++ b/services/core/java/com/android/server/pm/InstallPackageHelper.java
+@@ -143,6 +143,7 @@ import android.os.Process;
+ import android.os.RemoteException;
+ import android.os.SELinux;
+ import android.os.SystemClock;
++import android.os.SystemProperties;
+ import android.os.Trace;
+ import android.os.UserHandle;
+ import android.os.UserManager;
+@@ -221,6 +222,9 @@ final class InstallPackageHelper {
+     // One minute over PM WATCHDOG_TIMEOUT
+     private static final long WAKELOCK_TIMEOUT_MS = WATCHDOG_TIMEOUT + 1000 * 60;
+     private static final String INSTALLER_WAKE_LOCK_TAG = "installer:packages";
++    // Set to 1 to allow installing apps below MIN_INSTALLABLE_TARGET_SDK from any installer
++    private static final String PROP_ALLOW_LOW_TARGET_SDK =
++            "persist.debug.pm.allow_low_target_sdk";
+ 
+     /**
+      * A dedicated thread pool for blocking operations, specifically for waiting on app processes
+@@ -1686,6 +1690,15 @@ final class InstallPackageHelper {
+             bypassLowTargetSdkBlock = true;
+         }
+ 
++        // Let the user turn the block off for every installer, e.g. to install an old app
++        // from a file manager: adb shell setprop persist.debug.pm.allow_low_target_sdk 1
++        if (!bypassLowTargetSdkBlock
++                && SystemProperties.getBoolean(PROP_ALLOW_LOW_TARGET_SDK, false)) {
++            Slog.i(TAG, "Not blocking low target SDK install, "
++                    + PROP_ALLOW_LOW_TARGET_SDK + " is set");
++            bypassLowTargetSdkBlock = true;
++        }
++
+         // Enforce the low target sdk install block except when
+         // the --bypass-low-target-sdk-block is set for the install
+         if (!bypassLowTargetSdkBlock
+-- 
+2.51.0
+
