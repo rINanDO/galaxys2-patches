@@ -517,6 +517,11 @@ Notes:
   made from another ramdisk) and boots without Magisk; flash the installer
   zip again. Builds with the same ramdisk keep Magisk.
 - The uninstaller zip clears the slot and removes Magisk from `/data/adb`.
+- Magisk 31.1 and later don't ask for root with a popup anymore: `su` from
+  an app that isn't in the Superuser tab is refused straight away (`su:
+  request rejected (<uid>)` in `/cache/magisk.log`). Add every app that
+  needs root, and the ADB shell, in the Superuser tab first. Old root apps
+  may also crash or hang when refused instead of reporting it.
 
 The sections above describe what the patches and forks did on 23.2, where the
 ROM was in daily use. See `../LOS-23.2/README.md` for its working features and
