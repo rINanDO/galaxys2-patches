@@ -290,8 +290,9 @@ phone.
   `debug.hwc.video_overlay` (all `true` by default) turn each kind off.
   On top of the cherry-pick:
   - FIMC writes rows with a pitch of the width rounded up to 16 pixels, so
-    the overlay buffers and the FIMD stride use that width too. This should
-    stop shearing of videos whose scaled width isn't a multiple of 16.
+    the overlay buffers and the FIMD stride use that width too. This stops
+    shearing of videos whose scaled width isn't a multiple of 16 (checked
+    with a 352x640 video).
   - When ION has no memory for the overlay buffers, the composer uses the
     GPU for 60 frames instead of showing a broken window.
   - Acquire fences are closed on every path, including the client target's
