@@ -223,8 +223,13 @@ phone.
   and orientation sensors (and auto-rotate) stayed dead until a reboot.
 - **s3cfb kthread worker**: a work item is no longer touched after it has
   run, because the display driver may free it by then (upstream
-  `fc039483db7f`). The LOS-23.2 ION heap growth (34 MB to 52 MB) is not
-  ported; the composer falls back to the GPU when ION is full instead.
+  `fc039483db7f`).
+- **ION contiguous heap** (cherry-picked from the LOS-23.2 branch): grown
+  from 34 MB to 52 MB (18 MB less RAM), so 1080p video frames fit in it and
+  the composer can show 1080p video as an overlay. The media regions below
+  the heap move down with it; the bootloader's logo (at `0x5ec00000`) is now
+  reserved so they don't overwrite it during boot. In the 30-minute soak the
+  1080p frames that missed the heap went from 78 to 0.
 - **Memory cgroup removal**: removing a memcg group no longer loops forever
   when its charges can't be moved to the parent; after 20 passes without
   progress `rmdir` fails with EBUSY. Init removes a service's group after
@@ -281,7 +286,7 @@ phone.
   Cherry-picked from the LOS-23.2 branch.
 - **Gralloc ION use**: only buffers the composer, FIMC or MFC can read by
   physical address (window buffers, framebuffer, video, camera) come from
-  the 34 MB contiguous ION carveout. Buffers the CPU reads often
+  the contiguous ION carveout (52 MB, see the kernel section). Buffers the CPU reads often
   (surfaceflinger screenshots, which include every Recents thumbnail) and
   GPU-only buffers come from the non-contiguous ION heap, and so do
   scanout buffers when the carveout is full; the composer draws those
