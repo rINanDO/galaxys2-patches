@@ -1,0 +1,33 @@
+From ac940329357749522867903038b5ea3e1f39d1dd Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 11 Nov 2026 15:13:12 +0100
+Subject: [PATCH] kernel: Don't make the ramdisk depend on a custom kernel
+
+Devices with BOARD_CUSTOM_KERNEL_MK (i9100) build a zImage that embeds the
+ramdisk, so the ramdisk depending on the kernel image makes a dependency
+cycle. Only add the dependency for the regular kernel build.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I8ac1e15e0430c1ecf1a6329c7e25a16c429c3505
+---
+ build/tasks/kernel.mk | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/build/tasks/kernel.mk b/build/tasks/kernel.mk
+index 0fb3568e..e2ea5d31 100644
+--- a/build/tasks/kernel.mk
++++ b/build/tasks/kernel.mk
+@@ -507,8 +507,10 @@ else
+ KERNEL_VENDOR_RAMDISK_KERNEL_MODULES_LOAD := $(BOARD_VENDOR_RAMDISK_KERNEL_MODULES_LOAD)
+ KERNEL_VENDOR_RAMDISK_MODULES_OUT := $(TARGET_RAMDISK_OUT)
+ KERNEL_VENDOR_RAMDISK_DEPMOD_STAGING_DIR := $(KERNEL_BUILD_OUT_PREFIX)$(call intermediates-dir-for,PACKAGING,depmod_ramdisk)
++ifndef BOARD_CUSTOM_KERNEL_MK
+ $(INSTALLED_RAMDISK_TARGET): $(TARGET_PREBUILT_INT_KERNEL)
+ endif
++endif
+ 
+ ifneq ($(RECOVERY_KERNEL_MODULES)$(RECOVERY_KERNEL_MODULES_FINDER),)
+ KERNEL_RECOVERY_DEPMOD_STAGING_DIR := $(KERNEL_BUILD_OUT_PREFIX)$(call intermediates-dir-for,PACKAGING,depmod_recovery)
+-- 
+2.51.0
+

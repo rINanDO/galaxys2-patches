@@ -1,0 +1,72 @@
+From ed18b935ca05bec7d005f4a0f6016ae95df4182a Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 11 Nov 2026 15:13:12 +0100
+Subject: [PATCH] libbinder: Don't run the binder observer in vendor
+ executables
+
+The observer is compiled out of the vendor libbinder variant. Devices
+without a vendor partition use the legacy linker namespace, where vendor
+executables load the system libbinder instead, so the observer ran there
+too. When vndservicemanager was picked by the sharding, pushing stats
+called defaultServiceManager(), which waits forever for
+servicemanager.ready (vndservicemanager may not read it). That wedged
+every /dev/vndbinder client: on i9100 the camera provider hung on its
+first preview buffer and cameraserver with it.
+
+Check the executable path and keep the observer disabled for /vendor,
+/system/vendor and /odm binaries.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I7185cccebe07adf0e5fb4c09498bedb2c5ac7df5
+---
+ libs/binder/observer/BinderObserverConfig.cpp | 25 ++++++++++++++++++-
+ 1 file changed, 24 insertions(+), 1 deletion(-)
+
+diff --git a/libs/binder/observer/BinderObserverConfig.cpp b/libs/binder/observer/BinderObserverConfig.cpp
+index 9839de893a..6feba678e5 100644
+--- a/libs/binder/observer/BinderObserverConfig.cpp
++++ b/libs/binder/observer/BinderObserverConfig.cpp
+@@ -18,7 +18,10 @@
+ #include <cutils/android_filesystem_config.h> // for AID_SYSTEM
+ #include <stdlib.h>                           // for getprogname
+ #include <time.h>                             // for clock_gettime
+-#include <unistd.h>                           // for getuid()
++#include <unistd.h>                           // for getuid(), readlink()
++
++#include <limits.h> // for PATH_MAX
++#include <string_view>
+ 
+ #include "../BuildFlags.h"
+ #include "../OS.h"
+@@ -116,8 +119,28 @@ std::tuple<size_t, size_t, size_t> BinderObserverConfig::getBootStableTokens(
+     return std::tie(token1, token2, token3);
+ }
+ 
++// The observer is compiled out of the vendor libbinder variant (__ANDROID_VENDOR__).
++// Devices without a vendor partition use the legacy linker namespace, where vendor
++// executables load this system libbinder instead, so check the executable path too.
++// Pushing stats from vndservicemanager calls defaultServiceManager(), which waits
++// forever for servicemanager.ready (not readable by vndservicemanager) and wedges
++// every /dev/vndbinder client.
++static bool isVendorExecutable() {
++    char exe[PATH_MAX];
++    ssize_t len = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
++    if (len <= 0) return false;
++    std::string_view path(exe, static_cast<size_t>(len));
++    return path.starts_with("/vendor/") || path.starts_with("/system/vendor/") ||
++            path.starts_with("/odm/");
++}
++
+ std::unique_ptr<BinderObserverConfig> BinderObserverConfig::createConfig(
+         std::unique_ptr<BinderObserverConfig::Environment>&& environment) {
++    if (isVendorExecutable()) {
++        return std::unique_ptr<BinderObserverConfig>(
++                new BinderObserverConfig(std::move(environment), false, ShardingConfig{}, 0, 0));
++    }
++
+     // Determine if we are in the system_server process and get the appropriate sharding config.
+     uid_t uid = environment->getUid();
+     std::string processName = environment->getProcessName();
+-- 
+2.51.0
+

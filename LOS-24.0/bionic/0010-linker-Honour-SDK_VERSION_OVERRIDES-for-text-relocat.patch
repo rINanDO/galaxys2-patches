@@ -1,0 +1,42 @@
+From d4f5055b6f5ab5b7dd342849c685f1b87161f86a Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 11 Nov 2026 15:13:12 +0100
+Subject: [PATCH] linker: Honour SDK_VERSION_OVERRIDES for text relocations
+ again
+
+lineage-24.0 changed the text relocation check to DL_ERROR_AFTER(23, ...),
+which only looks at the process target SDK. The per-library value that
+"linker: Apply TARGET_PROCESS_SDK_VERSION_OVERRIDE on library load" puts
+in app_target_api_level was no longer used, so every blob with text
+relocations was refused (gps.exynos4.vendor.so, libsecnativefeature.so,
+libakm.so on i9100). Without the GNSS HAL, system_server blocked forever
+in GnssNative.initializeHal and the watchdog restarted it in a loop.
+
+Allow the relocations when the override sets an SDK below 23, as before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I940f12ded394f107092bc9fa8927dcef14ecb621
+---
+ linker/linker.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/linker/linker.cpp b/linker/linker.cpp
+index 8964a38c3..0d31c1bdc 100644
+--- a/linker/linker.cpp
++++ b/linker/linker.cpp
+@@ -3487,6 +3487,12 @@ bool soinfo::link_image(const SymbolLookupList& lookup_list, soinfo* local_group
+         break;
+       }
+     }
++    // DL_ERROR_AFTER() only checks the process target SDK, so honour the per-library
++    // override here before falling back to it.
++    if (app_target_api_level < 23) {
++      DL_WARN("\"%s\" has text relocations, allowed by SDK_VERSION_OVERRIDES (%d)",
++              get_realpath(), app_target_api_level);
++    } else
+ #endif
+     if (DL_ERROR_AFTER(23, "\"%s\" has text relocations", get_realpath())) {
+       return false;
+-- 
+2.51.0
+

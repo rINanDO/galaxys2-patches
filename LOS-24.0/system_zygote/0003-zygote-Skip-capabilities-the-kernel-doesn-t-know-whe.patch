@@ -1,0 +1,36 @@
+From 8330662a78b5b81d2ca115e4e5a60a83bcef5439 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 21 Oct 2026 14:15:16 +0200
+Subject: [PATCH 3/3] zygote: Skip capabilities the kernel doesn't know when
+ dropping bounds
+
+PR_CAPBSET_READ fails with EINVAL for capabilities newer than the
+kernel (e.g. CAP_PERFMON, CAP_BPF and CAP_CHECKPOINT_RESTORE on 3.18),
+which made every zygote_next child panic. The Java zygote stops at the
+first capability the kernel rejects, so treat these as not in the
+bounding set.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I91d6e9ccfccbb2d1a0112121805d950d7535da13
+---
+ zygote/src/child_process.rs | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/zygote/src/child_process.rs b/zygote/src/child_process.rs
+index f6ec741..386822b 100644
+--- a/zygote/src/child_process.rs
++++ b/zygote/src/child_process.rs
+@@ -83,7 +83,9 @@ pub(crate) fn re_initialize(
+     if let Some(cap_bound) = spawn_params.cap_bound {
+         for flag in cap_bound.complement().iter() {
+             let cap = Capability::try_from(flag.bits().trailing_zeros()).unwrap();
+-            if cap::cap_within_bound(cap).expect("Failed to check capability bound") {
++            // Like the Java zygote, skip capabilities the kernel doesn't know
++            // about (PR_CAPBSET_READ fails with EINVAL on older kernels).
++            if cap::cap_within_bound(cap).unwrap_or(false) {
+                 cap::cap_drop_bound(cap).expect("Failed to drop capability bound");
+             }
+         }
+-- 
+2.51.0
+

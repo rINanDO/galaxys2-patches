@@ -1,0 +1,75 @@
+From 8699ef10646ab99e36aca88e1cf0565e1b14683b Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 21 Oct 2026 08:42:03 +0200
+Subject: [PATCH 1/3] zygote: android_native: Don't abort on legacy cgroup
+ setup failures
+
+On kernels without the per-uid/pid cgroup hierarchy (e.g. 3.18)
+createProcessGroup() fails with ENOENT, and the cpuset/sched policy
+task profiles can fail too. The Java zygote ignores the process group
+failure and only sets the cpuset for top-app processes, but zygote_next
+aborted every child, so native-only sandboxed processes (Chrome/WebView)
+never started and system_server's process start thread kept retrying
+for ~90 s, blocking all app launches.
+
+Log these errors and continue instead.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I0d11388710c30d957cd425bec65c0efe3ace8ed0
+---
+ zygote/src/species/android_native.rs | 27 +++++++++++++++++----------
+ 1 file changed, 17 insertions(+), 10 deletions(-)
+
+diff --git a/zygote/src/species/android_native.rs b/zygote/src/species/android_native.rs
+index 06ac21d..78c6013 100644
+--- a/zygote/src/species/android_native.rs
++++ b/zygote/src/species/android_native.rs
+@@ -296,13 +296,15 @@ impl Species for App {
+             log::error!("Failed to mallopt(M_DECAY_TIME): {errno}");
+         }
+ 
+-        // Create a cgroup for the process
+-        if sys::getuid() == 0 {
+-            cgroup::create(
++        // Create a cgroup for the process. Like the Java zygote, carry on
++        // without one, e.g. on kernels without the uid/pid cgroup hierarchy.
++        if sys::getuid() == 0
++            && let Err(e) = cgroup::create(
+                 spawn_params.uid.expect("No UID specified").try_into().expect("Invalid UID"),
+                 sys::getpid(),
+             )
+-            .expect("Unable to create cgroup for process");
++        {
++            log::error!("Unable to create cgroup for process: {e:?}");
+         }
+ 
+         let policy = if let SpawnPayload::AndroidNative { top_app, .. } = spawn_payload {
+@@ -315,14 +317,19 @@ impl Species for App {
+             SchedPolicy::Default
+         };
+ 
+-        // Set the cpuset policy and panic on failure
+-        if cpusets_enabled() {
+-            sys::android::set_cpuset_policy(0, policy).expect("Failed to set cpuset policy");
++        // Set the cpuset policy. Like the Java zygote, carry on if the
++        // legacy cgroup hierarchy doesn't support it.
++        if cpusets_enabled()
++            && let Err(e) = sys::android::set_cpuset_policy(0, policy)
++        {
++            log::error!("Failed to set cpuset policy: {e:?}");
+         }
+ 
+-        // Set the scheduling policy and panic on failure.  Must be called
+-        // before losing the permission to set scheduler policy.
+-        sys::android::set_sched_policy(0, policy).expect("Failed to set scheduler policy");
++        // Set the scheduling policy.  Must be called before losing the
++        // permission to set scheduler policy.
++        if let Err(e) = sys::android::set_sched_policy(0, policy) {
++            log::error!("Failed to set scheduler policy: {e:?}");
++        }
+ 
+         // We are going to lose the permission to set scheduler policy during
+         // the specialization, so make sure that we don't cache the fd of
+-- 
+2.51.0
+

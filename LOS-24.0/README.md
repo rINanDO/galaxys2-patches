@@ -86,9 +86,11 @@ aborts that and resets the patched repos with `repo sync`.
   in the matching directory, named after the repo path (`frameworks_av` for
   `frameworks/av`).
 - Device, kernel, hardware and vendor repos are forks listed in
-  `galaxys2-24.0.xml`. The device trees and the kernel have no `lineage-24.0`
-  branch yet and use `lineage-23.2`. `hardware/samsung` uses
-  `lineage-23.2-exynos4`, the only branch with the exynos4 HALs. The GCC 4.9
+  `galaxys2-24.0.xml`. `galaxys2-common` and the kernel use `lineage-24.0`,
+  branched from `lineage-23.2`; `device/samsung/i9100` has no 24.0 changes
+  and stays on `lineage-23.2`. `hardware/samsung` uses `lineage-24.0-exynos4`,
+  branched from `lineage-23.2-exynos4`, the only branch with the exynos4
+  HALs. The GCC 4.9
   toolchain and `vendor/samsung` stay on `lineage-20.0` (the only branch with
   the i9100 blobs).
 
@@ -431,10 +433,40 @@ in patches. The main ones:
 
 ## Status
 
-Work in progress. The LOS-23.2 patch set has been ported: every patch applies
-to LineageOS 24.0 and `lunch lineage_i9100` works, but the ROM has not been
-built or booted on 24.0 yet. The device trees, kernel and `hardware/samsung`
-are still their 23.2 versions, and will likely need changes for Android 17.
+Work in progress. The ROM builds and boots to the home screen on 24.0
+(SELinux enforcing). Tested working: display, Wi-Fi, camera preview, video
+recording with sound, `adb reboot recovery`.
+
+Android 17 changes that needed fixes on top of the 23.2 port:
+
+- **Build**: `build_soong` 0003 (no generated filesystem modules without a
+  vendor partition), `vendor_lineage` 0004 (no ramdisk -> kernel dependency
+  with `BOARD_CUSTOM_KERNEL_MK`), `frameworks_av` 0018 and `frameworks_base`
+  0019 (HALv1 camera code against the current camera interfaces),
+  `hardware/samsung` (libperfmgr namespace, HIDL consumerir removed) and
+  `galaxys2-common` (target-level 7, legacy HALs in the framework matrix).
+- **SurfaceFlinger abort at boot**: `system_sepolicy` 0001 (label `/dev/ion`
+  again) and `legacy_gralloc` in `galaxys2-common`.
+- **system_server watchdog loop**: `bionic` 0010. 24.0 made the text
+  relocation check read only the process SDK, so the per-library
+  `SDK_VERSION_OVERRIDES` stopped working and the GPS, RIL and sensor blobs
+  were refused.
+- **App starts stalling**: `system_zygote` 0001-0003. The native-app zygote
+  aborts on legacy cgroups and on capability bounds of old kernels.
+- **No IP address on Wi-Fi**: kernel `rtnetlink` ignores attributes it
+  doesn't know (`IFA_FLAGS`) instead of failing `RTM_NEWADDR`.
+- **Camera hangs on the first preview frame**: `frameworks_native` 0005.
+  Without a vendor partition, vendor executables load the system libbinder,
+  whose binder stats observer deadlocked `vndservicemanager`.
+- **Shutdown takes 5 minutes, `adb reboot recovery` boots Android**:
+  `system_core` 0008 skips the zram swapoff, which hangs on this kernel.
+- **Video recording fails** (Codec2 software codecs can't allocate):
+  `libion,legacy_impl` in `galaxys2-common` and kernel ION ioctl layouts of
+  3.4+ for alloc and import.
+
+Known issues: automatic Wi-Fi scans fail while disconnected, so Wi-Fi may
+not reconnect after a reboot until a full scan (e.g. opening the Internet
+panel); no mobile network yet.
 
 The sections above describe what the patches and forks did on 23.2, where the
 ROM was in daily use. See `../LOS-23.2/README.md` for its working features and

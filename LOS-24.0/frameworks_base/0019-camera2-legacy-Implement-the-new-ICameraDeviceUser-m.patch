@@ -1,0 +1,115 @@
+From 1c876b2a5bbae2a0af1598fcaa0ba5bec41571ed Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 11 Nov 2026 15:13:52 +0100
+Subject: [PATCH] camera2: legacy: Implement the new ICameraDeviceUser methods
+
+- configureStreams(): with configure_streams_batch enabled (read only on
+  this release), CameraDeviceImpl configures sessions through this single
+  call. Run the same begin/delete/create/end sequence as the unbatched
+  path, and don't leave a failed configuration in progress.
+- updateOutputConfigurations(): not supported, like
+  updateOutputConfiguration().
+- package.html: use a plain @hide; metalava rejects {@hide} in package
+  docs.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I9163b593b900b64e7ffefa9fbdda17b2ed6b23a3
+---
+ .../camera2/legacy/CameraDeviceUserShim.java  | 53 +++++++++++++++++++
+ .../hardware/camera2/legacy/package.html      |  4 +-
+ 2 files changed, 55 insertions(+), 2 deletions(-)
+
+diff --git a/core/java/android/hardware/camera2/legacy/CameraDeviceUserShim.java b/core/java/android/hardware/camera2/legacy/CameraDeviceUserShim.java
+index 89469522c61e..e465c2e76d84 100644
+--- a/core/java/android/hardware/camera2/legacy/CameraDeviceUserShim.java
++++ b/core/java/android/hardware/camera2/legacy/CameraDeviceUserShim.java
+@@ -29,8 +29,11 @@ import android.hardware.camera2.ICameraOfflineSession;
+ import android.hardware.camera2.impl.CameraMetadataNative;
+ import android.hardware.camera2.impl.CaptureResultExtras;
+ import android.hardware.camera2.impl.PhysicalCaptureResultInfo;
++import android.hardware.camera2.params.InputConfiguration;
+ import android.hardware.camera2.params.OutputConfiguration;
+ import android.hardware.camera2.params.SessionConfiguration;
++import android.hardware.camera2.utils.OutputAndInputStreamIds;
++import android.hardware.camera2.utils.SessionConfigurationAndStreamIds;
+ import android.hardware.camera2.utils.SubmitInfo;
+ import android.hardware.common.fmq.MQDescriptor;
+ import android.os.ConditionVariable;
+@@ -658,6 +661,51 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
+         }
+     }
+ 
++    @Override
++    public OutputAndInputStreamIds configureStreams(SessionConfigurationAndStreamIds config) {
++        if (DEBUG) {
++            Log.d(TAG, "configureStreams called.");
++        }
++        SessionConfiguration session = config.sessionConfigurationDelta;
++        OutputAndInputStreamIds result = new OutputAndInputStreamIds();
++        result.inputStreamId = -1;
++
++        // CameraDeviceImpl only uses this batched call when configure_streams_batch is enabled,
++        // so run the same begin/delete/create/end sequence as the non-batched path.
++        beginConfigure();
++        try {
++            if (config.deletedStreamIds != null) {
++                for (int streamId : config.deletedStreamIds) {
++                    deleteStream(streamId);
++                }
++            }
++
++            InputConfiguration input = session.getInputConfiguration();
++            if (input != null) {
++                result.inputStreamId = createInputStream(input.getWidth(), input.getHeight(),
++                        input.getFormat(), input.isMultiResolution());
++            }
++
++            List<OutputConfiguration> outputs = session.getOutputConfigurations();
++            result.outputStreamIds = new int[outputs.size()];
++            for (int i = 0; i < result.outputStreamIds.length; i++) {
++                result.outputStreamIds[i] = createStream(outputs.get(i));
++            }
++        } catch (RuntimeException e) {
++            // Don't leave a failed configuration in progress, or every retry would be rejected.
++            synchronized (mConfigureLock) {
++                mConfiguring = false;
++            }
++            throw e;
++        }
++
++        CaptureRequest sessionParams = session.getSessionParameters();
++        result.offlineStreamIds = endConfigure(session.getSessionType(),
++                sessionParams != null ? sessionParams.getNativeCopy() : null,
++                config.createSessionTime);
++        return result;
++    }
++
+     @Override
+     public void finalizeOutputConfigurations(int steamId, OutputConfiguration config) {
+         String err = "Finalizing output configuration is not supported on legacy devices";
+@@ -718,6 +766,11 @@ public class CameraDeviceUserShim implements ICameraDeviceUser {
+         // TODO: b/63912484 implement updateOutputConfiguration.
+     }
+ 
++    @Override
++    public void updateOutputConfigurations(int[] streamIds, OutputConfiguration[] configs) {
++        // Not supported by the legacy shim, same as updateOutputConfiguration.
++    }
++
+     @Override
+     public void waitUntilIdle() throws RemoteException {
+         if (DEBUG) {
+diff --git a/core/java/android/hardware/camera2/legacy/package.html b/core/java/android/hardware/camera2/legacy/package.html
+index db6f78bbf628..cda34cfce600 100644
+--- a/core/java/android/hardware/camera2/legacy/package.html
++++ b/core/java/android/hardware/camera2/legacy/package.html
+@@ -1,3 +1,3 @@
+ <body>
+-{@hide}
+-</body>
+\ No newline at end of file
++@hide
++</body>
+-- 
+2.51.0
+

@@ -1,0 +1,43 @@
+From 93abc4959a32a5fcfa4cf3b37b36e36eae37cba9 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 11 Nov 2026 15:13:13 +0100
+Subject: [PATCH] init: Skip zram swapoff without backing device support
+
+swapoff() only runs at shutdown so a loop device backing zram can be
+released before /data is unmounted. Kernels without zram writeback can't
+have one, and on legacy kernels swapoff can take minutes or never return
+(i9100, 3.0: stuck in sys_swapoff even with 140 KB swapped). The reboot
+monitor then forces the reboot after 5 minutes and drops the reboot
+target, so "adb reboot recovery" boots Android.
+
+Return early when /sys/block/zram0/backing_dev doesn't exist.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I77fd3444dd65a83140856468d20015ec035b0272
+---
+ init/reboot.cpp | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/init/reboot.cpp b/init/reboot.cpp
+index 38f434087..fadc9f08a 100644
+--- a/init/reboot.cpp
++++ b/init/reboot.cpp
+@@ -539,6 +539,15 @@ static Result<void> KillZramBackingDevice() {
+         return {};
+     }
+ 
++    // Without writeback support (e.g. legacy kernels) zram cannot hold a loop
++    // device on /data, so there is nothing to release before unmounting it.
++    // swapoff() is skipped here because swapping everything back in can take
++    // minutes on old kernels and outlast the reboot monitor.
++    if (access(ZRAM_BACK_DEV, F_OK) != 0 && errno == ENOENT) {
++        LOG(INFO) << "No zram backing device support; skipping swapoff";
++        return {};
++    }
++
+     // shutdown zram handle even if it is mis-configured without a backing device.
+     Timer swap_timer;
+     LOG(INFO) << "swapoff() start...";
+-- 
+2.51.0
+

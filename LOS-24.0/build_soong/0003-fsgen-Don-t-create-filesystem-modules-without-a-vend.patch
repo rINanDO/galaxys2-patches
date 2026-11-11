@@ -1,0 +1,54 @@
+From 5bff5d0e388be1e9c4573b11b309eeee75d0e358 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 11 Nov 2026 15:13:12 +0100
+Subject: [PATCH] fsgen: Don't create filesystem modules without a vendor
+ partition
+
+On devices without a vendor partition, vendor modules install to
+system/vendor, but the generated system image can only depend on their
+platform variants, which don't exist, so the build fails during analysis.
+Make still builds the images on these devices, so skip the generated
+filesystem modules there.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Ie629e83db41b8c0d4fe051d9c5d4069980843c6d
+---
+ android/config.go           | 4 ++++
+ fsgen/filesystem_creator.go | 6 ++++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/android/config.go b/android/config.go
+index edab4e33d..0610e8539 100644
+--- a/android/config.go
++++ b/android/config.go
+@@ -2283,6 +2283,10 @@ func (c *config) DefaultApexPayloadErofsPclusterSize() int64 {
+ 	return c.productVariables.DefaultApexPayloadErofsPclusterSize
+ }
+ 
++func (c *config) HasVendorPartition() bool {
++	return c.deviceConfig.VendorPath() == "vendor"
++}
++
+ func (c *config) UseSoongSystemImage() bool {
+ 	return Bool(c.productVariables.UseSoongSystemImage)
+ }
+diff --git a/fsgen/filesystem_creator.go b/fsgen/filesystem_creator.go
+index 01d2c3f61..dc5e49166 100644
+--- a/fsgen/filesystem_creator.go
++++ b/fsgen/filesystem_creator.go
+@@ -177,6 +177,12 @@ func shouldEnableFilesystemCreator(ctx android.ConfigContext) bool {
+ 		// would conflict with the dist artifacts from the unbundled singleton.
+ 		return false
+ 	}
++	// Without a vendor partition, vendor modules install to system/vendor, but the generated
++	// system image can only depend on their platform variants, which don't exist. Make builds
++	// the images on these devices, so the generated modules are only analysis time checks.
++	if !ctx.Config().HasVendorPartition() {
++		return false
++	}
+ 	// We create the filsystem modules even if soong-only mode isn't enabled, so we at least
+ 	// get analysis time checks running everywhere for more real-world coverage.
+ 	return true
+-- 
+2.51.0
+

@@ -33,6 +33,8 @@ PATCHED_REPOS=(
     "system/linkerconfig              system_linkerconfig"
     "system/memory/lmkd               system_memory_lmkd"
     "system/netd                      system_netd"
+    "system/sepolicy                  system_sepolicy"
+    "system/zygote                    system_zygote"
     "vendor/lineage                   vendor_lineage"
 )
 

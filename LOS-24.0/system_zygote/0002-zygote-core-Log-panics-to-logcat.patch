@@ -1,0 +1,35 @@
+From 94b5bae5b221851da4d1f94ae86512f2440a3319 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 21 Oct 2026 14:14:18 +0200
+Subject: [PATCH 2/3] zygote-core: Log panics to logcat
+
+The zygote's stderr goes to /dev/null and its children often die before
+crash_dump can attach, so a panic left no trace of what failed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I1b6ab71eb8c11d5c128525fcb1b8d7b518a98606
+---
+ zygote-core/src/lib.rs | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/zygote-core/src/lib.rs b/zygote-core/src/lib.rs
+index a11887b..6f06db0 100644
+--- a/zygote-core/src/lib.rs
++++ b/zygote-core/src/lib.rs
+@@ -78,6 +78,13 @@ pub fn init_reporting<T: Into<Vec<u8>>>(
+     } else {
+         logger::init(logger::Config::default().with_tag_on_device(name).with_max_level(log_level));
+ 
++        // stderr goes to /dev/null, so also log panics to logcat.
++        let default_hook = std::panic::take_hook();
++        std::panic::set_hook(Box::new(move |info| {
++            log::error!("{info}");
++            default_hook(info);
++        }));
++
+         let fmt_registry = tracing_subscriber::registry().with(
+             tracing_subscriber::fmt::layer()
+                 .with_span_events(tracing_subscriber::fmt::format::FmtSpan::ACTIVE)
+-- 
+2.51.0
+
