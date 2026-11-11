@@ -230,6 +230,11 @@ phone.
   progress `rmdir` fails with EBUSY. Init removes a service's group after
   killing it, and with zygote's group the shutdown hung until the reboot
   watchdog fired, so `adb reboot recovery` came back up in Android.
+- **Cgroup thread-group move**: moving a whole process to another cgroup
+  (writing `cgroup.procs`) skips threads that are already exiting. Before,
+  a thread that exited during the move made `cgroup_task_migrate` hit
+  `BUG_ON` and panic the kernel; system_server's OomAdjuster does this move
+  all the time.
 
 ### Device (`device/samsung/galaxys2-common`, `device/samsung/i9100`)
 
