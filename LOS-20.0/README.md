@@ -279,6 +279,17 @@ phone.
   framework restarted. Those fields (backing store, producer and consumer
   usage) are removed; the getters use the handle's usage and UMP id instead.
   Cherry-picked from the LOS-23.2 branch.
+- **Gralloc ION use**: only buffers the composer, FIMC or MFC can read by
+  physical address (window buffers, framebuffer, video, camera) come from
+  the 34 MB contiguous ION carveout. Buffers the CPU reads often
+  (surfaceflinger screenshots, which include every Recents thumbnail) and
+  GPU-only buffers come from the non-contiguous ION heap, and so do
+  scanout buffers when the carveout is full; the composer draws those
+  with the GPU. Before, the launcher's Recents thumbnails alone held about
+  19 MB of the carveout. In a 30-minute soak (video, rotation, Settings,
+  Recents) UMP fallbacks went from 478 to 0, and the composer no longer ran
+  out of overlay memory. The non-contiguous heap is still shared by fd:
+  UMP-only screenshots could be freed before system_server received them.
 - **Hardware composer overlays** (`hwcomposer.exynos4`): cherry-picked from
   LOS-23.2. A full-screen app goes straight to FIMD window 0, the status bar
   to its own window, and video is scaled and converted by FIMC, so less is
