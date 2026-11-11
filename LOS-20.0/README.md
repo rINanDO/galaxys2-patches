@@ -245,6 +245,10 @@ phone.
   USB function was switched, the host's next adb packet could be written
   into a buffer that had already been freed, which corrupted memory and
   panicked the kernel (adb's `OKAY` showed up in the crash).
+- **ext4 symlink warning**: creating a symlink with a target longer than
+  60 characters no longer logs an `inc_nlink` warning (`fs/inode.c:347`),
+  dozens of times per boot. The link count is set back to 1 with
+  `set_nlink()`, as in mainline; nothing on disk was ever wrong.
 
 ### Device (`device/samsung/galaxys2-common`, `device/samsung/i9100`)
 
