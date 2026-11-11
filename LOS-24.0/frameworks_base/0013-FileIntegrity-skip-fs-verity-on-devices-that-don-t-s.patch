@@ -5,8 +5,8 @@ Subject: [PATCH 13/18] FileIntegrity: skip fs-verity on devices that don't
  support it
 
 VerityUtils.isFsVeritySupported() is false for devices that launched
-before R, whose kernels may not have fs-verity at all (gts210wifi runs
-3.10). ResilientAtomicFile and the permission AccessPersistence still
+before R, whose kernels may not have fs-verity at all (i9100 runs
+3.0). ResilientAtomicFile and the permission AccessPersistence still
 called setUpFsVerity() on every settings write, which failed with
 "Inappropriate ioctl for device" and logged a full stack trace each
 time. Return early instead, like the other fs-verity users do.

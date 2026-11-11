@@ -5,7 +5,7 @@ Subject: [PATCH] Revert "Remove ION sepolicy"
 
 This reverts commit 9b2d37dc2 (Remove ION sepolicy).
 
-Legacy devices such as exynos8890 (herolte) still allocate every
+Legacy devices such as exynos4210 (i9100) still allocate every
 graphics, camera and codec buffer through /dev/ion. Without the
 /dev/ion label and the ion_device rules, /dev/ion falls back to the
 generic "device" type and every ION user is denied once SELinux is

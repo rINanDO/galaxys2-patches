@@ -5,9 +5,9 @@ Subject: [PATCH 2/3] Revert "kernel: Rip out GCC support"
 
 This reverts commit 21fb2c0ccda95a618b9bf94822070e45c5d5b57d.
 
-Legacy kernels like universal8890's 3.18 predate clang-built-linux
-support and still need the prebuilt GCC 4.9 toolchains (synced from
-LineageOS/android_prebuilts_gcc_linux-x86_*-4.9, lineage-19.1).
+Legacy kernels like smdk4412's 3.0 predate clang-built-linux support
+and still need the prebuilt GCC 4.9 toolchain (synced through the local
+manifest).
 
 Conflicts resolved against later changes: keep KERNEL_CC_WRAPPER (RBE)
 for the clang path and the AOSP build-tools PATH entry in both paths.
