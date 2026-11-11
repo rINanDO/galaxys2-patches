@@ -235,6 +235,11 @@ phone.
   a thread that exited during the move made `cgroup_task_migrate` hit
   `BUG_ON` and panic the kernel; system_server's OomAdjuster does this move
   all the time.
+- **USB gadget DMA**: the USB controller driver now stops an endpoint's DMA
+  before it gives a cancelled request back. Before, when adbd exited or the
+  USB function was switched, the host's next adb packet could be written
+  into a buffer that had already been freed, which corrupted memory and
+  panicked the kernel (adb's `OKAY` showed up in the crash).
 
 ### Device (`device/samsung/galaxys2-common`, `device/samsung/i9100`)
 
