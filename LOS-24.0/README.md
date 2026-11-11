@@ -467,6 +467,9 @@ Android 17 changes that needed fixes on top of the 23.2 port:
   because it can't read the band list from this kernel, and the firmware
   (`ccode=GB`) has no channel 14, so the kernel rejected every automatic
   scan. Kernel `nl80211` now skips channels the driver doesn't register.
+- **Apps always told memory is low**: the kernel has no `MemAvailable`
+  (added in 3.14), so `ActivityManager.MemoryInfo` reported `availMem = 0`
+  and `lowMemory = true`. Backported to `/proc/meminfo`.
 
 Known issues: no mobile network yet.
 
