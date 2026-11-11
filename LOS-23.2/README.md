@@ -341,6 +341,12 @@ in patches. The main ones:
   60 characters no longer logs an `inc_nlink` warning (`fs/inode.c:347`).
   The link count is set back to 1 with `set_nlink()`, as in mainline;
   nothing on disk was ever wrong. Fixed on the LOS-20.0 branch first.
+- **USB function switch with adb open**: when the USB mode changes while
+  adbd keeps its FunctionFS endpoints open, the function is no longer bound
+  a second time (`functionfs_bind failed (-77)` and a warning on every
+  switch); its strings only get new ids, so they no longer clash with the
+  next function's. A failed bind no longer blocks the next one. Fixed on
+  the LOS-20.0 branch first.
 
 ### Hardware (`hardware/samsung`)
 
