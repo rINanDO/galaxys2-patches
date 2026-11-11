@@ -245,6 +245,16 @@ phone.
   USB function was switched, the host's next adb packet could be written
   into a buffer that had already been freed, which corrupted memory and
   panicked the kernel (adb's `OKAY` showed up in the crash).
+- **USB function switch with adb open**: when the USB mode changes while
+  adbd keeps its FunctionFS endpoints open, the function is no longer bound
+  a second time (`functionfs_bind failed (-77)` and a warning on every
+  switch); its strings only get new ids, so they no longer clash with the
+  next function's. A failed bind no longer blocks the next one.
+  The "adb offline after a USB switch" seen before came from setting
+  `sys.usb.config` by hand: that turns on the MTP function without
+  starting the MTP server, and the host's gvfs/libmtp kept resetting the
+  unanswered device. Switching through Settings or `svc usb setFunctions`
+  works, and adb comes back by itself within a few seconds.
 - **ext4 symlink warning**: creating a symlink with a target longer than
   60 characters no longer logs an `inc_nlink` warning (`fs/inode.c:347`),
   dozens of times per boot. The link count is set back to 1 with
