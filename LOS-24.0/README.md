@@ -463,10 +463,12 @@ Android 17 changes that needed fixes on top of the 23.2 port:
 - **Video recording fails** (Codec2 software codecs can't allocate):
   `libion,legacy_impl` in `galaxys2-common` and kernel ION ioctl layouts of
   3.4+ for alloc and import.
+- **Wi-Fi doesn't reconnect on its own**: Android requests all 14 channels
+  because it can't read the band list from this kernel, and the firmware
+  (`ccode=GB`) has no channel 14, so the kernel rejected every automatic
+  scan. Kernel `nl80211` now skips channels the driver doesn't register.
 
-Known issues: automatic Wi-Fi scans fail while disconnected, so Wi-Fi may
-not reconnect after a reboot until a full scan (e.g. opening the Internet
-panel); no mobile network yet.
+Known issues: no mobile network yet.
 
 The sections above describe what the patches and forks did on 23.2, where the
 ROM was in daily use. See `../LOS-23.2/README.md` for its working features and
