@@ -348,6 +348,12 @@ in patches. The main ones:
   the FIMD, JPEG and FIMC3 reservations are trimmed to what is used
   (27 MB more RAM). The media regions stay clear of the bootloader logo,
   which no longer turns to noise during boot.
+- **Black screen after waking up**: when the composer put an overlay on
+  fb0's own window, the framebuffer driver left fb0 pointing at that
+  buffer. After the screen was off, the framebuffer target was mapped from
+  the wrong memory, so everything composed on the GPU (lock screen,
+  launcher) stayed black while the panel was on. fb0 now keeps its own
+  memory.
 - **Initramfs device nodes**: the static nodes match
   `CONFIG_MMC_BLOCK_MINORS=12`: HIDDEN (`mmcblk0p12`) is 259:0 and the SD
   card is 179:12/179:13. Stage 1 still reads HIDDEN's number from sysfs,
