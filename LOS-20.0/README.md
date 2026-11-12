@@ -321,6 +321,13 @@ phone.
   `/dev/ion`, not only `untrusted_app_27`. Gralloc runs in the app process,
   and without ION the buffers of newer apps (and their video) came from UMP
   with no physical address, so the composer could not scan them out.
+- **Mobile data** (`libsecril-shim`): data calls always ask for an IPv4
+  context. Samsung's RIL cannot configure the dual-stack context the network
+  grants for an `IPV4V6` APN (such as KPN `internet`): it fails with
+  `pdp type is not supported`, leaves the PDP context defined so the modem
+  rejects every retry until a reboot, and the framework retried several
+  times a second. Checked with a simyo SIM on KPN: connected and validated
+  over EDGE with one data call request per boot.
 
 ### Hardware (`hardware/samsung`)
 
