@@ -1,0 +1,39 @@
+From c3c066cb6448b5a29fd396599ca0a6e6bfa38f06 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 12 Nov 2026 00:03:37 +0100
+Subject: [PATCH 25/25] PackageManager: Don't migrate data of packages without
+ app storage
+
+prepareAppData() creates no data directories for packages that
+shouldn't have app storage, such as com.android.sdksandbox, but
+prepareAppDataAndMigrate() still asked installd to migrate them on
+non-FBE devices. installd then failed to mark the missing CE directory
+and every boot logged "Failed to migrate com.android.sdksandbox: Failed
+to mark default storage ... (code 2)".
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I5a98e57c0421fa07334ad45d0fda343c87cc901e
+---
+ services/core/java/com/android/server/pm/AppDataHelper.java | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/services/core/java/com/android/server/pm/AppDataHelper.java b/services/core/java/com/android/server/pm/AppDataHelper.java
+index 66f71a37e0a3..251964daac30 100644
+--- a/services/core/java/com/android/server/pm/AppDataHelper.java
++++ b/services/core/java/com/android/server/pm/AppDataHelper.java
+@@ -179,6 +179,12 @@ final class AppDataHelper {
+     private void prepareAppDataAndMigrate(@NonNull Installer.Batch batch,
+             @NonNull AndroidPackage pkg, int userId, @StorageManager.StorageFlags int flags,
+             boolean maybeMigrateAppData) {
++        if (!shouldHaveAppStorage(pkg)) {
++            // prepareAppData() creates no storage for it, so there is nothing to
++            // migrate either (installd would fail to mark a missing directory)
++            prepareAppData(batch, pkg, Process.INVALID_UID, userId, flags);
++            return;
++        }
+         prepareAppData(batch, pkg, Process.INVALID_UID, userId, flags).thenRun(() -> {
+             // Note: this code block is executed with the Installer lock
+             // already held, since it's invoked as a side-effect of
+-- 
+2.37.2
+

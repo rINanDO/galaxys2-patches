@@ -1,0 +1,37 @@
+From 354ecf2d4913d5427685d90e8958b58f7e3ced79 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 12 Nov 2026 00:03:37 +0100
+Subject: [PATCH 24/25] PackageManager: Don't report shared-user packages that
+ have no app id yet
+
+Packages with a sharedUserId are read from packages.xml without an app id
+and get one when they are attached to their shared user. That step
+reported every such package (about 40) on every boot as "was user id 0
+but is now user ... I am not changing its files so it will probably
+fail!" and appended them to /data/system/uiderrors.txt. Only report a
+package that already had a different app id.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I57403b592478ad6c5c3b5a44a806d1193a7a2555
+---
+ services/core/java/com/android/server/pm/Settings.java | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/pm/Settings.java b/services/core/java/com/android/server/pm/Settings.java
+index a9b624653b92..28172c5b737c 100644
+--- a/services/core/java/com/android/server/pm/Settings.java
++++ b/services/core/java/com/android/server/pm/Settings.java
+@@ -1330,7 +1330,9 @@ public final class Settings implements Watchable, Snappable {
+                         + existingSharedUserSetting + " but is now " + sharedUser
+                         + "; I am not changing its files so it will probably fail!");
+                 sharedUser.removePackage(p);
+-            } else if (p.getAppId() != sharedUser.mAppId) {
++            } else if (p.getAppId() > 0 && p.getAppId() != sharedUser.mAppId) {
++                // A package read from packages.xml with a sharedUserId has no app id
++                // until it is attached to its shared user here: that is not a problem.
+                 PackageManagerService.reportSettingsProblem(Log.ERROR,
+                         "Package " + p.getPackageName() + " was user id " + p.getAppId()
+                                 + " but is now user " + sharedUser
+-- 
+2.37.2
+

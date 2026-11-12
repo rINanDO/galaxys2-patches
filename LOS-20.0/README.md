@@ -170,6 +170,14 @@ kernel feature. Grouped by the problem they solve:
   - biometric operations are cancelled when the HAL doesn't report back, and
     a `SensorPrivacyService` permission error is ignored (a hack with an
     unknown cause).
+- **Package manager boot warnings** (`frameworks_base` 0024-0025): every boot
+  logged about 40 "was user id 0 but is now user ... I am not changing its
+  files so it will probably fail!" errors and "Failed to migrate
+  com.android.sdksandbox ... (code 2)", and appended them to
+  `/data/system/uiderrors.txt`. Neither was a real problem: packages with a
+  shared user id get their app id only when they are attached to the shared
+  user, and the SDK sandbox has no app storage to migrate. Both are no
+  longer reported.
 - **adb over USB** (`packages_modules_adb`): adbd falls back to the old
   blocking FunctionFS code, which this kernel needs.
 - **Build and kernel** (`build_make`, `vendor_lineage` 0001-0002):
@@ -352,3 +360,19 @@ phone.
 `galaxys2-20.0.xml` pins the WebView prebuilt to 145
 (`f547731aef7f92fed845d822d9fec66ddad04cd3`). Newer versions need GLES 3 and
 lose GPU rendering on the Mali-400. 145 gets no more security updates.
+
+WebView 156 was measured on the phone against 145 (Jelly, local test pages,
+3 runs each):
+
+| Test | 145 | 156 |
+|---|---|---|
+| Scrolling a long page | 57-58 fps | 8-11 fps |
+| CSS animation (40 shadowed boxes) | 40-42 fps | 7 fps |
+| Canvas 2D (300 circles per frame) | 21-23 fps | 15-22 fps |
+| WebGL | yes (Mali-400) | no |
+
+156 logs `GLES3 is unsupported and ES version fallback is disabled`:
+Chromium hard-codes `allow_es_version_fallback = false` with no switch or
+feature flag, so it can't create a GL context, blocklists the GPU and
+rasterizes everything in software. A newer WebView can't be made usable
+with flags, so the pin stays at 145.
