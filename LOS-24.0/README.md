@@ -440,7 +440,9 @@ in patches. The main ones:
 - **SELinux**: `mediacodeclist_generator` may read the `media.stagefright.*`
   properties (`media_config_prop`). The GNSS HAL may take wakelocks
   (`wakelock_use`), and its probes for Samsung factory test files in
-  `/data/data` aren't logged.
+  `/data/data` aren't logged. With Magisk's Zygisk, zygote's attempt to
+  open the property areas read-write (Magisk's property code tries that
+  before read-only) isn't logged either; zygote stays read-only.
 - **GPS shim**: no positions, cell IDs or movement details in logcat. The
   jitter filter, which repeats the last position while the phone doesn't
   move, compares the horizontal distance in metres with its thresholds; it
