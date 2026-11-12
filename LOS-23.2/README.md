@@ -297,6 +297,11 @@ on.
   `$(call soong_config_set,ril,samsung_libril,true)` libril is built from
   `hardware/samsung`'s sources, which add Samsung's vendor requests and
   modem quirks, and linked against IRadio 1.2 to 1.4.
+- **Signal icon with one SIM** (`frameworks_opt_telephony`): without
+  IRadioConfig, PhoneSwitcher sends no data switch command on a single SIM
+  device and so never published the active data subscription. SystemUI then
+  showed an exclamation mark on the signal icon, although mobile data
+  worked. The switch is now finished without a command.
 - **WebView** (`galaxys2-23.2.xml`): WebView 146 and later need OpenGL ES 3,
   which the Mali-400 doesn't have, so they fall back to software raster at
   half the frame rate and lose WebGL. The manifest pins the arm WebView to

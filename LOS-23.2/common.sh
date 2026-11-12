@@ -20,6 +20,7 @@ PATCHED_REPOS=(
     "frameworks/av                    frameworks_av"
     "frameworks/base                  frameworks_base"
     "frameworks/native                frameworks_native"
+    "frameworks/opt/telephony         frameworks_opt_telephony"
     "hardware/libhardware_legacy      hardware_libhardware_legacy"
     "hardware/lineage/interfaces      hardware_lineage_interfaces"
     "hardware/ril                     hardware_ril"
