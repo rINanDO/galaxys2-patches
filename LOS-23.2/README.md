@@ -347,6 +347,12 @@ in patches. The main ones:
   switch); its strings only get new ids, so they no longer clash with the
   next function's. A failed bind no longer blocks the next one. Fixed on
   the LOS-20.0 branch first.
+- **USB gadget DMA**: the USB controller driver stops an endpoint's DMA
+  before it gives a cancelled request back. Before, when adbd exited or the
+  USB function was switched, the host's next adb packet could be written
+  into a buffer that had already been freed, which corrupted memory and
+  panicked the kernel. Fixed and tested on the LOS-20.0 branch first; the
+  USB gadget code is now the same on both branches.
 
 ### Hardware (`hardware/samsung`)
 
