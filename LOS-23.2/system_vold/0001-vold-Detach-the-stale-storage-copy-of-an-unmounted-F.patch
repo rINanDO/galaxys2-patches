@@ -1,0 +1,57 @@
+From 247da375c88892dffecd648ac52b090c558f57e3 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 10 Nov 2026 22:36:00 +0100
+Subject: [PATCH] vold: Detach the stale /storage copy of an unmounted FUSE
+ volume
+
+/storage is a bind mount of /mnt/user/0, so /storage/<volume> is a
+slave copy of the volume's FUSE mount. Kernels before 4.x don't
+propagate an unmount to a copy that still has mounts on top of it, and
+the Android/data and Android/obb bind mounts are on top. After a
+framework restart the dead FUSE mount stayed on /storage/emulated, the
+new one ended up beneath it, and adb shell and native daemons got
+"Transport endpoint is not connected" for /sdcard.
+
+After unmounting a user 0 FUSE volume, lazily detach whatever is still
+mounted on /storage/<volume>.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I31e6fd70cfa85be3219d6dceb637929cd4ea5620
+---
+ Utils.cpp | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/Utils.cpp b/Utils.cpp
+index c2b2ad3..9aed910 100644
+--- a/Utils.cpp
++++ b/Utils.cpp
+@@ -1718,6 +1718,26 @@ status_t UnmountUserFuse(userid_t user_id, const std::string& absolute_lower_pat
+     }
+     rmdir(fuse_path.c_str());
+ 
++    // /storage is a bind mount of /mnt/user/0, so /storage/<volume> is a
++    // slave copy of the FUSE mount. Old kernels (before 4.x) don't propagate
++    // the unmount to a copy that still has mounts on top of it (the
++    // Android/data and Android/obb bind mounts), so it stays behind as a dead
++    // FUSE mount. The next FUSE mount for the volume ends up beneath it,
++    // and processes that see /storage directly (adb shell, native daemons)
++    // get ENOTCONN. Anything still mounted there now is stale.
++    if (user_id == 0) {
++        std::string storage_path(StringPrintf("/storage/%s", relative_upper_path.c_str()));
++        for (int i = 0; i < 8; i++) {
++            if (umount2(storage_path.c_str(), UMOUNT_NOFOLLOW | MNT_DETACH) != 0) {
++                if (errno != EINVAL && errno != ENOENT) {
++                    PLOG(WARNING) << "Failed to detach " << storage_path;
++                }
++                break;
++            }
++            LOG(INFO) << "Detached stale mount on " << storage_path;
++        }
++    }
++
+     LOG(INFO) << "Unmounting pass_through_path " << pass_through_path;
+     auto status = ForceUnmount(pass_through_path);
+     if (status != android::OK) {
+-- 
+2.54.0
+
