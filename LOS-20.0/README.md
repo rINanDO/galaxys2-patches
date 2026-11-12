@@ -340,6 +340,17 @@ phone.
   and used as the primary one (Phone information showed -16 dBm for a
   -81 dBm GSM signal). The CDMA and EVDO values are now unavailable, and
   the LTE fields are only written when the response has them.
+- **Call audio** (`libsecril-client`, `hardware/samsung`): audioserver
+  aborted at the end of every call (`TimeCheck timeout for
+  IAudioPolicyService::setPhoneState`). The proprietary libsecril-client in
+  the audio HAL took a wake lock through the SystemSuspend service, which
+  is not reachable on `/dev/vndbinder`, so its reader thread waited forever
+  and `Disconnect_RILD()` never returned. The open-source library now
+  replaces the blob in `/vendor/lib` and takes the wake lock through
+  `/sys/power/wake_lock`. The call volume has 4 steps: the modem gets
+  louder up to level 4 and is very quiet at levels 5 to 7, so with 7 steps
+  the highest three were the quietest. Checked with calls: audio, volume,
+  mute and hang-up (49 ms) work, and audioserver keeps running.
 
 ### Hardware (`hardware/samsung`)
 

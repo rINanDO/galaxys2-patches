@@ -424,6 +424,13 @@ in patches. The main ones:
   the RIL fills with the GSM signal level, are unavailable, so telephony
   uses the GSM signal. Same change as on 20.0, where it is tested; not
   tested on 23.2.
+- **Call audio** (`libsecril-client`, `hardware/samsung`): the library takes
+  its wake lock through `/sys/power/wake_lock` instead of the SystemSuspend
+  service, which the audio HAL cannot reach on `/dev/vndbinder` (on 20.0 the
+  wait blocked hang-up and audioserver aborted). The blob is no longer in
+  `proprietary-files.txt`, and the call volume has 4 steps, as the modem is
+  very quiet above level 4. Same change as on 20.0, where it is tested; not
+  tested on 23.2.
 - **Responsiveness**: a power HAL boosts the CPU to 1.2 GHz on both cores
   for 1 s on touch, 2 s on app launch and 2 s when the screen turns on
   (waking took 1.2-1.3 s instead of 0.75-0.9 s on one core, because the
