@@ -348,6 +348,10 @@ in patches. The main ones:
   the FIMD, JPEG and FIMC3 reservations are trimmed to what is used
   (27 MB more RAM). The media regions stay clear of the bootloader logo,
   which no longer turns to noise during boot.
+- **Initramfs device nodes**: the static nodes match
+  `CONFIG_MMC_BLOCK_MINORS=12`: HIDDEN (`mmcblk0p12`) is 259:0 and the SD
+  card is 179:12/179:13. Stage 1 still reads HIDDEN's number from sysfs,
+  because the kernel hands out 259:x numbers at boot.
 
 ### Hardware (`hardware/samsung`)
 
@@ -410,14 +414,21 @@ in patches. The main ones:
   for 1 s on touch, 2 s on app launch and 2 s when the screen turns on
   (waking took 1.2-1.3 s instead of 0.75-0.9 s on one core, because the
   second core only came up after the screen was on); ANR timeouts are doubled
-  (`ro.hw_timeout_multiplier=2`); the boot animation runs at 30 fps at
-  480x160; the stock 60 fps animation cost 13-21 s of boot time.
+  (`ro.hw_timeout_multiplier=2`); the boot animation runs at 30 fps
+  (every 2nd frame) with full-size 480x160 frames; the stock 60 fps
+  animation cost 13-21 s of boot time.
 - **App compilation**: system apps are compiled with `speed`. Installed
   apps are installed with `verify` and compiled with `speed` by background
   dexopt when the phone is idle, because compiling them at install time
   made installing a large app take a minute or more.
 - **Wi-Fi**: Software PNO is enabled, so Wi-Fi reconnects with the screen
-  off.
+  off. The Wi-Fi driver reads and writes `/data/.psm.info`,
+  `.wifiver.info` and `.mac.info` from netd; those files are labelled
+  `wifi_data_file` (init runs `restorecon` after creating them) and netd
+  may use them. Its copy of the MAC to `/efs/wifi/.mac.info` stays blocked
+  (and isn't logged), so `/efs` keeps the factory data.
+- **SELinux**: `mediacodeclist_generator` may read the `media.stagefright.*`
+  properties (`media_config_prop`).
 
 ## LOS-20.0 patches that are no longer needed
 
