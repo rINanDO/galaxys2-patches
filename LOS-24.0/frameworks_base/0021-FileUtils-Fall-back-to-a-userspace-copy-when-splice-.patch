@@ -1,0 +1,56 @@
+From cd81de764096f2b3eb03e764643ac1549c85e152 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 12 Nov 2026 03:10:21 +0100
+Subject: [PATCH] FileUtils: Fall back to a userspace copy when splice from a
+ socket fails
+
+Streamed adb installs failed with "splice failed: EINVAL": the installer
+copies the APK from adbd's unix socket into the session file with
+copyInternalSpliceSocket(), and kernels before 4.2 can't splice from a
+unix socket. If the first splice into the pipe fails with EINVAL or
+ENOSYS, nothing has been read yet, so copy in userspace instead.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I7020824e1e690ede78c6450c9eba57db20e7a5ff
+---
+ core/java/android/os/FileUtils.java | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/core/java/android/os/FileUtils.java b/core/java/android/os/FileUtils.java
+index e02e147643b3..f2f0fcd686fb 100644
+--- a/core/java/android/os/FileUtils.java
++++ b/core/java/android/os/FileUtils.java
+@@ -539,7 +539,7 @@ public final class FileUtils {
+     @VisibleForTesting
+     public static long copyInternalSpliceSocket(FileDescriptor in, FileDescriptor out, long count,
+             CancellationSignal signal, Executor executor, ProgressListener listener)
+-            throws ErrnoException {
++            throws ErrnoException, IOException {
+         long progress = 0;
+         long checkpoint = 0;
+         long countToRead = count;
+@@ -550,8 +550,20 @@ public final class FileUtils {
+         try {
+             while (countToRead > 0 || countInPipe > 0) {
+                 if (countToRead > 0) {
+-                    t = Os.splice(in, null, pipes[1], null, Math.min(countToRead, COPY_CHECKPOINT_BYTES),
++                    try {
++                        t = Os.splice(in, null, pipes[1], null,
++                                Math.min(countToRead, COPY_CHECKPOINT_BYTES),
+                                 SPLICE_F_MOVE | SPLICE_F_MORE);
++                    } catch (ErrnoException e) {
++                        // Kernels before 4.2 can't splice from a unix socket. Nothing has
++                        // been read yet on the first call, so copy in userspace instead.
++                        if ((e.errno == EINVAL || e.errno == ENOSYS) && countToRead == count
++                                && countInPipe == 0) {
++                            return copyInternalUserspace(in, out, count, signal, executor,
++                                    listener);
++                        }
++                        throw e;
++                    }
+                     if (t < 0) {
+                         // splice error
+                         Slog.e(TAG, "splice error, fdIn --> pipe, copy size:" + count +
+-- 
+2.51.0
+
