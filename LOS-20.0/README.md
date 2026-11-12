@@ -210,6 +210,10 @@ kernel feature. Grouped by the problem they solve:
   notification. The POST is sent twice (WebView's own request turns into
   the download), so a form with a one-time token can still fail, and
   forms that upload files still use GET.
+- **Messaging with a new SIM** (`packages_apps_Messaging` 0001): the SIM's
+  display name is still empty while a newly inserted SIM is set up, and
+  Messaging crashed with a NullPointerException on the first boot with the
+  SIM. It stores an empty name until the next refresh fills it in.
 - **Wi-Fi reconnect with the screen off** (`packages_modules_Wifi` 0001-0002): the
   bcmdhd driver has no scheduled scan, so Android's PNO scans fail. With the
   screen off, Wi-Fi used to stop scanning after 5 failures and stay
@@ -310,6 +314,9 @@ phone.
   their rate. Before, the light sensor sent no events. The
   i9100 libsensors waits up to 3 s for the `compass_sensor` input node,
   which could appear late and leave auto-rotate dead until a reboot.
+  Proximity is checked in a call: the dialer holds the proximity screen-off
+  wake lock only while the call is off-hook, and the screen goes dark while
+  the sensor reports near.
 - **ION for all apps**: every `untrusted_app` domain can open
   `/dev/ion`, not only `untrusted_app_27`. Gralloc runs in the app process,
   and without ION the buffers of newer apps (and their video) came from UMP

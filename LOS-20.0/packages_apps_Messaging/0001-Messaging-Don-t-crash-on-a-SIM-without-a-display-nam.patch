@@ -1,0 +1,35 @@
+From 81703f18ce5ff5602db4ab9e415f109f91e5d8b1 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 12 Nov 2026 10:33:27 +0100
+Subject: [PATCH] Messaging: Don't crash on a SIM without a display name yet
+
+SubscriptionInfo.getDisplayName() is null while a newly inserted SIM is
+being set up, and refreshSelfParticipantList() crashed with a
+NullPointerException on the first boot with the SIM. Store an empty name
+then; the next refresh fills it in.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Ie4947b882a51a30fe32aa641b7e37ce1fb5ea7c5
+---
+ src/com/android/messaging/datamodel/ParticipantRefresh.java | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/com/android/messaging/datamodel/ParticipantRefresh.java b/src/com/android/messaging/datamodel/ParticipantRefresh.java
+index 55d439b..ac4ccb7 100644
+--- a/src/com/android/messaging/datamodel/ParticipantRefresh.java
++++ b/src/com/android/messaging/datamodel/ParticipantRefresh.java
+@@ -390,8 +390,10 @@ public class ParticipantRefresh {
+             // For subscriptions already in the database, refresh ParticipantColumns.SIM_SLOT_ID.
+             for (final Integer subId : activeSubscriptionIdToRecordMap.keySet()) {
+                 final SubscriptionInfo record = activeSubscriptionIdToRecordMap.get(subId);
++                // The display name is null while a newly inserted SIM is being set up
++                final CharSequence name = record.getDisplayName();
+                 final String displayName =
+-                        DatabaseUtils.sqlEscapeString(record.getDisplayName().toString());
++                        DatabaseUtils.sqlEscapeString(name != null ? name.toString() : "");
+                 db.execSQL(getUpdateSelfParticipantSubscriptionInfoSql(record.getSimSlotIndex(),
+                         record.getIconTint(), displayName,
+                         ParticipantColumns.SUB_ID + " = " + subId));
+-- 
+2.37.2
+
