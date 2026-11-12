@@ -1,0 +1,89 @@
+From d690743951db1f2ab5751eb8ff8116a3159ae22d Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Fri, 30 Oct 2026 22:05:01 +0100
+Subject: [PATCH 1/2] libril: Allow building the Samsung libril
+
+Samsung's legacy RILs need the libril from hardware/samsung, which adds
+the vendor requests and the modem quirks. With
+$(call soong_config_set,ril,samsung_libril,true) libril is built from
+its sources and headers instead. ril.samsung_modem_type sets the modem
+quirks, as BOARD_MODEM_TYPE did.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I8bec21c53030e455d200b08ef594c3c953353c4c
+---
+ libril/Android.bp | 43 ++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 34 insertions(+), 9 deletions(-)
+
+diff --git a/libril/Android.bp b/libril/Android.bp
+index 1a8cbec..b46eb6a 100644
+--- a/libril/Android.bp
++++ b/libril/Android.bp
+@@ -33,13 +33,16 @@ license {
+ cc_library_shared {
+     name: "libril",
+     vendor: true,
+-    srcs: [
+-        "ril.cpp",
+-        "ril_event.cpp",
+-        "ril_service.cpp",
+-        "RilSapSocket.cpp",
+-        "sap_service.cpp",
+-    ],
++    srcs: select(soong_config_variable("ril", "samsung_libril"), {
++        "true": [":libril-samsung-srcs"],
++        default: [
++            "ril.cpp",
++            "ril_event.cpp",
++            "ril_service.cpp",
++            "RilSapSocket.cpp",
++            "sap_service.cpp",
++        ],
++    }),
+     shared_libs: [
+         "android.hardware.radio@1.0",
+         "android.hardware.radio@1.1",
+@@ -49,7 +52,10 @@ cc_library_shared {
+         "liblog",
+         "librilutils",
+         "libutils",
+-    ],
++    ] + select(soong_config_variable("ril", "samsung_libril"), {
++        "true": ["android.hardware.radio.deprecated@1.0"],
++        default: [],
++    }),
+     static_libs: ["libprotobuf-c-nano-enable_malloc-32bit"],
+     cflags: [
+         "-Wall",
+@@ -69,8 +75,27 @@ cc_library_shared {
+             "-DOEM_HOOK_DISABLED",
+         ],
+         default: [],
++    }) + select(soong_config_variable("ril", "samsung_modem_type"), {
++        "xmm6260": ["-DMODEM_TYPE_XMM6260"],
++        "xmm6262": ["-DMODEM_TYPE_XMM6262"],
++        "xmm6360": ["-DMODEM_TYPE_XMM6262"],
++        "m7450": ["-DSAMSUNG_NEXT_GEN_MODEM"],
++        "mdm9x35": ["-DSAMSUNG_NEXT_GEN_MODEM"],
++        "ss333": ["-DSAMSUNG_NEXT_GEN_MODEM"],
++        "tss310": ["-DSAMSUNG_NEXT_GEN_MODEM"],
++        "xmm7260": ["-DSAMSUNG_NEXT_GEN_MODEM"],
++        default: [],
++    }),
++    // These come before this directory, so the Samsung sources find their
++    // own versions of the local headers.
++    include_dirs: ["external/nanopb-c"] + select(soong_config_variable("ril", "samsung_libril"), {
++        "true": [
++            "hardware/samsung/ril/libril",
++            "hardware/samsung/ril/libril/include",
++            "hardware/samsung/ril/include",
++        ],
++        default: [],
+     }),
+-    include_dirs: ["external/nanopb-c"],
+     header_libs: [
+         "ril_headers",
+     ],
+-- 
+2.54.0
+

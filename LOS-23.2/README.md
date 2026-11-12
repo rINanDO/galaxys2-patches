@@ -293,6 +293,10 @@ on.
   Messaging crashed with a NullPointerException on the first boot with the
   SIM. It stores an empty name until the next refresh fills it in. Same
   change as on 20.0, where it is tested; not tested on 23.2.
+- **Samsung libril** (`hardware_ril`): with
+  `$(call soong_config_set,ril,samsung_libril,true)` libril is built from
+  `hardware/samsung`'s sources, which add Samsung's vendor requests and
+  modem quirks, and linked against IRadio 1.2 to 1.4.
 - **WebView** (`galaxys2-23.2.xml`): WebView 146 and later need OpenGL ES 3,
   which the Mali-400 doesn't have, so they fall back to software raster at
   half the frame rate and lose WebGL. The manifest pins the arm WebView to
@@ -369,6 +373,13 @@ in patches. The main ones:
 - **HAL updates**: AIDL touch, LiveDisplay and vibrator HALs, libril built
   through `hardware/ril`, and fixes for the current Clang, libutils and
   libcutils.
+- **IRadio 1.4** (libril): Android 16 no longer supports IRadio below 1.4,
+  so the 1.1 service left the phone without SIM, network, calls and data.
+  The 1.2 to 1.4 requests map onto the legacy RIL requests, and responses
+  and indications use the 1.2 and 1.4 variants. The ICCID, which the
+  legacy card status lacks and without which no subscription is created,
+  is taken from the framework's own read of EF_ICCID. A failed data call
+  no longer makes the framework retry in a tight loop.
 - **Hardware composer overlays**: the full-screen app layer, the status bar
   and decoded video (scaled on FIMC) are scanned out on FIMD windows
   instead of being composed on the GPU, which roughly halves the jank in
@@ -424,23 +435,19 @@ in patches. The main ones:
 - **Mobile data** (`libsecril-shim`): data calls always ask for an IPv4
   context, because Samsung's RIL cannot configure the dual-stack context
   the network grants for an `IPV4V6` APN and then leaves the modem
-  rejecting every retry until a reboot. Same change as on 20.0, where it
-  is tested; not tested on 23.2.
+  rejecting every retry until a reboot.
 - **Voice network type** (`libsecril-shim`): voice reports GSM instead of
   a fixed UMTS while data is on GPRS/EDGE, and an out-of-bounds read and
-  the hex LAC/CID parsing in the same code are fixed. Same change as on
-  20.0, where it is tested; not tested on 23.2.
+  the hex LAC/CID parsing in the same code are fixed.
 - **Signal strength** (`libsecril-shim`): the CDMA and EVDO values, which
   the RIL fills with the GSM signal level, are unavailable, so telephony
-  uses the GSM signal. Same change as on 20.0, where it is tested; not
-  tested on 23.2.
+  uses the GSM signal.
 - **Call audio** (`libsecril-client`, `hardware/samsung`): the library takes
   its wake lock through `/sys/power/wake_lock` instead of the SystemSuspend
   service, which the audio HAL cannot reach on `/dev/vndbinder` (on 20.0 the
   wait blocked hang-up and audioserver aborted). The blob is no longer in
-  `proprietary-files.txt`, and the call volume has 4 steps, as the modem is
-  very quiet above level 4. Same change as on 20.0, where it is tested; not
-  tested on 23.2.
+  `proprietary-files.txt`. The call volume has 5 steps, as the modem gets
+  quieter above level 5.
 - **Responsiveness**: a power HAL boosts the CPU to 1.2 GHz on both cores
   for 1 s on touch, 2 s on app launch and 2 s when the screen turns on
   (waking took 1.2-1.3 s instead of 0.75-0.9 s on one core, because the
@@ -470,14 +477,14 @@ in patches. The main ones:
 
 The ROM builds and is in daily use. Working: display with hardware
 overlays, GPU, touch and hardware keys, Wi-Fi (also with the screen off),
-GPS, sensors and auto-rotate, audio, both cameras with
+GPS, sensors and auto-rotate, audio, phone calls, SMS and mobile data
+(GSM/EDGE), both cameras with
 photos and video recording up to 1080p, hardware video decoding and
 encoding, adb, TWRP flashing, charging.
 
 Known limitations:
 
-- Phone calls and SMS are untested (no 2G/3G network available for the
-  tests); Bluetooth is unconfirmed.
+- Bluetooth is unconfirmed.
 - 720p60 video decodes at about 10 fps, because the SEC decoder converts
   its tiled output with NEON; 480p plays at 27-30 fps.
 - Rotated video (landscape) is composed on the GPU, not on FIMC.
