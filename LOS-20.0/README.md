@@ -214,6 +214,13 @@ kernel feature. Grouped by the problem they solve:
   display name is still empty while a newly inserted SIM is set up, and
   Messaging crashed with a NullPointerException on the first boot with the
   SIM. It stores an empty name until the next refresh fills it in.
+- **SET_DATA_PROFILE never answered** (`frameworks_opt_telephony` 0001):
+  before IRadio 1.4 (this RIL is 1.1), telephony only sends the persistent
+  data profiles and makes no HAL call when none of them is persistent, but
+  the request was still added to RILJ's request list, held the RIL wake
+  lock until `WAKE_LOCK_TIMEOUT` and was never removed. It now completes
+  right away when there is nothing to send. With the shim change for the
+  other requests, no `WAKE_LOCK_TIMEOUT` is reported any more.
 - **Wi-Fi reconnect with the screen off** (`packages_modules_Wifi` 0001-0002): the
   bcmdhd driver has no scheduled scan, so Android's PNO scans fail. With the
   screen off, Wi-Fi used to stop scanning after 5 failures and stay
@@ -351,6 +358,13 @@ phone.
   louder up to level 4 and is very quiet at levels 5 to 7, so with 7 steps
   the highest three were the quietest. Checked with calls: audio, volume,
   mute and hang-up (49 ms) work, and audioserver keeps running.
+- **Unanswered RIL requests** (`libsecril-shim`): the Samsung RIL never
+  answers `IMS_REGISTRATION_STATE`, `SET_INITIAL_ATTACH_APN`,
+  `SET_UNSOL_CELL_INFO_LIST_RATE` and `CDMA_SET_BROADCAST_SMS_CONFIG`, so
+  RILJ held its wake lock until `WAKE_LOCK_TIMEOUT` about once a minute.
+  The shim answers them with `REQUEST_NOT_SUPPORTED` (no IMS, LTE, cell
+  info or CDMA on this modem). See also `SET_DATA_PROFILE` under
+  frameworks/opt/telephony.
 
 ### Hardware (`hardware/samsung`)
 

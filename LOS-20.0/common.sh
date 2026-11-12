@@ -23,6 +23,7 @@ PATCHED_REPOS=(
     "frameworks/base                  frameworks_base"
     "frameworks/libs/net              frameworks_libs_net"
     "frameworks/native                frameworks_native"
+    "frameworks/opt/telephony         frameworks_opt_telephony"
     "hardware/interfaces              hardware_interfaces"
     "hardware/lineage/interfaces      hardware_lineage_interfaces"
     "packages/apps/Jelly              packages_apps_Jelly"

@@ -1,0 +1,74 @@
+From a7336c5455ee0e77aeaae94a5c13954775834bff Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 12 Nov 2026 15:09:07 +0100
+Subject: [PATCH] RIL: Don't leave SET_DATA_PROFILE pending when nothing is
+ sent
+
+Before IRadio 1.4, RadioDataProxy.setDataProfile() only sends the
+persistent data profiles and makes no HAL call at all when none of them
+is persistent. RIL.setDataProfile() had already added a request to the
+request list, which then never got a response: it held the RIL wake
+lock until WAKE_LOCK_TIMEOUT and stayed in the list forever.
+
+Complete the request right away when there is nothing to send.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Ib9255e339ce5f9e023275b581f161422b799133d
+---
+ src/java/com/android/internal/telephony/RIL.java  | 13 +++++++++++++
+ .../internal/telephony/RadioDataProxy.java        | 15 +++++++++++++++
+ 2 files changed, 28 insertions(+)
+
+diff --git a/src/java/com/android/internal/telephony/RIL.java b/src/java/com/android/internal/telephony/RIL.java
+index 70431f6a0c..868d996b79 100644
+--- a/src/java/com/android/internal/telephony/RIL.java
++++ b/src/java/com/android/internal/telephony/RIL.java
+@@ -4162,6 +4162,19 @@ public class RIL extends BaseCommands implements CommandsInterface {
+     public void setDataProfile(DataProfile[] dps, boolean isRoaming, Message result) {
+         RadioDataProxy dataProxy = getRadioServiceProxy(RadioDataProxy.class, result);
+         if (!dataProxy.isEmpty()) {
++            if (!dataProxy.hasDataProfilesToSet(dps)) {
++                // Nothing is sent to the HAL, so no response would ever arrive for a request:
++                // complete right away instead of leaving it in the request list.
++                if (RILJ_LOGD) {
++                    riljLog("setDataProfile: no persistent data profiles to set");
++                }
++                if (result != null) {
++                    AsyncResult.forMessage(result, null, null);
++                    result.sendToTarget();
++                }
++                return;
++            }
++
+             RILRequest rr = obtainRequest(RIL_REQUEST_SET_DATA_PROFILE, result,
+                     mRILDefaultWorkSource);
+ 
+diff --git a/src/java/com/android/internal/telephony/RadioDataProxy.java b/src/java/com/android/internal/telephony/RadioDataProxy.java
+index cbc762a59d..899216524c 100644
+--- a/src/java/com/android/internal/telephony/RadioDataProxy.java
++++ b/src/java/com/android/internal/telephony/RadioDataProxy.java
+@@ -209,6 +209,21 @@ public class RadioDataProxy extends RadioServiceProxy {
+      * @param isRoaming Whether or not the device is roaming
+      * @throws RemoteException
+      */
++    /**
++     * Whether setDataProfile sends the profiles to the HAL. Before IRadio 1.4 only the
++     * persistent profiles are sent, and nothing at all when none of them is persistent.
++     * @param profiles Array of DataProfiles to set
++     * @return true if setDataProfile makes a HAL call that will be answered
++     */
++    public boolean hasDataProfilesToSet(DataProfile[] profiles) {
++        if (isEmpty()) return false;
++        if (isAidl() || mHalVersion.greaterOrEqual(RIL.RADIO_HAL_VERSION_1_4)) return true;
++        for (DataProfile dp : profiles) {
++            if (dp.isPersistent()) return true;
++        }
++        return false;
++    }
++
+     public void setDataProfile(int serial, DataProfile[] profiles, boolean isRoaming)
+             throws RemoteException {
+         if (isEmpty()) return;
+-- 
+2.37.2
+
