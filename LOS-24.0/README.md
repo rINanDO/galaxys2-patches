@@ -379,6 +379,10 @@ in patches. The main ones:
 - **Video encoder**: BGRA surface input is converted to NV12 on FIMC
   instead of NEON, and camera HAL frames are encoded in place, which makes
   zero-copy 720p and 1080p recording possible.
+- **GNSS wakelocks**: the GNSS service used `/dev/vndbinder` as its default
+  binder, so libpower couldn't find `ISystemSuspend` and the HAL got no
+  wakelocks during a fix (`Failed to get SystemSuspend service`). It stays
+  on `/dev/binder` now; the legacy GPS library doesn't use binder.
 
 ### Device (`device/samsung/galaxys2-common`, `device/samsung/i9100`)
 
@@ -428,7 +432,14 @@ in patches. The main ones:
   may use them. Its copy of the MAC to `/efs/wifi/.mac.info` stays blocked
   (and isn't logged), so `/efs` keeps the factory data.
 - **SELinux**: `mediacodeclist_generator` may read the `media.stagefright.*`
-  properties (`media_config_prop`).
+  properties (`media_config_prop`). The GNSS HAL may take wakelocks
+  (`wakelock_use`), and its probes for Samsung factory test files in
+  `/data/data` aren't logged.
+- **GPS shim**: no positions, cell IDs or movement details in logcat. The
+  jitter filter, which repeats the last position while the phone doesn't
+  move, compares the horizontal distance in metres with its thresholds; it
+  added up raw degree and altitude differences, so only altitude changes
+  counted as movement.
 
 ## LOS-20.0 patches that are no longer needed
 
@@ -446,7 +457,8 @@ in patches. The main ones:
 
 Work in progress. The ROM builds and boots to the home screen on 24.0
 (SELinux enforcing). Tested working: display, Wi-Fi, camera preview, video
-recording with sound, `adb reboot recovery`.
+recording with sound, GPS (first fix in about 150 s cold, 30 s warm,
+without assisted GPS), `adb reboot recovery`.
 
 Android 17 changes that needed fixes on top of the 23.2 port:
 
