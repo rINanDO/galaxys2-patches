@@ -210,13 +210,20 @@ kernel feature. Grouped by the problem they solve:
   notification. The POST is sent twice (WebView's own request turns into
   the download), so a form with a one-time token can still fail, and
   forms that upload files still use GET.
-- **Wi-Fi reconnect with the screen off** (`packages_modules_Wifi` 0001): the
+- **Wi-Fi reconnect with the screen off** (`packages_modules_Wifi` 0001-0002): the
   bcmdhd driver has no scheduled scan, so Android's PNO scans fail. With the
   screen off, Wi-Fi used to stop scanning after 5 failures and stay
   disconnected until the screen came on, for example after the country-code
   disconnect a minute after boot. When PNO is unsupported, Android now runs a
-  normal scan every 2 minutes while the screen is off and Wi-Fi is
-  disconnected.
+  normal scan while the screen is off and Wi-Fi is disconnected.
+  0002 backs these scans off: the interval starts at 2 minutes and doubles
+  up to 10 minutes, and starts over when the screen turns off or Wi-Fi
+  disconnects. A full scan measured 4.5 s of radio time and 0.4 s of CPU,
+  about 0.11 mAh, so every 2 minutes cost about 3.4 mAh an hour (5% of the
+  battery a day away from a saved network); at 10 minutes it is about
+  0.7 mAh an hour. The alarm is inexact, so the real gaps are about 1.75
+  times longer (measured 3.5, 7 and 14 minutes), and with the screen off a
+  saved network can take up to about 17 minutes to be rejoined.
 
 ## Fixes in the device and kernel repos
 

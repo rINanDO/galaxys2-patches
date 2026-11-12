@@ -1,0 +1,85 @@
+From be6eb61e0f80c6027a4e3c5a2ecc1d2ca2b624b3 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 12 Nov 2026 08:24:35 +0100
+Subject: [PATCH] WifiConnectivityManager: Back off the screen-off scans
+ without hardware PNO
+
+The single scans that replace PNO with the screen off ran every 2
+minutes for as long as no saved network was around. Measured on a
+Galaxy S2 a full scan takes about 4.5 s of radio time and 0.4 s of CPU,
+about 0.11 mAh, so 3.4 mAh an hour: 5% of the battery a day away from a
+saved network.
+
+Double the interval after each scan the timer starts, from 2 up to 10
+minutes, and start over at 2 minutes whenever something else triggers
+the scan (screen off, disconnect). After the first half hour this costs
+about 0.7 mAh an hour.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Ic6e586d3c50f3585469ca19555e154b1207bdf92
+---
+ .../server/wifi/WifiConnectivityManager.java  | 25 ++++++++++++++-----
+ 1 file changed, 19 insertions(+), 6 deletions(-)
+
+diff --git a/service/java/com/android/server/wifi/WifiConnectivityManager.java b/service/java/com/android/server/wifi/WifiConnectivityManager.java
+index 1ce59c35b1..1b3920e041 100644
+--- a/service/java/com/android/server/wifi/WifiConnectivityManager.java
++++ b/service/java/com/android/server/wifi/WifiConnectivityManager.java
+@@ -115,8 +115,13 @@ public class WifiConnectivityManager {
+     // a previously failed scan
+     private static final int RESTART_SCAN_DELAY_MS = 2 * 1000; // 2 seconds
+     // Single scan interval when the screen is off, Wifi is disconnected and the scanner
+-    // has no hardware PNO to look for saved networks.
+-    private static final int NO_PNO_SCAN_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
++    // has no hardware PNO to look for saved networks. It starts at the minimum and
++    // doubles after each timer scan up to the maximum, to save battery while no saved
++    // network is around.
++    private static final int NO_PNO_SCAN_MIN_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
++    private static final int NO_PNO_SCAN_MAX_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
++    private int mNoPnoScanIntervalMs = NO_PNO_SCAN_MIN_INTERVAL_MS;
++    private boolean mNoPnoScanFromTimer = false;
+     // Restricted channel list age out value.
+     private static final long CHANNEL_LIST_AGE_MS = 60 * 60 * 1000; // 1 hour
+     // This is the time interval for the connection attempt rate calculation. Connection attempt
+@@ -286,7 +291,9 @@ public class WifiConnectivityManager {
+     private final AlarmManager.OnAlarmListener mNoPnoScanListener =
+             new AlarmManager.OnAlarmListener() {
+                 public void onAlarm() {
++                    mNoPnoScanFromTimer = true;
+                     startConnectivityScan(SCAN_IMMEDIATELY);
++                    mNoPnoScanFromTimer = false;
+                 }
+             };
+ 
+@@ -2456,18 +2463,24 @@ public class WifiConnectivityManager {
+         }
+     }
+ 
+-    // Screen off and disconnected without hardware PNO: scan now and again after
+-    // NO_PNO_SCAN_INTERVAL_MS, so a saved network that comes back is joined.
++    // Screen off and disconnected without hardware PNO: scan now and again later, so a
++    // saved network that comes back is joined. The interval backs off from
++    // NO_PNO_SCAN_MIN_INTERVAL_MS to NO_PNO_SCAN_MAX_INTERVAL_MS while only the timer
++    // triggers scans, and starts over on any other trigger (screen off, disconnect).
+     private void startScreenOffScanWithoutPno() {
+         if (mScreenOn || mWifiState != WIFI_STATE_DISCONNECTED) {
+             return;
+         }
+-        localLog("startScreenOffScanWithoutPno");
++        if (!mNoPnoScanFromTimer) {
++            mNoPnoScanIntervalMs = NO_PNO_SCAN_MIN_INTERVAL_MS;
++        }
++        localLog("startScreenOffScanWithoutPno: next scan in " + mNoPnoScanIntervalMs + " ms");
+         mAlarmManager.cancel(mNoPnoScanListener);
+         startSingleScan(true, WIFI_WORK_SOURCE, WifiScanner.SCAN_TYPE_HIGH_ACCURACY);
+         mAlarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+-                mClock.getElapsedSinceBootMillis() + NO_PNO_SCAN_INTERVAL_MS,
++                mClock.getElapsedSinceBootMillis() + mNoPnoScanIntervalMs,
+                 NO_PNO_SCAN_TIMER_TAG, mNoPnoScanListener, mEventHandler);
++        mNoPnoScanIntervalMs = Math.min(mNoPnoScanIntervalMs * 2, NO_PNO_SCAN_MAX_INTERVAL_MS);
+     }
+ 
+     // Stop connectivity scan if there is any.
+-- 
+2.37.2
+
