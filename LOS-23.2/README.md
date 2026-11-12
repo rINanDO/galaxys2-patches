@@ -288,6 +288,11 @@ on.
   kernel it was left behind on top of the new one, and the adb shell and
   native daemons got "Transport endpoint is not connected" for `/sdcard`.
   Same change as on 20.0, where it is tested; not tested on 23.2.
+- **Messaging with a new SIM** (`packages_apps_Messaging`): the SIM's
+  display name is still empty while a newly inserted SIM is set up, and
+  Messaging crashed with a NullPointerException on the first boot with the
+  SIM. It stores an empty name until the next refresh fills it in. Same
+  change as on 20.0, where it is tested; not tested on 23.2.
 - **WebView** (`galaxys2-23.2.xml`): WebView 146 and later need OpenGL ES 3,
   which the Mali-400 doesn't have, so they fall back to software raster at
   half the frame rate and lose WebGL. The manifest pins the arm WebView to
