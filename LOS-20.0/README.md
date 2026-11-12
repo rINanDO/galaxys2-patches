@@ -335,6 +335,11 @@ phone.
   read past the end of the RIL response and parsed the hex LAC/CID as
   decimal. Checked in Phone information: voice GSM, data EDGE; calls and
   SMS work.
+- **Signal strength** (`libsecril-shim`): the RIL copies the GSM signal
+  level into the CDMA fields, which telephony took as a valid CDMA signal
+  and used as the primary one (Phone information showed -16 dBm for a
+  -81 dBm GSM signal). The CDMA and EVDO values are now unavailable, and
+  the LTE fields are only written when the response has them.
 
 ### Hardware (`hardware/samsung`)
 

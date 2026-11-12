@@ -420,6 +420,10 @@ in patches. The main ones:
   a fixed UMTS while data is on GPRS/EDGE, and an out-of-bounds read and
   the hex LAC/CID parsing in the same code are fixed. Same change as on
   20.0, where it is tested; not tested on 23.2.
+- **Signal strength** (`libsecril-shim`): the CDMA and EVDO values, which
+  the RIL fills with the GSM signal level, are unavailable, so telephony
+  uses the GSM signal. Same change as on 20.0, where it is tested; not
+  tested on 23.2.
 - **Responsiveness**: a power HAL boosts the CPU to 1.2 GHz on both cores
   for 1 s on touch, 2 s on app launch and 2 s when the screen turns on
   (waking took 1.2-1.3 s instead of 0.75-0.9 s on one core, because the
