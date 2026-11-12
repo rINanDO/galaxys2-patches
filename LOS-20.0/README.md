@@ -328,6 +328,12 @@ phone.
   rejects every retry until a reboot, and the framework retried several
   times a second. Checked with a simyo SIM on KPN: connected and validated
   over EDGE with one data call request per boot.
+- **Voice network type** (`libsecril-shim`): the RIL leaves the voice radio
+  technology empty and the shim always reported UMTS, also on a 2G cell
+  (all of KPN since its 3G shutdown in 2022). It now follows the data
+  registration: GSM while data is on GPRS/EDGE, UMTS on 3G. The same code
+  read past the end of the RIL response and parsed the hex LAC/CID as
+  decimal. Checked in Phone information: voice GSM, data EDGE.
 
 ### Hardware (`hardware/samsung`)
 
