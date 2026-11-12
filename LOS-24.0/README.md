@@ -472,18 +472,23 @@ Android 17 changes that needed fixes on top of the 23.2 port:
   and `lowMemory = true`. Backported to `/proc/meminfo`.
 - **Old apps can't be installed**: Android 17 refuses apps that target an
   SDK below 24. `frameworks_base` 0020 adds a property that turns the block
-  off for every installer (userdebug builds; the shell can set it, apps
-  can't):
+  off for every installer, and `galaxys2-common` sets it to 1 by default,
+  so old apps install from a file manager or app store. To block them
+  again (userdebug builds; the shell can set it, apps can't):
 
   ```
-  adb shell setprop persist.debug.pm.allow_low_target_sdk 1
+  adb shell setprop persist.debug.pm.allow_low_target_sdk 0
   ```
 
-  Installed apps keep working after it's set back to 0.
+  A value set like this is kept in `/data` and overrides the default, also
+  after a ROM update. Installed apps keep working when it's 0.
+- **`adb install` fails with `splice failed: EINVAL`**: the installer
+  splices the APK from adbd's unix socket into the file, and kernels before
+  4.2 can't splice from a unix socket. `frameworks_base` 0021 falls back to
+  a plain copy when the first splice fails.
 - **Root**: Magisk installs from TWRP; see below.
 
-Known issues: no mobile network yet. `adb install` fails with `splice
-failed: EINVAL`; `adb install --no-streaming` works.
+Known issues: no mobile network yet.
 
 ## Root with Magisk
 
@@ -507,7 +512,7 @@ there. The KERNEL partition isn't touched.
    the pre-init partition (`mmcblk0p10`), which Magisk only detects by
    itself in Android.
 3. Boot Android and install `/sdcard/ROMS/Magisk.apk`, or use
-   `adb install --no-streaming`.
+   `adb install`.
 
 Notes:
 
