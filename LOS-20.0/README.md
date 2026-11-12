@@ -333,7 +333,8 @@ phone.
   (all of KPN since its 3G shutdown in 2022). It now follows the data
   registration: GSM while data is on GPRS/EDGE, UMTS on 3G. The same code
   read past the end of the RIL response and parsed the hex LAC/CID as
-  decimal. Checked in Phone information: voice GSM, data EDGE.
+  decimal. Checked in Phone information: voice GSM, data EDGE; calls and
+  SMS work.
 
 ### Hardware (`hardware/samsung`)
 
