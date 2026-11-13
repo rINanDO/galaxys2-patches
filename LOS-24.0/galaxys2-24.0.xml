@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <manifest>
 
-  <!-- DEVICES: i9100 has no 24.0 changes yet, so it stays on lineage-23.2 -->
+  <!-- DEVICES -->
   <project name="rINanDO/android_device_samsung_galaxys2-common" path="device/samsung/galaxys2-common" remote="github" revision="lineage-24.0" />
-  <project name="rINanDO/android_device_samsung_i9100" path="device/samsung/i9100" remote="github" revision="lineage-23.2" />
+  <project name="rINanDO/android_device_samsung_i9100" path="device/samsung/i9100" remote="github" revision="lineage-24.0" />
 
   <!-- KERNEL (shared with the Galaxy S3) -->
   <project name="rINanDO/android_kernel_samsung_smdk4412" path="kernel/samsung/smdk4412" remote="github" revision="lineage-24.0" clone-depth="1" />

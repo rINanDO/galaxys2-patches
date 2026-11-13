@@ -86,9 +86,9 @@ aborts that and resets the patched repos with `repo sync`.
   in the matching directory, named after the repo path (`frameworks_av` for
   `frameworks/av`).
 - Device, kernel, hardware and vendor repos are forks listed in
-  `galaxys2-24.0.xml`. `galaxys2-common` and the kernel use `lineage-24.0`,
-  branched from `lineage-23.2`; `device/samsung/i9100` has no 24.0 changes
-  and stays on `lineage-23.2`. `hardware/samsung` uses `lineage-24.0-exynos4`,
+  `galaxys2-24.0.xml`. `galaxys2-common`, `i9100` and the kernel use
+  `lineage-24.0`, branched from `lineage-23.2`. `hardware/samsung` uses
+  `lineage-24.0-exynos4`,
   branched from `lineage-23.2-exynos4`, the only branch with the exynos4
   HALs. The GCC 4.9
   toolchain and `vendor/samsung` stay on `lineage-20.0` (the only branch with
