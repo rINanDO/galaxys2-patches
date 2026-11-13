@@ -124,6 +124,10 @@ on.
   has no scheduled scan, so hardware PNO is not available and Wi-Fi does not
   connect while the screen is off. The patch defaults the Software PNO flag to
   on, so `config_wifiSwPnoEnabled` in the device's Wi-Fi overlay decides.
+  0002 adds `config_wifiDisableIpv6`: the BCM4330 firmware has no Neighbor
+  Discovery offload, so a router that checks the phone's IPv6 addresses
+  every few seconds woke it about every 4 s and drained the battery at
+  25-39 %/h with the screen off (measured on 23.2).
 - **Mobile data with the Samsung RIL** (`system_netd` 0004): netd can add a
   rule for the kernel's directly-connected routes, without which IPv4 mobile
   data has no default route. Enable it in the device tree with
@@ -294,6 +298,26 @@ on.
   - `FileIntegrity` skips fs-verity, which this kernel lacks, instead of
     logging a stack trace on every settings and permissions write;
   - fast reboot on legacy devices too.
+- **Samsung libril** (`hardware_ril`): with
+  `$(call soong_config_set,ril,samsung_libril,true)` libril is built from
+  `hardware/samsung`'s sources, which add Samsung's vendor requests and
+  modem quirks, and linked against IRadio 1.2 to 1.4.
+- **Signal icon with one SIM** (`frameworks_opt_telephony`): without
+  IRadioConfig, PhoneSwitcher sends no data switch command on a single SIM
+  device and so never published the active data subscription. SystemUI then
+  showed an exclamation mark on the signal icon, although mobile data
+  worked. The switch is now finished without a command.
+- **Messaging with a new SIM** (`packages_apps_Messaging`): the SIM's
+  display name is still empty while a newly inserted SIM is set up, and
+  Messaging crashed with a NullPointerException on the first boot with the
+  SIM. It stores an empty name until the next refresh fills it in. Same
+  change as on 20.0, where it is tested; the new-SIM case is not tested on
+  24.0.
+- **Storage after a framework restart** (`system_vold`): vold detaches the
+  old FUSE mount on `/storage/emulated` when it unmounts the volume. On this
+  kernel it was left behind on top of the new one, and the adb shell and
+  native daemons got "Transport endpoint is not connected" for `/sdcard`.
+  Same change as on 20.0, where it is tested; not tested on 24.0.
 - **WebView** (`galaxys2-24.0.xml`): WebView 146 and later need OpenGL ES 3,
   which the Mali-400 doesn't have, so they fall back to software raster at
   half the frame rate and lose WebGL. The manifest pins the arm WebView to
@@ -358,28 +382,60 @@ in patches. The main ones:
   `CONFIG_MMC_BLOCK_MINORS=12`: HIDDEN (`mmcblk0p12`) is 259:0 and the SD
   card is 179:12/179:13. Stage 1 still reads HIDDEN's number from sysfs,
   because the kernel hands out 259:x numbers at boot.
+- **ext4 symlink warning**: creating a symlink with a target longer than
+  60 characters no longer logs an `inc_nlink` warning (`fs/inode.c:347`).
+  The link count is set back to 1 with `set_nlink()`, as in mainline;
+  nothing on disk was ever wrong.
+- **USB function switch with adb open**: when the USB mode changes while
+  adbd keeps its FunctionFS endpoints open, the function is no longer bound
+  a second time (`functionfs_bind failed (-77)` and a warning on every
+  switch); its strings only get new ids, so they no longer clash with the
+  next function's. A failed bind no longer blocks the next one.
+- **USB gadget DMA**: the USB controller driver stops an endpoint's DMA
+  before it gives a cancelled request back. Before, when adbd exited or the
+  USB function was switched, the host's next adb packet could be written
+  into a buffer that had already been freed, which corrupted memory and
+  panicked the kernel.
+- **Modem and Wi-Fi wakeups**: the wakelock to wakeup source conversion
+  rounded every hold shorter than a second down to 0 (HZ=200), so the AP
+  could suspend before rild read an incoming call or SMS, and the Wi-Fi
+  rx/ctrl holds did nothing. When the modem woke the AP during a suspend,
+  the HSIC link code kept the AP awake until the link suspended again,
+  which could take most of the time on battery; it now aborts the suspend
+  with a 500 ms wakeup event instead.
 
 ### Hardware (`hardware/samsung`)
 
 - **HAL updates**: AIDL touch, LiveDisplay and vibrator HALs, libril built
   through `hardware/ril`, and fixes for the current Clang, libutils and
   libcutils.
+- **IRadio 1.4** (libril): Android 16 and later no longer support IRadio
+  below 1.4, so the 1.1 service left the phone without SIM, network, calls
+  and data. The 1.2 to 1.4 requests map onto the legacy RIL requests, and
+  responses and indications use the 1.2 and 1.4 variants. The ICCID, which
+  the legacy card status lacks and without which no subscription is
+  created, is taken from the framework's own read of EF_ICCID. A failed
+  data call no longer makes the framework retry in a tight loop.
+- **Call audio** (`libsecril-client`): built from source and installed to
+  `/vendor/lib`. It takes its wake lock through `/sys/power/wake_lock`
+  instead of the SystemSuspend service, which the audio HAL can't reach on
+  `/dev/vndbinder`; the proprietary library blocked the audio HAL at the
+  end of every call.
 - **Hardware composer overlays**: the full-screen app layer, the status bar
   and decoded video (scaled on FIMC) are scanned out on FIMD windows
   instead of being composed on the GPU, which roughly halves the jank in
   Settings and app lists.
 - **Composer fixes**:
-  - a file descriptor leak of one sync fence per frame, which made
-    surfaceflinger run out of descriptors after a few hours and every app
-    crash in a loop (screen flicker);
-  - a second sync fence leak: the HWC1 adapter gives every layer an
-    acquire fence, also the ones composed on the GPU, and the composer only
-    closed those of layers on a FIMD window. With overlay and GPU layers on
-    screen together, surfaceflinger filled its 32768 descriptors in about
-    15 hours, and after the next screen-off SystemUI crashed in a loop
-    (`Failed to initialize display event receiver. status=-24`), leaving
-    the screen black. All leftover acquire fences are closed after each
-    frame now;
+  - sync fence leaks: the HWC1 adapter hands the composer a new dup() of
+    every layer's acquire fence on each frame, also for layers composed on
+    the GPU, and the composer only closed those of layers on a FIMD window
+    (not the framebuffer target when every layer was on an overlay, nor
+    those of layers whose FIMC operation failed). Surfaceflinger ran out of
+    its 32768 descriptors after a few hours: every app crashed in a loop
+    (screen flicker), or after a screen-off SystemUI crashed in a loop
+    (`Failed to initialize display event receiver. status=-24`) and the
+    screen stayed black. Every acquire fence still open is closed once the
+    frame is posted now;
   - surfaceflinger crashing while a video resized when the ION heap was
     full: the frame is composed on the GPU until overlay buffers can be
     allocated again;
@@ -428,6 +484,19 @@ in patches. The main ones:
 - **Sensors**: the sensors HAL can control the input sensors, and waits
   for the compass input node, which could appear late and leave
   auto-rotate dead until a reboot.
+- **Telephony**: IRadio 1.4 is declared in the VINTF manifest.
+  `libsecril-shim`:
+  - data calls always ask for an IPv4 context, because Samsung's RIL can't
+    configure the dual-stack context the network grants for an `IPV4V6`
+    APN and then leaves the modem rejecting every retry until a reboot;
+  - voice reports GSM instead of a fixed UMTS while data is on GPRS/EDGE,
+    and an out-of-bounds read and the hex LAC/CID parsing in the same code
+    are fixed;
+  - the CDMA and EVDO signal values, which the RIL fills with the GSM
+    signal level, are unavailable, so telephony uses the GSM signal.
+
+  The audio HAL may take kernel wake locks (for `libsecril-client`), and the
+  call volume has 5 steps, as the modem gets quieter above level 5.
 - **Responsiveness**: a power HAL boosts the CPU to 1.2 GHz on both cores
   for 1 s on touch, 2 s on app launch and 2 s when the screen turns on
   (waking took 1.2-1.3 s instead of 0.75-0.9 s on one core, because the
@@ -440,7 +509,8 @@ in patches. The main ones:
   dexopt when the phone is idle, because compiling them at install time
   made installing a large app take a minute or more.
 - **Wi-Fi**: Software PNO is enabled, so Wi-Fi reconnects with the screen
-  off. The Wi-Fi driver reads and writes `/data/.psm.info`,
+  off. Wi-Fi uses IPv4 only, so router neighbor checks no longer keep the
+  phone awake. The Wi-Fi driver reads and writes `/data/.psm.info`,
   `.wifiver.info` and `.mac.info` from netd; those files are labelled
   `wifi_data_file` (init runs `restorecon` after creating them) and netd
   may use them. Its copy of the MAC to `/efs/wifi/.mac.info` stays blocked
@@ -474,7 +544,8 @@ in patches. The main ones:
 Work in progress. The ROM builds and boots to the home screen on 24.0
 (SELinux enforcing). Tested working: display, Wi-Fi, camera preview, video
 recording with sound, GPS (first fix in about 150 s cold, 30 s warm,
-without assisted GPS), `adb reboot recovery`.
+without assisted GPS), phone calls with call volume, SMS, mobile data
+(GSM/EDGE), `adb reboot recovery`.
 
 Android 17 changes that needed fixes on top of the 23.2 port:
 
@@ -527,7 +598,14 @@ Android 17 changes that needed fixes on top of the 23.2 port:
   a plain copy when the first splice fails.
 - **Root**: Magisk installs from TWRP; see below.
 
-Known issues: no mobile network yet.
+Known issues:
+
+- Bluetooth is untested.
+- A worn battery makes the modem reset itself (`PA EVENT : reset =1, pa=0`
+  in the kernel log) when it starts transmitting, during network
+  registration or right after dialing: the cell voltage sags below about
+  3.3 V under the transmit load. Such a battery read 3.33 V at 80 % charge
+  as a call started; with a healthy battery calls work.
 
 ## Root with Magisk
 

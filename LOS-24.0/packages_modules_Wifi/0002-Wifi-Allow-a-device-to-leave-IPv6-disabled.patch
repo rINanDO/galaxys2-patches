@@ -1,0 +1,67 @@
+From 55cc624853dc7130f4c470a9ec523569ec073076 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Fri, 13 Nov 2026 13:34:35 +0100
+Subject: [PATCH] Wifi: Allow a device to leave IPv6 disabled
+
+On a device whose Wi-Fi firmware has no Neighbor Discovery offload,
+every neighbor solicitation from the router wakes the host. Some
+routers check each of the device's IPv6 addresses every few seconds,
+which keeps the device from sleeping and drains the battery.
+
+Add config_wifiDisableIpv6. When a device overlay sets it, IpClient is
+provisioned without IPv6. It defaults to false, so other devices do not
+change.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I4db91aa961dd8df0cb173df36b18179eb29ae120
+---
+ service/ServiceWifiResources/res/values/config.xml       | 5 +++++
+ service/ServiceWifiResources/res/values/overlayable.xml  | 1 +
+ service/java/com/android/server/wifi/ClientModeImpl.java | 3 +++
+ 3 files changed, 9 insertions(+)
+
+diff --git a/service/ServiceWifiResources/res/values/config.xml b/service/ServiceWifiResources/res/values/config.xml
+index df17dbc647..c379eb6998 100644
+--- a/service/ServiceWifiResources/res/values/config.xml
++++ b/service/ServiceWifiResources/res/values/config.xml
+@@ -1317,6 +1317,11 @@
+         connection will not be torn down if the DHCP server does not respond. As a result the device
+         will be discoverable and reachable via the local-only IPv6 address. -->
+     <bool translatable="false" name ="config_wifiRemainConnectedAfterIpProvisionTimeout">false</bool>
++
++    <!-- Boolean indicating whether IPv6 should be left disabled on Wi-Fi. For devices
++         whose Wi-Fi firmware has no Neighbor Discovery offload: routers that keep checking
++         their neighbors' addresses then wake the device every few seconds while it sleeps. -->
++    <bool translatable="false" name="config_wifiDisableIpv6">false</bool>
+     <!-- Boolean indicating whether to disable disconnects on NUD failures. Such a configuration
+          is limited to WAPI and to a specific country code.
+      true: do not disconnect IF the connection type is WAPI and in the specific country code
+diff --git a/service/ServiceWifiResources/res/values/overlayable.xml b/service/ServiceWifiResources/res/values/overlayable.xml
+index b9ea046d74..d62a655404 100644
+--- a/service/ServiceWifiResources/res/values/overlayable.xml
++++ b/service/ServiceWifiResources/res/values/overlayable.xml
+@@ -345,6 +345,7 @@
+           <item type="bool" name ="config_aware_vdbg_enable_on_verbose_logging" />
+           <item type="bool" name="config_wifiSofapHalMapWpa3TransitionModeToWpa3OnlyIn6GHzBand" />
+           <item type="bool" name ="config_wifiRemainConnectedAfterIpProvisionTimeout" />
++          <item type="bool" name="config_wifiDisableIpv6" />
+           <item type="bool" name ="config_wifiDisableNudDisconnectsForWapiInSpecificCc" />
+           <item type="array" name="config_wifiUnknownAkmToKnownAkmMapping" />
+           <item type="integer" name="config_wifi80211azMinTimeBetweenNtbMeasurementsMicros"/>
+diff --git a/service/java/com/android/server/wifi/ClientModeImpl.java b/service/java/com/android/server/wifi/ClientModeImpl.java
+index 604f05db81..e4acaea9c7 100644
+--- a/service/java/com/android/server/wifi/ClientModeImpl.java
++++ b/service/java/com/android/server/wifi/ClientModeImpl.java
+@@ -8799,6 +8799,9 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
+                 R.bool.config_wifiRemainConnectedAfterIpProvisionTimeout)) {
+             prov.withProvisioningTimeoutMs(0);
+         }
++        if (mContext.getResources().getBoolean(R.bool.config_wifiDisableIpv6)) {
++            prov.withoutIPv6();
++        }
+         mIpClient.startProvisioning(prov.build());
+         return true;
+     }
+-- 
+2.51.0
+

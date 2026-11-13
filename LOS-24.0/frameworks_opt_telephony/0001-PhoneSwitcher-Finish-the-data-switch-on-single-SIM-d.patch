@@ -1,0 +1,36 @@
+From 430be94c2d482a8bbd19a4cb92e21972747bf781 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 12 Nov 2026 22:21:06 +0100
+Subject: [PATCH] PhoneSwitcher: Finish the data switch on single SIM devices
+
+Without IRadioConfig, PhoneSwitcher uses ALLOW_DATA, which it skips on
+single SIM devices. No command is sent, so onDdsSwitchResponse() never
+runs and the active data subscription is never published: SystemUI then
+thinks mobile data is disabled and shows an exclamation mark on the
+signal icon. Complete the switch right away instead.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: If3938659f05b0b62824c5640352a9623f76cf38c
+---
+ .../com/android/internal/telephony/data/PhoneSwitcher.java   | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/java/com/android/internal/telephony/data/PhoneSwitcher.java b/src/java/com/android/internal/telephony/data/PhoneSwitcher.java
+index 6d2e77d643..a7d6c38be8 100644
+--- a/src/java/com/android/internal/telephony/data/PhoneSwitcher.java
++++ b/src/java/com/android/internal/telephony/data/PhoneSwitcher.java
+@@ -1302,6 +1302,11 @@ public class PhoneSwitcher extends Handler {
+             // Skip ALLOW_DATA for single SIM device
+             if (mActiveModemCount > 1) {
+                 PhoneFactory.getPhone(phoneId).mCi.setDataAllowed(isPhoneActive(phoneId), message);
++            } else {
++                // There is nothing to tell the modem, but finish the switch so the
++                // active data subscription is still published.
++                AsyncResult.forMessage(message, null, null);
++                message.sendToTarget();
+             }
+         } else if (phoneId == mPreferredDataPhoneId) {
+             // Only setPreferredDataModem if the phoneId equals to current mPreferredDataPhoneId
+-- 
+2.51.0
+
