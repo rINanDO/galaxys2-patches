@@ -317,7 +317,9 @@ on.
   old FUSE mount on `/storage/emulated` when it unmounts the volume. On this
   kernel it was left behind on top of the new one, and the adb shell and
   native daemons got "Transport endpoint is not connected" for `/sdcard`.
-  Same change as on 20.0, where it is tested; not tested on 24.0.
+  24.0 unmounts through `UnmountUserFuseEnhanced()`, so the detach runs
+  there too; the 20.0 change only hooked `UnmountUserFuse()`, which 24.0
+  no longer calls. Tested after a framework restart.
 - **WebView** (`galaxys2-24.0.xml`): WebView 146 and later need OpenGL ES 3,
   which the Mali-400 doesn't have, so they fall back to software raster at
   half the frame rate and lose WebGL. The manifest pins the arm WebView to
