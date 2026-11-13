@@ -372,6 +372,14 @@ in patches. The main ones:
   - a file descriptor leak of one sync fence per frame, which made
     surfaceflinger run out of descriptors after a few hours and every app
     crash in a loop (screen flicker);
+  - a second sync fence leak: the HWC1 adapter gives every layer an
+    acquire fence, also the ones composed on the GPU, and the composer only
+    closed those of layers on a FIMD window. With overlay and GPU layers on
+    screen together, surfaceflinger filled its 32768 descriptors in about
+    15 hours, and after the next screen-off SystemUI crashed in a loop
+    (`Failed to initialize display event receiver. status=-24`), leaving
+    the screen black. All leftover acquire fences are closed after each
+    frame now;
   - surfaceflinger crashing while a video resized when the ION heap was
     full: the frame is composed on the GPU until overlay buffers can be
     allocated again;
