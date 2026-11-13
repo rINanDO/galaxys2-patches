@@ -1,4 +1,4 @@
-From 247da375c88892dffecd648ac52b090c558f57e3 Mon Sep 17 00:00:00 2001
+From 52592a86fe94b19be352a15d3fd93ab41f5b20d8 Mon Sep 17 00:00:00 2001
 From: Dominggoes Isakh <drjisakh@gmail.com>
 Date: Tue, 10 Nov 2026 22:36:00 +0100
 Subject: [PATCH] vold: Detach the stale /storage copy of an unmounted FUSE
@@ -13,45 +13,95 @@ new one ended up beneath it, and adb shell and native daemons got
 "Transport endpoint is not connected" for /sdcard.
 
 After unmounting a user 0 FUSE volume, lazily detach whatever is still
-mounted on /storage/<volume>.
+mounted on /storage/<volume>. Do it in both UnmountUserFuse() and
+UnmountUserFuseEnhanced(), which the emulated and public volumes use
+when the enhanced unmount is enabled; the latter runs it after every
+retry path.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G5iyKSWd4E3M4y6AyJXWyi
 Change-Id: I31e6fd70cfa85be3219d6dceb637929cd4ea5620
 ---
- Utils.cpp | 20 ++++++++++++++++++++
- 1 file changed, 20 insertions(+)
+ Utils.cpp | 45 +++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 41 insertions(+), 4 deletions(-)
 
 diff --git a/Utils.cpp b/Utils.cpp
-index c2b2ad3..9aed910 100644
+index c2b2ad3..3090f5e 100644
 --- a/Utils.cpp
 +++ b/Utils.cpp
-@@ -1718,6 +1718,26 @@ status_t UnmountUserFuse(userid_t user_id, const std::string& absolute_lower_pat
+@@ -1697,6 +1697,29 @@ status_t MountUserFuse(userid_t user_id, const std::string& absolute_lower_path,
+     }
+ }
+ 
++// /storage is a bind mount of /mnt/user/0, so /storage/<volume> is a slave
++// copy of the FUSE mount. Old kernels (before 4.x) don't propagate the unmount
++// to a copy that still has mounts on top of it (the Android/data and
++// Android/obb bind mounts), so it stays behind as a dead FUSE mount. The next
++// FUSE mount for the volume ends up beneath it, and processes that see
++// /storage directly (adb shell, native daemons) get ENOTCONN. Anything still
++// mounted there once the FUSE paths are unmounted is stale.
++static void DetachStaleStorageCopy(userid_t user_id, const std::string& relative_upper_path) {
++    if (user_id != 0) {
++        return;
++    }
++    std::string storage_path(StringPrintf("/storage/%s", relative_upper_path.c_str()));
++    for (int i = 0; i < 8; i++) {
++        if (umount2(storage_path.c_str(), UMOUNT_NOFOLLOW | MNT_DETACH) != 0) {
++            if (errno != EINVAL && errno != ENOENT) {
++                PLOG(WARNING) << "Failed to detach " << storage_path;
++            }
++            break;
++        }
++        LOG(INFO) << "Detached stale mount on " << storage_path;
++    }
++}
++
+ status_t UnmountUserFuse(userid_t user_id, const std::string& absolute_lower_path,
+                          const std::string& relative_upper_path) {
+     std::string fuse_path(StringPrintf("/mnt/user/%d/%s", user_id, relative_upper_path.c_str()));
+@@ -1718,6 +1741,8 @@ status_t UnmountUserFuse(userid_t user_id, const std::string& absolute_lower_pat
      }
      rmdir(fuse_path.c_str());
  
-+    // /storage is a bind mount of /mnt/user/0, so /storage/<volume> is a
-+    // slave copy of the FUSE mount. Old kernels (before 4.x) don't propagate
-+    // the unmount to a copy that still has mounts on top of it (the
-+    // Android/data and Android/obb bind mounts), so it stays behind as a dead
-+    // FUSE mount. The next FUSE mount for the volume ends up beneath it,
-+    // and processes that see /storage directly (adb shell, native daemons)
-+    // get ENOTCONN. Anything still mounted there now is stale.
-+    if (user_id == 0) {
-+        std::string storage_path(StringPrintf("/storage/%s", relative_upper_path.c_str()));
-+        for (int i = 0; i < 8; i++) {
-+            if (umount2(storage_path.c_str(), UMOUNT_NOFOLLOW | MNT_DETACH) != 0) {
-+                if (errno != EINVAL && errno != ENOENT) {
-+                    PLOG(WARNING) << "Failed to detach " << storage_path;
-+                }
-+                break;
-+            }
-+            LOG(INFO) << "Detached stale mount on " << storage_path;
-+        }
-+    }
++    DetachStaleStorageCopy(user_id, relative_upper_path);
 +
      LOG(INFO) << "Unmounting pass_through_path " << pass_through_path;
      auto status = ForceUnmount(pass_through_path);
      if (status != android::OK) {
+@@ -1777,10 +1802,11 @@ std::vector<std::string> KillProcessesWithFuseOpenFilesAndUnmount(
+     return UnmountFusePaths(paths_to_unmount);
+ }
+ 
+-status_t UnmountUserFuseEnhanced(userid_t user_id, const std::string& absolute_lower_path,
+-                                 const std::string& relative_upper_path,
+-                                 const std::string& absolute_upper_path,
+-                                 const std::vector<std::string>& bind_mount_paths) {
++static status_t UnmountUserFusePathsEnhanced(userid_t user_id,
++                                             const std::string& absolute_lower_path,
++                                             const std::string& relative_upper_path,
++                                             const std::string& absolute_upper_path,
++                                             const std::vector<std::string>& bind_mount_paths) {
+     std::vector<std::string> paths_to_unmount(bind_mount_paths);
+ 
+     std::string fuse_path(StringPrintf("/mnt/user/%d/%s", user_id, relative_upper_path.c_str()));
+@@ -1861,6 +1887,17 @@ status_t UnmountUserFuseEnhanced(userid_t user_id, const std::string& absolute_l
+     return result;
+ }
+ 
++status_t UnmountUserFuseEnhanced(userid_t user_id, const std::string& absolute_lower_path,
++                                 const std::string& relative_upper_path,
++                                 const std::string& absolute_upper_path,
++                                 const std::vector<std::string>& bind_mount_paths) {
++    status_t result = UnmountUserFusePathsEnhanced(user_id, absolute_lower_path,
++                                                   relative_upper_path, absolute_upper_path,
++                                                   bind_mount_paths);
++    DetachStaleStorageCopy(user_id, relative_upper_path);
++    return result;
++}
++
+ status_t PrepareAndroidDirs(const std::string& volumeRoot) {
+     std::string androidDir = volumeRoot + kAndroidDir;
+     std::string androidDataDir = volumeRoot + kAppDataDir;
 -- 
-2.54.0
+2.51.0
 

@@ -291,7 +291,10 @@ on.
   old FUSE mount on `/storage/emulated` when it unmounts the volume. On this
   kernel it was left behind on top of the new one, and the adb shell and
   native daemons got "Transport endpoint is not connected" for `/sdcard`.
-  Same change as on 20.0, where it is tested; not tested on 23.2.
+  23.2 builds vold with `enhance_fuse_unmount` on (`bp4a`), so the volume
+  is unmounted through `UnmountUserFuseEnhanced()` and the detach runs
+  there too; the 20.0 change only hooked `UnmountUserFuse()`. Same code as
+  on 24.0, where it is tested; not tested on 23.2.
 - **Messaging with a new SIM** (`packages_apps_Messaging`): the SIM's
   display name is still empty while a newly inserted SIM is set up, and
   Messaging crashed with a NullPointerException on the first boot with the
