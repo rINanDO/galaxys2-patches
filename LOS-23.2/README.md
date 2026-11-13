@@ -117,6 +117,10 @@ on.
   has no scheduled scan, so hardware PNO is not available and Wi-Fi does not
   connect while the screen is off. The patch defaults the Software PNO flag to
   on, so `config_wifiSwPnoEnabled` in the device's Wi-Fi overlay decides.
+  0002 adds `config_wifiDisableIpv6`: the BCM4330 firmware has no Neighbor
+  Discovery offload, so a router that checks the phone's IPv6 addresses
+  every few seconds woke it about every 4 s and drained the battery at
+  25-39 %/h with the screen off. With IPv6 off on Wi-Fi it drains about 5 %/h.
 - **Mobile data with the Samsung RIL** (`system_netd` 0004): netd can add a
   rule for the kernel's directly-connected routes, without which IPv4 mobile
   data has no default route. Enable it in the device tree with
@@ -464,7 +468,8 @@ in patches. The main ones:
   dexopt when the phone is idle, because compiling them at install time
   made installing a large app take a minute or more.
 - **Wi-Fi**: Software PNO is enabled, so Wi-Fi reconnects with the screen
-  off.
+  off. Wi-Fi uses IPv4 only, so router neighbor checks no longer keep the
+  phone awake.
 
 ## LOS-20.0 patches that are no longer needed
 
