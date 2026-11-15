@@ -1,0 +1,107 @@
+From 3598cc53b8e379352865ece3489ffbc38681f883 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Sun, 15 Nov 2026 12:20:47 +0100
+Subject: [PATCH] AppProfiler: Make cached apps free their GPU memory on
+ low-RAM devices
+
+Since Android 14 a process that goes to the background only gets
+TRIM_MEMORY_UI_HIDDEN, and nothing sends TRIM_MEMORY_BACKGROUND to cached
+processes anymore. Without a cached app freezer, cached apps then keep
+their HWUI rendering context, and on GPUs that allocate from kernel
+memory that memory can't be swapped. Measured on Mali-400: 2.5-11.5 MB
+per cached app.
+
+On low-RAM devices, send TRIM_MEMORY_BACKGROUND once when a process that
+showed UI becomes cached. HWUI then frees its GPU resources and destroys
+the rendering context, like it did before Android 14. Cycling through six
+apps now ends with 34.5 MB of GPU memory in use instead of 45-57 MB.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Ib8344e7fa277b7ce524d769772eb0a49bc1c7820
+---
+ .../com/android/server/am/AppProfiler.java    | 20 +++++++++++++++++++
+ .../server/am/ProcessProfileRecord.java       | 20 +++++++++++++++++++
+ 2 files changed, 40 insertions(+)
+
+diff --git a/services/core/java/com/android/server/am/AppProfiler.java b/services/core/java/com/android/server/am/AppProfiler.java
+index 415c6533bd3a..8335c0914eea 100644
+--- a/services/core/java/com/android/server/am/AppProfiler.java
++++ b/services/core/java/com/android/server/am/AppProfiler.java
+@@ -245,6 +245,8 @@ public class AppProfiler {
+     @GuardedBy("mService")
+     private @MemFactor int mLastMemoryLevel = ADJ_MEM_FACTOR_NORMAL;
+ 
++    private final boolean mIsLowRamDevice = ActivityManager.isLowRamDeviceStatic();
++
+     @GuardedBy("mService")
+     private @MemFactor int mMemFactorOverride = ADJ_MEM_FACTOR_NOTHING;
+ 
+@@ -1419,6 +1421,24 @@ public class AppProfiler {
+                                 app.mProfile.setPendingUiClean(false);
+                             } catch (RemoteException e) {
+ 
++                            }
++                        }
++                    }
++                    // Without a cached app freezer nothing else makes cached processes
++                    // drop their HWUI rendering context, and GPU memory can't be swapped.
++                    // Send TRIM_MEMORY_BACKGROUND once per time the process showed UI, so
++                    // it frees the context like it did before Android 14.
++                    if (mIsLowRamDevice
++                            && procState >= ActivityManager.PROCESS_STATE_CACHED_ACTIVITY
++                            && app.mProfile.hasPendingBgTrim()) {
++                        final IApplicationThread bgThread = app.getThread();
++                        if (bgThread != null) {
++                            try {
++                                bgThread.scheduleTrimMemory(
++                                        ComponentCallbacks2.TRIM_MEMORY_BACKGROUND);
++                                app.mProfile.setPendingBgTrim(false);
++                            } catch (RemoteException e) {
++
+                             }
+                         }
+                     }
+diff --git a/services/core/java/com/android/server/am/ProcessProfileRecord.java b/services/core/java/com/android/server/am/ProcessProfileRecord.java
+index 3a0bd1121f15..720cd817fe3e 100644
+--- a/services/core/java/com/android/server/am/ProcessProfileRecord.java
++++ b/services/core/java/com/android/server/am/ProcessProfileRecord.java
+@@ -164,6 +164,13 @@ final class ProcessProfileRecord implements ProcessRecordInternal.StartedService
+     @GuardedBy("mProcLock")
+     private boolean mPendingUiClean;
+ 
++    /**
++     * Has shown UI since it was last sent TRIM_MEMORY_BACKGROUND? Used on low-RAM devices to
++     * make cached processes release their GPU rendering context.
++     */
++    @GuardedBy("mProcLock")
++    private boolean mPendingBgTrim;
++
+     /**
+      * Pointer to the battery stats of this process.
+      */
+@@ -467,9 +474,22 @@ final class ProcessProfileRecord implements ProcessRecordInternal.StartedService
+         return mPendingUiClean;
+     }
+ 
++    @GuardedBy("mProcLock")
++    boolean hasPendingBgTrim() {
++        return mPendingBgTrim;
++    }
++
++    @GuardedBy("mProcLock")
++    void setPendingBgTrim(boolean pendingBgTrim) {
++        mPendingBgTrim = pendingBgTrim;
++    }
++
+     @GuardedBy("mProcLock")
+     void setPendingUiClean(boolean pendingUiClean) {
+         mPendingUiClean = pendingUiClean;
++        if (pendingUiClean) {
++            mPendingBgTrim = true;
++        }
+         mApp.getWindowProcessController().setPendingUiClean(pendingUiClean);
+     }
+ 
+-- 
+2.51.0
+

@@ -507,9 +507,11 @@ in patches. The main ones:
   (every 2nd frame) with full-size 480x160 frames; the stock 60 fps
   animation cost 13-21 s of boot time.
 - **App compilation**: system apps are compiled with `speed`. Installed
-  apps are installed with `verify` and compiled with `speed` by background
-  dexopt when the phone is idle, because compiling them at install time
-  made installing a large app take a minute or more.
+  apps are installed with `verify`, because compiling them at install time
+  made installing a large app take a minute or more, and background dexopt
+  compiles them with `speed-profile` when the phone is idle, using the
+  profile ART records while the app runs. `speed` made the code of large
+  apps much bigger (89 MB of dex: 15 MB odex with `speed-profile`).
 - **Wi-Fi**: Software PNO is enabled, so Wi-Fi reconnects with the screen
   off. Wi-Fi uses IPv4 only, so router neighbor checks no longer keep the
   phone awake. The Wi-Fi driver reads and writes `/data/.psm.info`,
@@ -598,6 +600,15 @@ Android 17 changes that needed fixes on top of the 23.2 port:
   splices the APK from adbd's unix socket into the file, and kernels before
   4.2 can't splice from a unix socket. `frameworks_base` 0021 falls back to
   a plain copy when the first splice fails.
+- **zram compressed on one core**: fs_mgr opens `max_comp_streams`
+  read-only, so the fstab option never applied. `galaxys2-common` writes it
+  from init before `swapon_all`; it can't change after that.
+- **Cached apps keep their GPU memory**: Android 17 no longer sends
+  `TRIM_MEMORY_BACKGROUND` to cached apps, so without a cached app freezer
+  they kept their HWUI rendering context. Mali memory can't be swapped
+  (2.5-11.5 MB per app). `frameworks_base` 0022 sends it once when a
+  process that showed UI becomes cached, on low-RAM devices. The previous
+  app keeps its context until another app is opened.
 - **Root**: Magisk installs from TWRP; see below.
 
 Known issues:
