@@ -445,7 +445,10 @@ in patches. The main ones:
     sets the mode of fb0 to the size of the last layer in window 0;
   - sheared video shown at a width that isn't a multiple of 16 (e.g. a 4:3
     video in NewPipe), because FIMC wrote the picture with a narrower row
-    pitch than the display scanned it out with.
+    pitch than the display scanned it out with;
+  - a black screen while a video played as a small thumbnail (30 px wide):
+    the kernel rejects windows narrower than 128 bytes and every frame
+    failed. Such layers are composed on the GPU now.
 - **gralloc**: reading past the end of cloned buffer handles, which crashed
   apps that rotate while a video plays.
 - **Video encoder**: BGRA surface input is converted to NV12 on FIMC
@@ -607,8 +610,12 @@ Android 17 changes that needed fixes on top of the 23.2 port:
   `TRIM_MEMORY_BACKGROUND` to cached apps, so without a cached app freezer
   they kept their HWUI rendering context. Mali memory can't be swapped
   (2.5-11.5 MB per app). `frameworks_base` 0022 sends it once when a
-  process that showed UI becomes cached, on low-RAM devices. The previous
-  app keeps its context until another app is opened.
+  process that showed UI becomes cached, on low-RAM devices.
+  `galaxys2-common` also sets HWUI's `extremelowram` memory policy, which
+  destroys an app's GPU context 5 s after all its windows stop. That covers
+  the app last left and apps at foreground service priority (a music app
+  playing in the background), which Android 17 doesn't send background
+  trims to. Reopening an app takes about 100-200 ms longer.
 - **Root**: Magisk installs from TWRP; see below.
 
 Known issues:
