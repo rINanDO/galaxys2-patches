@@ -426,7 +426,9 @@ in patches. The main ones:
 - **Hardware composer overlays**: the full-screen app layer, the status bar
   and decoded video (scaled on FIMC) are scanned out on FIMD windows
   instead of being composed on the GPU, which roughly halves the jank in
-  Settings and app lists.
+  Settings and app lists. FIMC also rotates decoded video, so full-screen
+  landscape video no longer keeps the GPU 65-85% busy
+  (`debug.hwc.video_rotation=0` switches that off).
 - **Composer fixes**:
   - sync fence leaks: the HWC1 adapter hands the composer a new dup() of
     every layer's acquire fence on each frame, also for layers composed on
