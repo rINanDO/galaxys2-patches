@@ -1,0 +1,57 @@
+From 1e6d16ae92a700675525051b75d70f68eb836ae7 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 16 Nov 2026 05:00:36 +0100
+Subject: [PATCH 24/24] SystemUI: Reuse the media artwork colors when the
+ artwork is unchanged
+
+Apps republish the same artwork with every playback state or metadata
+update, for example when an app is relaunched on a rotation, and each
+bind extracts the colors from the bitmap again. Keep the last artwork
+and its colors, and reuse them when the new bitmap has the same pixels.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: Ie669e3684829f0f289acf8e9443874ada6ba0734
+---
+ .../ui/controller/MediaControlPanel.java      | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/media/controls/ui/controller/MediaControlPanel.java b/packages/SystemUI/src/com/android/systemui/media/controls/ui/controller/MediaControlPanel.java
+index b5763f1a01eb..e3348212b125 100644
+--- a/packages/SystemUI/src/com/android/systemui/media/controls/ui/controller/MediaControlPanel.java
++++ b/packages/SystemUI/src/com/android/systemui/media/controls/ui/controller/MediaControlPanel.java
+@@ -207,6 +207,9 @@ public class MediaControlPanel {
+     private boolean mIsArtworkBound = false;
+     private int mArtworkBoundId = 0;
+     private int mArtworkNextBindRequestId = 0;
++    // Last artwork bitmap that colors were extracted from, and the result.
++    private Bitmap mLastColorArtwork = null;
++    private WallpaperColors mLastArtworkColors = null;
+     private boolean mPageArrowsVisible = false;
+ 
+     private final KeyguardStateController mKeyguardStateController;
+@@ -991,7 +994,21 @@ public class MediaControlPanel {
+                     Log.d(TAG, "Cannot load wallpaper color from a recycled bitmap");
+                     return null;
+                 }
+-                return WallpaperColors.fromBitmap(artworkBitmap);
++                // Apps republish the same artwork with every playback state or metadata
++                // update, and extracting colors from it is expensive. Reuse the previous
++                // result when the pixels are unchanged.
++                synchronized (this) {
++                    if (mLastColorArtwork != null && !mLastColorArtwork.isRecycled()
++                            && artworkBitmap.sameAs(mLastColorArtwork)) {
++                        return mLastArtworkColors;
++                    }
++                }
++                WallpaperColors colors = WallpaperColors.fromBitmap(artworkBitmap);
++                synchronized (this) {
++                    mLastColorArtwork = artworkBitmap;
++                    mLastArtworkColors = colors;
++                }
++                return colors;
+             } else {
+                 Drawable artworkDrawable = artworkIcon.loadDrawable(mContext);
+                 if (artworkDrawable != null) {
+-- 
+2.51.0
+

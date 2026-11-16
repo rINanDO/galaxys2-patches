@@ -1,0 +1,93 @@
+From 1f61d100d268f99fdcc0252d21a85a6ea4cb007b Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 16 Nov 2026 05:00:35 +0100
+Subject: [PATCH 23/24] SystemUI: Defer the lockscreen layout refresh while
+ unlocked
+
+Every configuration change, such as a rotation, rebuilds the lockscreen
+ConstraintSet and runs a blueprint transition, also while the device is
+unlocked and nobody can see the lockscreen. On a slow device this took
+about 0.3 s of SystemUI's main thread per rotation.
+
+While the last started keyguard transition goes to GONE, only mark the
+layout stale, and refresh it once a transition away from GONE starts.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I7316a0cf735be084a74f6d542514358fb0d557af
+---
+ .../interactor/KeyguardBlueprintInteractor.kt | 24 ++++++++++++++++---
+ .../KeyguardBlueprintInteractorKosmos.kt      |  1 +
+ 2 files changed, 22 insertions(+), 3 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/keyguard/domain/interactor/KeyguardBlueprintInteractor.kt b/packages/SystemUI/src/com/android/systemui/keyguard/domain/interactor/KeyguardBlueprintInteractor.kt
+index 046084771f66..770ac8a1e71f 100644
+--- a/packages/SystemUI/src/com/android/systemui/keyguard/domain/interactor/KeyguardBlueprintInteractor.kt
++++ b/packages/SystemUI/src/com/android/systemui/keyguard/domain/interactor/KeyguardBlueprintInteractor.kt
+@@ -25,6 +25,7 @@ import com.android.systemui.dagger.SysUISingleton
+ import com.android.systemui.dagger.qualifiers.Application
+ import com.android.systemui.keyguard.data.repository.KeyguardBlueprintRepository
+ import com.android.systemui.keyguard.shared.model.KeyguardBlueprint
++import com.android.systemui.keyguard.shared.model.KeyguardState
+ import com.android.systemui.keyguard.ui.view.layout.blueprints.DefaultKeyguardBlueprint
+ import com.android.systemui.keyguard.ui.view.layout.blueprints.SplitShadeKeyguardBlueprint
+ import com.android.systemui.keyguard.ui.view.layout.blueprints.transitions.IntraBlueprintTransition.Config
+@@ -34,6 +35,7 @@ import com.android.systemui.scene.shared.flag.SceneContainerFlag
+ import com.android.systemui.shade.ShadeDisplayAware
+ import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
+ import com.android.systemui.shade.shared.model.ShadeMode
++import java.util.concurrent.atomic.AtomicBoolean
+ import javax.inject.Inject
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.flow.StateFlow
+@@ -50,6 +52,7 @@ constructor(
+     @ShadeDisplayAware private val configurationInteractor: ConfigurationInteractor,
+     private val fingerprintPropertyInteractor: FingerprintPropertyInteractor,
+     private val smartspaceSection: SmartspaceSection,
++    private val keyguardTransitionInteractor: KeyguardTransitionInteractor,
+ ) : CoreStartable {
+     /** The current blueprint for the lockscreen. */
+     val blueprint: StateFlow<KeyguardBlueprint> = keyguardBlueprintRepository.blueprint
+@@ -77,11 +80,26 @@ constructor(
+                 .filter { it }
+                 .collect { refreshBlueprint() }
+         }
++        val refreshConfig = Config(Type.NoTransition, rebuildSections = listOf(smartspaceSection))
++        // Rebuilding the lockscreen layout is expensive, and while the device is unlocked
++        // nobody can see it. A configuration change such as a rotation then only marks the
++        // layout stale, and the refresh runs once a transition towards the lockscreen starts.
++        val refreshPending = AtomicBoolean(false)
+         applicationScope.launch {
+-            val refreshConfig =
+-                Config(Type.NoTransition, rebuildSections = listOf(smartspaceSection))
+             configurationInteractor.onAnyConfigurationChange.collect {
+-                refreshBlueprint(refreshConfig)
++                if (keyguardTransitionInteractor.startedKeyguardTransitionStep.value.to ==
++                        KeyguardState.GONE) {
++                    refreshPending.set(true)
++                } else {
++                    refreshBlueprint(refreshConfig)
++                }
++            }
++        }
++        applicationScope.launch {
++            keyguardTransitionInteractor.startedKeyguardTransitionStep.collect { step ->
++                if (step.to != KeyguardState.GONE && refreshPending.getAndSet(false)) {
++                    refreshBlueprint(refreshConfig)
++                }
+             }
+         }
+     }
+diff --git a/packages/SystemUI/tests/utils/src/com/android/systemui/keyguard/domain/interactor/KeyguardBlueprintInteractorKosmos.kt b/packages/SystemUI/tests/utils/src/com/android/systemui/keyguard/domain/interactor/KeyguardBlueprintInteractorKosmos.kt
+index 19aaa285b6a7..03c113b3b705 100644
+--- a/packages/SystemUI/tests/utils/src/com/android/systemui/keyguard/domain/interactor/KeyguardBlueprintInteractorKosmos.kt
++++ b/packages/SystemUI/tests/utils/src/com/android/systemui/keyguard/domain/interactor/KeyguardBlueprintInteractorKosmos.kt
+@@ -33,5 +33,6 @@ val Kosmos.keyguardBlueprintInteractor by
+             configurationInteractor = configurationInteractor,
+             fingerprintPropertyInteractor = fingerprintPropertyInteractor,
+             smartspaceSection = keyguardSmartspaceSection,
++            keyguardTransitionInteractor = keyguardTransitionInteractor,
+         )
+     }
+-- 
+2.51.0
+

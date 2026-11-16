@@ -618,6 +618,19 @@ Android 17 changes that needed fixes on top of the 23.2 port:
   the app last left and apps at foreground service priority (a music app
   playing in the background), which Android 17 doesn't send background
   trims to. Reopening an app takes about 100-200 ms longer.
+- **SystemUI work on a rotation** (`frameworks_base` 0023-0024): SystemUI
+  rebuilt the lockscreen layout on every configuration change, also while
+  the phone was unlocked, and extracted the media player colors again each
+  time an app republished the same artwork. 0023 defers the lockscreen
+  refresh until a transition to the lockscreen starts, and 0024 reuses the
+  colors while the artwork's pixels are unchanged. SystemUI's CPU time for
+  a rotation during video playback went from about 40-50 % to 20-28 % of a
+  core over 6 s.
+- **Video playing too fast without sound**: once a pcm write failed, every
+  later write failed too and returned at once, so players that follow the
+  audio clock raced through the video. `galaxys2-common`'s audio HAL now
+  closes and reopens the pcm device after a failed write, and waits for as
+  long as the buffer would have played.
 - **Root**: Magisk installs from TWRP; see below.
 
 Known issues:
