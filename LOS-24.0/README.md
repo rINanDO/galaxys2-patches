@@ -426,9 +426,11 @@ in patches. The main ones:
 - **Hardware composer overlays**: the full-screen app layer, the status bar
   and decoded video (scaled on FIMC) are scanned out on FIMD windows
   instead of being composed on the GPU, which roughly halves the jank in
-  Settings and app lists. FIMC also rotates decoded video, so full-screen
-  landscape video no longer keeps the GPU 65-85% busy
-  (`debug.hwc.video_rotation=0` switches that off).
+  Settings and app lists. FIMC also rotates hardware-decoded video, so
+  full-screen landscape video no longer keeps the GPU 65-85% busy
+  (`debug.hwc.video_rotation=0` switches that off). The camera preview is
+  not rotated on FIMC: the camera keeps FIMC2 for recording while it is
+  open, and recordings stayed empty.
 - **Composer fixes**:
   - sync fence leaks: the HWC1 adapter hands the composer a new dup() of
     every layer's acquire fence on each frame, also for layers composed on
@@ -450,7 +452,10 @@ in patches. The main ones:
     pitch than the display scanned it out with;
   - a black screen while a video played as a small thumbnail (30 px wide):
     the kernel rejects windows narrower than 128 bytes and every frame
-    failed. Such layers are composed on the GPU now.
+    failed. Such layers are composed on the GPU now;
+  - a kernel panic (the phone rebooted) when the camera opened while FIMC2
+    rotated a layer: once the camera had set FIMC2 up for capture, the
+    kernel sent the composer's interrupt to the capture handler.
 - **gralloc**: reading past the end of cloned buffer handles, which crashed
   apps that rotate while a video plays.
 - **Video encoder**: BGRA surface input is converted to NV12 on FIMC
@@ -511,12 +516,21 @@ in patches. The main ones:
   (`ro.hw_timeout_multiplier=2`); the boot animation runs at 30 fps
   (every 2nd frame) with full-size 480x160 frames; the stock 60 fps
   animation cost 13-21 s of boot time.
-- **App compilation**: system apps are compiled with `speed`. Installed
-  apps are installed with `verify`, because compiling them at install time
-  made installing a large app take a minute or more, and background dexopt
-  compiles them with `speed-profile` when the phone is idle, using the
-  profile ART records while the app runs. `speed` made the code of large
-  apps much bigger (89 MB of dex: 15 MB odex with `speed-profile`).
+- **App compilation**: the kernel has no userfaultfd, so ART runs the CC
+  collector, and code compiled for the default CMC collector is rejected
+  (`Read barrier state mismatch`): the boot image was compiled again on the
+  phone and the system apps ran verified only. AOSP's
+  `default_art_config.mk` overrides `PRODUCT_ENABLE_UFFD_GC`, so
+  `galaxys2-common` sets `OVERRIDE_ENABLE_UFFD_GC := false`. SystemUI, the
+  launcher and the setup wizard are compiled with `speed`; the other system
+  apps are verified (with `speed` they took 500 MB, more than /system
+  holds). Installed apps are installed with `verify`, because compiling
+  them at install time made installing a large app take a minute or more.
+  Background dexopt compiles apps with `speed-profile` when the phone is
+  idle and charging, using the profile ART records while the app runs;
+  after an update, `adb shell cmd package bg-dexopt-job` does it at once
+  (about 5 minutes). `speed` made the code of large apps much bigger (89
+  MB of dex: 15 MB odex with `speed-profile`) and their cold starts slower.
 - **Wi-Fi**: Software PNO is enabled, so Wi-Fi reconnects with the screen
   off. Wi-Fi uses IPv4 only, so router neighbor checks no longer keep the
   phone awake. The Wi-Fi driver reads and writes `/data/.psm.info`,
