@@ -1,0 +1,62 @@
+From 61f63e58baa42aab169d621c38db07a150cf67fc Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 17 Nov 2026 07:43:18 +0100
+Subject: [PATCH 25/25] WindowManager: Hold the boot animation only on the first boot
+
+Waiting for the CPU to settle kept the boot animation up for up to 180 s
+on every boot. Only wait while the device isn't provisioned yet, so the
+setup wizard starts on a settled phone; later boots show the home screen
+as soon as it is ready.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Change-Id: I3e534c00559166becc0bded2aa70b100da3800d0
+---
+ .../server/wm/WindowManagerService.java        | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/wm/WindowManagerService.java b/services/core/java/com/android/server/wm/WindowManagerService.java
+index 55c6632da007..092dbeecceb9 100644
+--- a/services/core/java/com/android/server/wm/WindowManagerService.java
++++ b/services/core/java/com/android/server/wm/WindowManagerService.java
+@@ -731,6 +731,7 @@ public class WindowManagerService extends IWindowManager.Stub
+     boolean mBootAnimationStopped = false;
+     private boolean mBootSettleWaitStarted = false;
+     private boolean mBootSettled = false;
++    private Boolean mBootSettleWanted = null;
+     long mBootWaitForWindowsStartTime = -1;
+     boolean mThemeReady = true;
+ 
+@@ -4402,7 +4403,7 @@ public class WindowManagerService extends IWindowManager.Stub
+                 }
+             }
+ 
+-            if (mSystemBooted && !mBootSettled) {
++            if (mSystemBooted && !mBootSettled && isBootSettleWanted()) {
+                 if (!mBootSettleWaitStarted) {
+                     mBootSettleWaitStarted = true;
+                     final Thread thread =
+@@ -4459,6 +4460,21 @@ public class WindowManagerService extends IWindowManager.Stub
+         }
+     }
+ 
++    /**
++     * Holds the boot animation only on the first boot, while the device isn't provisioned yet:
++     * the setup wizard then starts on a settled phone. Other boots show the home screen as soon
++     * as it is ready.
++     */
++    private boolean isBootSettleWanted() {
++        if (mBootSettleWanted == null) {
++            mBootSettleWanted = Settings.Global.getInt(mContext.getContentResolver(),
++                    Settings.Global.DEVICE_PROVISIONED, 0) == 0;
++            Slog.i(TAG_WM, "Boot settle wait " + (mBootSettleWanted ? "on" : "off")
++                    + " (device provisioned: " + !mBootSettleWanted + ")");
++        }
++        return mBootSettleWanted;
++    }
++
+     /**
+      * Finishes booting behind the boot animation, so that BOOT_COMPLETED and the app startup it
+      * causes are over before the user gets the phone.
+-- 
+2.51.0
+
