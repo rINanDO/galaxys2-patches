@@ -240,7 +240,9 @@ on.
   app starts still kept both cores busy, so the first minute of use was
   slow and prone to ANRs. WindowManager now keeps the boot animation up
   (with the screen on) until the CPU has been under 50% busy for three
-  2-second samples, or for 180 s at most.
+  2-second samples, or for 180 s at most. Since 0025 it only does that on
+  the first boot after a wipe, so the setup wizard starts on a settled
+  phone; later boots reach the home screen as soon as it is ready.
 - **Screen staying on during the boot settle** (`frameworks_base` 0018):
   SystemUI remembers whether the phone was asleep so that a SystemUI
   restart doesn't leave the screen on, but the setting survived reboots.
@@ -368,7 +370,8 @@ in patches. The main ones:
 - **Camera**: the M5MO frame rate register runs ~10% fast and is
   calibrated, so 24 and 25 fps video is close to 24 and 25 fps. The FIMC
   capture path selects the camera input when it starts, so recording works
-  after a video was played through FIMC.
+  after a video was played through FIMC. When the camera app is killed
+  while recording, FIMC2 is still stopped, so later recordings don't fail.
 - **Memory layout**: FIMC0 has enough memory for 720p preview, the ION
   contiguous heap is 52 MB for the hardware encoder and the composer, and
   the FIMD, JPEG and FIMC3 reservations are trimmed to what is used
@@ -461,6 +464,12 @@ in patches. The main ones:
 - **Video encoder**: BGRA surface input is converted to NV12 on FIMC
   instead of NEON, and camera HAL frames are encoded in place, which makes
   zero-copy 720p and 1080p recording possible.
+- **Video decoder**: the NV12T output of the decoders is converted on FIMC0
+  straight into the display buffer (`BOARD_USE_CSC_FIMC`) instead of NEON,
+  which cut media.codec from 30-43% to about 14% of the CPU during 720p
+  playback, and portrait video drops fewer frames. The OSAL now looks up
+  the plane addresses of gralloc buffers, and libfimc passes the
+  destination with `V4L2_CID_DST_INFO` and knows the tiled formats.
 - **GNSS wakelocks**: the GNSS service used `/dev/vndbinder` as its default
   binder, so libpower couldn't find `ISystemSuspend` and the HAL got no
   wakelocks during a fix (`Failed to get SystemSuspend service`). It stays
