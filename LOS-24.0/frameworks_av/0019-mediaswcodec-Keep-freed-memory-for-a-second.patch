@@ -1,0 +1,45 @@
+From 14b03841e26e9c59068c0e7ab1b9740b2eb129d4 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 17 Nov 2026 22:37:11 +0100
+Subject: [PATCH] mediaswcodec: Keep freed memory for a second
+
+Native processes run with the allocator's default decay time of 0, so
+every free() of a large buffer goes back to the kernel at once and the
+next malloc() maps, names and zeroes it again. The AAC decoder did that
+with two buffers (20 KB and 12 KB) on every frame. Use a decay time of
+one second, as the Zygote sets for apps.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G5iyKS6HLKv7fpZZf1pvxH
+Change-Id: I0f94f3dacb59c1f34943bffcce549e4efffde5fd
+---
+ services/mediacodec/main_swcodecservice.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/services/mediacodec/main_swcodecservice.cpp b/services/mediacodec/main_swcodecservice.cpp
+index 9aa5d3df73..78becbbf4e 100644
+--- a/services/mediacodec/main_swcodecservice.cpp
++++ b/services/mediacodec/main_swcodecservice.cpp
+@@ -16,6 +16,7 @@
+ */
+ 
+ #include <android-base/logging.h>
++#include <malloc.h>
+ 
+ // from LOCAL_C_INCLUDES
+ #include "minijail.h"
+@@ -37,6 +38,11 @@ int main(int argc __unused, char** argv)
+ {
+     LOG(INFO) << "media swcodec service starting";
+     signal(SIGPIPE, SIG_IGN);
++    // The codecs allocate and free their per-frame buffers all the time.
++    // With the native default decay time of 0, every free() of a large
++    // buffer goes back to the kernel at once and the next malloc() maps
++    // and zeroes it again. Keep freed memory for a second, as apps do.
++    mallopt(M_DECAY_TIME, 1);
+     SetUpMinijail(kSystemSeccompPolicyPath, kVendorSeccompPolicyPath);
+     strcpy(argv[0], "media.swcodec");
+ 
+-- 
+2.51.0
+

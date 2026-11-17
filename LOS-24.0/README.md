@@ -260,6 +260,13 @@ on.
   LOS-20.0 0003 (no installd timeouts) is obsolete: installd now waits
   without a timeout when `pidfd_open` fails, which it always does on
   Linux 3.0.
+- **Allocator churn during video playback** (`frameworks_native` 0006,
+  `frameworks_av` 0019): native processes free memory with a decay time
+  of 0, so SurfaceFlinger mapped and zeroed a fresh page about 90 times a
+  second, and the AAC decoder in `media.swcodec` did the same with two
+  buffers per frame. Both now keep freed memory for a second, as apps do.
+  At 800 MHz during 480p playback, SurfaceFlinger's main thread drops from
+  about 22% to 18% of one core.
 - **adb over USB** (`packages_modules_adb`): adbd only does asynchronous
   USB I/O, which this kernel's FunctionFS doesn't support. adbd now falls
   back to the old blocking FunctionFS code when the first asynchronous read
