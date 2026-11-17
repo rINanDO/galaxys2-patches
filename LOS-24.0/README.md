@@ -344,6 +344,13 @@ in patches. The main ones:
   about 1 MB of vmalloc on this kernel, and the bootloader's `vmalloc=144m`
   ran out ("Binder driver could not be opened"). The kernel now reserves
   256 MB, and a later `vmalloc=` can no longer shrink it.
+- **Slow mmap in apps with many mappings**: Linux 3.0 found a free address
+  range by walking the vma list, and media apps have thousands of vmas
+  (NewPipe about 3700) while Codec2 maps an ION buffer per audio frame.
+  The `vm_unmapped_area()` search from Linux 3.8 is backported, with its
+  rbtree gap tracking built on 3.0's `rb_augment_*` helpers. During 720p60
+  playback in NewPipe, `find_vma` dropped from about 4% of all CPU time to
+  below 0.3%.
 - **Hang on reboot or shutdown**: removing a per-app memory cgroup could
   loop forever in `mem_cgroup_force_empty` when a charge was stuck, which
   hung init. The loop now gives up after 1 s.
