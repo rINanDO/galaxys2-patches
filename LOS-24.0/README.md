@@ -663,6 +663,12 @@ Android 17 changes that needed fixes on top of the 23.2 port:
   colors while the artwork's pixels are unchanged. SystemUI's CPU time for
   a rotation during video playback went from about 40-50 % to 20-28 % of a
   core over 6 s.
+- **Slow volume panel** (`frameworks_base` 0026): SystemUI built the volume
+  dialog again on every key press and read the Lineage panel-side setting
+  from system_server each time it showed, which took up to 840 ms during
+  video playback. 0026 keeps the dialog while the configuration is
+  unchanged and reads the setting once. With a video playing, the panel
+  still takes about 0.5-1 s to appear; the rest is CPU contention.
 - **Video playing too fast without sound**: once a pcm write failed, every
   later write failed too and returned at once, so players that follow the
   audio clock raced through the video. `galaxys2-common`'s audio HAL now

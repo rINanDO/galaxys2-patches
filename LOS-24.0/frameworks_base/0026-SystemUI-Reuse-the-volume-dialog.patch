@@ -1,0 +1,179 @@
+From d66acaa62cf54c66d444f156530f772225d6b307 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Wed, 18 Nov 2026 07:35:46 +0100
+Subject: [PATCH] SystemUI: Reuse the volume dialog
+
+The volume dialog was built from scratch on every volume key press, and
+each time it showed, it read the Lineage panel-side setting from
+system_server on the main thread. On a slow device that adds to the
+delay before the panel appears, and the settings read took up to 840 ms
+while a video played.
+
+Keep the dialog and show it again while the configuration it was built
+with is unchanged. Read the panel side once when the dialog is created
+and follow changes through the content observer.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G5iyKS6HLKv7fpZZf1pvxH
+Change-Id: Id86c65ab59b44b90aebc6e27fddb5ec1f687e8ed
+---
+ .../systemui/volume/dialog/VolumeDialog.kt    | 37 ++++++++++-----
+ .../viewmodel/VolumeDialogPluginViewModel.kt  | 47 ++++++++++++++++---
+ 2 files changed, 64 insertions(+), 20 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/volume/dialog/VolumeDialog.kt b/packages/SystemUI/src/com/android/systemui/volume/dialog/VolumeDialog.kt
+index 1951a8b48a3b..96bc61a3705c 100644
+--- a/packages/SystemUI/src/com/android/systemui/volume/dialog/VolumeDialog.kt
++++ b/packages/SystemUI/src/com/android/systemui/volume/dialog/VolumeDialog.kt
+@@ -57,6 +57,7 @@ constructor(
+     }
+ 
+     private var volumePanelOnLeft: Boolean = false
++    private var observerRegistered = false
+ 
+     private val volumePanelOnLeftObserver =
+         object : ContentObserver(Handler(Looper.getMainLooper())) {
+@@ -125,6 +126,20 @@ constructor(
+ 
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
++        // The dialog is kept and shown again, so read the panel side once and
++        // follow changes through the observer, instead of asking the settings
++        // provider in system_server on the main thread every time it shows.
++        context.contentResolver.registerContentObserver(
++            LineageSettings.Secure.getUriFor(LineageSettings.Secure.VOLUME_PANEL_ON_LEFT),
++            false,
++            volumePanelOnLeftObserver,
++            UserHandle.USER_ALL
++        )
++        volumePanelOnLeft = LineageSettings.Secure.getIntForUser(
++            context.contentResolver, LineageSettings.Secure.VOLUME_PANEL_ON_LEFT,
++            0, UserHandle.USER_CURRENT
++        ) != 0
++        observerRegistered = true
+         if (isVolumeDialogVertical) {
+             setContentView(R.layout.volume_dialog)
+         } else {
+@@ -144,22 +159,18 @@ constructor(
+ 
+     override fun onStart() {
+         super.onStart()
+-        context.contentResolver.registerContentObserver(
+-            LineageSettings.Secure.getUriFor(LineageSettings.Secure.VOLUME_PANEL_ON_LEFT),
+-            false,
+-            volumePanelOnLeftObserver,
+-            UserHandle.USER_ALL
+-        )
+-        volumePanelOnLeft = LineageSettings.Secure.getIntForUser(
+-            context.contentResolver, LineageSettings.Secure.VOLUME_PANEL_ON_LEFT,
+-            0, UserHandle.USER_CURRENT
+-        ) != 0
+         applyLayoutAndGravity()
+     }
+ 
+-    override fun onStop() {
+-        super.onStop()
+-        context.contentResolver.unregisterContentObserver(volumePanelOnLeftObserver)
++    /** Called when this dialog is no longer going to be shown. */
++    fun release() {
++        if (observerRegistered) {
++            context.contentResolver.unregisterContentObserver(volumePanelOnLeftObserver)
++            observerRegistered = false
++        }
++        if (isShowing) {
++            dismiss()
++        }
+     }
+ 
+     /**
+diff --git a/packages/SystemUI/src/com/android/systemui/volume/dialog/ui/viewmodel/VolumeDialogPluginViewModel.kt b/packages/SystemUI/src/com/android/systemui/volume/dialog/ui/viewmodel/VolumeDialogPluginViewModel.kt
+index c22f128ce2f9..4d47a21ba317 100644
+--- a/packages/SystemUI/src/com/android/systemui/volume/dialog/ui/viewmodel/VolumeDialogPluginViewModel.kt
++++ b/packages/SystemUI/src/com/android/systemui/volume/dialog/ui/viewmodel/VolumeDialogPluginViewModel.kt
+@@ -17,6 +17,7 @@
+ package com.android.systemui.volume.dialog.ui.viewmodel
+ 
+ import android.content.IntentFilter
++import android.content.res.Configuration
+ import com.android.internal.logging.UiEventLogger
+ import com.android.systemui.broadcast.BroadcastDispatcher
+ import com.android.systemui.settings.brightness.BrightnessDialog.ACTION_BRIGHTNESS_DIALOG_SHOWING
+@@ -34,6 +35,7 @@ import com.android.systemui.volume.dialog.shared.model.CsdWarningConfigModel
+ import com.android.systemui.volume.dialog.shared.model.VolumeDialogVisibilityModel
+ import com.android.systemui.volume.dialog.ui.VolumeDialogUiEvent
+ import javax.inject.Inject
++import kotlin.coroutines.Continuation
+ import kotlin.coroutines.resume
+ import kotlin.coroutines.suspendCoroutine
+ import kotlinx.coroutines.CoroutineScope
+@@ -62,6 +64,13 @@ constructor(
+     private val isVolumeDialogVertical = !expandedAudioTileDetailsFeatureInteractor.isEnabled()
+     private var dismissJob: Job? = null
+ 
++    // Building the dialog (inflation, window setup) takes a few hundred ms on
++    // slow devices, so keep one and show it again. It is rebuilt when the
++    // configuration it was built with has changed.
++    private var volumeDialog: VolumeDialog? = null
++    private var volumeDialogConfig: Configuration? = null
++    private var dismissContinuation: Continuation<Unit>? = null
++
+     fun launchVolumeDialog() {
+         dialogVisibilityInteractor.dialogVisibility
+             .onEach { visibilityModel ->
+@@ -80,6 +89,7 @@ constructor(
+                 }
+             }
+             .launchIn(coroutineScope)
++        coroutineScope.coroutineContext[Job]?.invokeOnCompletion { releaseDialog() }
+     }
+ 
+     val isShowingSafetyWarning: Flow<Boolean> = dialogSafetyWarningInteractor.isShowingSafetyWarning
+@@ -102,15 +112,38 @@ constructor(
+     }
+ 
+     private suspend fun showDialog(): Unit = suspendCoroutine { continuation ->
+-        volumeDialogFactory
+-            .create(isVolumeDialogVertical)
+-            .apply {
+-                setOnDismissListener {
+-                    dialogVisibilityInteractor.dismissDialog(Events.DISMISS_REASON_UNKNOWN)
+-                    continuation.resume(Unit)
++        dismissContinuation = continuation
++        getOrCreateDialog().show()
++    }
++
++    private fun getOrCreateDialog(): VolumeDialog {
++        volumeDialog?.let { dialog ->
++            val config = volumeDialogConfig
++            if (config != null && config.diff(dialog.context.resources.configuration) == 0) {
++                return dialog
++            }
++            releaseDialog()
++        }
++        return volumeDialogFactory.create(isVolumeDialogVertical).also { dialog ->
++            dialog.setOnDismissListener {
++                dialogVisibilityInteractor.dismissDialog(Events.DISMISS_REASON_UNKNOWN)
++                dismissContinuation?.let {
++                    dismissContinuation = null
++                    it.resume(Unit)
+                 }
+             }
+-            .show()
++            volumeDialog = dialog
++            volumeDialogConfig = Configuration(dialog.context.resources.configuration)
++        }
++    }
++
++    private fun releaseDialog() {
++        volumeDialog?.apply {
++            setOnDismissListener(null)
++            release()
++        }
++        volumeDialog = null
++        volumeDialogConfig = null
+     }
+ 
+     private fun registerDismissReceiver() {
+-- 
+2.51.0
+
