@@ -1,0 +1,254 @@
+From 1d3e2d0879fa83c7a3cf2147f9c0369be4f077e6 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 19 Nov 2026 09:05:57 +0100
+Subject: [PATCH] DisplayPowerController: Fade the screen in when it turns on
+
+With config_animateScreenLights the screen fades out through a black
+color layer, but the screen on branch dismisses the layer at once, so
+there is no fade in. A timed animation of the layer doesn't work on
+slow devices either: the display pipeline stalls for 100-300 ms at a
+time right after the panel turns on, so most of the animation frames
+never reach the display and the fade looks like a jump.
+
+Once the display state is applied, step the layer out in 8 steps. Each
+step waits until the previous one is on the display, which the
+transaction completed callback and its present fence report, and has
+been shown for at least 40 ms, or for at most 600 ms if the callback
+doesn't come.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G5iyKS6HLKv7fpZZf1pvxH
+Change-Id: I6322d55cec7c6616b79edc99761c3d1b0907c58c
+---
+ .../com/android/server/display/ColorFade.java | 43 +++++++++++++-
+ .../display/DisplayPowerController.java       | 56 +++++++++++++++++++
+ .../server/display/DisplayPowerState.java     | 18 ++++++
+ 3 files changed, 115 insertions(+), 2 deletions(-)
+
+diff --git a/services/core/java/com/android/server/display/ColorFade.java b/services/core/java/com/android/server/display/ColorFade.java
+index fa0a0b9714d2..196bdcf7d8c3 100644
+--- a/services/core/java/com/android/server/display/ColorFade.java
++++ b/services/core/java/com/android/server/display/ColorFade.java
+@@ -22,6 +22,7 @@ import android.content.Context;
+ import android.graphics.BLASTBufferQueue;
+ import android.graphics.PixelFormat;
+ import android.graphics.SurfaceTexture;
++import android.hardware.SyncFence;
+ import android.hardware.display.DisplayManagerInternal;
+ import android.hardware.display.DisplayManagerInternal.DisplayTransactionListener;
+ import android.opengl.EGL14;
+@@ -41,6 +42,7 @@ import android.view.SurfaceControl.Transaction;
+ import android.window.ScreenCaptureInternal;
+ 
+ import com.android.internal.annotations.VisibleForTesting;
++import com.android.internal.os.BackgroundThread;
+ import com.android.server.LocalServices;
+ import com.android.server.display.utils.DebugUtils;
+ import com.android.server.policy.WindowManagerPolicy;
+@@ -54,6 +56,8 @@ import java.io.PrintWriter;
+ import java.nio.ByteBuffer;
+ import java.nio.ByteOrder;
+ import java.nio.FloatBuffer;
++import java.time.Duration;
++import java.util.concurrent.Executor;
+ 
+ /**
+  * <p>
+@@ -79,6 +83,7 @@ final class ColorFade {
+     // be ready to run smoothly.  We use 3 frames because we are triple-buffered.
+     // See code for details.
+     private static final int DEJANK_FRAMES = 3;
++    private static final int PRESENT_FENCE_TIMEOUT_MILLIS = 500;
+ 
+     private static final int EGL_GL_COLORSPACE_KHR = 0x309D;
+     private static final int EGL_GL_COLORSPACE_DISPLAY_P3_PASSTHROUGH_EXT = 0x3490;
+@@ -96,6 +101,9 @@ final class ColorFade {
+     private int mDisplayWidth;      // real width, not rotated
+     private int mDisplayHeight;     // real height, not rotated
+     private SurfaceControl mSurfaceControl;
++    // Called once the next surface change is on the display.
++    private Executor mFrameExecutor;
++    private Runnable mFrameCallback;
+     private Surface mSurface;
+     private SurfaceControl mBLASTSurfaceControl;
+     private BLASTBufferQueue mBLASTBufferQueue;
+@@ -795,12 +803,43 @@ final class ColorFade {
+         }
+     }
+ 
++    /**
++     * Runs the callback once the next change to the color fade surface is on the display.
++     * Returns false if there is no surface.
++     */
++    public boolean runAfterNextFrame(Executor executor, Runnable callback) {
++        if (mSurfaceControl == null) {
++            return false;
++        }
++        mFrameExecutor = executor;
++        mFrameCallback = callback;
++        return true;
++    }
++
+     private boolean showSurface(float alpha) {
+         if (!mSurfaceVisible || mSurfaceAlpha != alpha) {
+             mTransaction.setLayer(mSurfaceControl, COLOR_FADE_LAYER)
+                     .setAlpha(mSurfaceControl, alpha)
+-                    .show(mSurfaceControl)
+-                    .apply();
++                    .show(mSurfaceControl);
++            if (mFrameCallback != null) {
++                final Runnable callback = mFrameCallback;
++                final Executor executor = mFrameExecutor;
++                // The transaction completes once SurfaceFlinger has composited it, but the
++                // GPU may still be busy with the composition: wait for the present fence,
++                // which signals once the frame is actually on the display.
++                mTransaction.addTransactionCompletedListener(BackgroundThread.getExecutor(),
++                        stats -> {
++                            try (SyncFence fence = stats.getPresentFence()) {
++                                if (fence.isValid()) {
++                                    fence.await(Duration.ofMillis(PRESENT_FENCE_TIMEOUT_MILLIS));
++                                }
++                            }
++                            executor.execute(callback);
++                        });
++                mFrameCallback = null;
++                mFrameExecutor = null;
++            }
++            mTransaction.apply();
+             mSurfaceVisible = true;
+             mSurfaceAlpha = alpha;
+         }
+diff --git a/services/core/java/com/android/server/display/DisplayPowerController.java b/services/core/java/com/android/server/display/DisplayPowerController.java
+index f839a319dbc7..36d0a54126b2 100644
+--- a/services/core/java/com/android/server/display/DisplayPowerController.java
++++ b/services/core/java/com/android/server/display/DisplayPowerController.java
+@@ -161,6 +161,11 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
+     private static final float SCREEN_ANIMATION_RATE_MINIMUM = 0.0f;
+ 
+     private static final int COLOR_FADE_OFF_ANIMATION_DURATION_MILLIS = 400;
++    // The screen on fade takes this many steps. Each one waits until the previous one is on
++    // the display and has been shown for the minimum time, or until the timeout.
++    private static final int COLOR_FADE_ON_STEPS = 8;
++    private static final int COLOR_FADE_ON_STEP_MIN_MILLIS = 40;
++    private static final int COLOR_FADE_ON_STEP_TIMEOUT_MILLIS = 600;
+ 
+     private static final int MSG_UPDATE_POWER_STATE = 1;
+     private static final int MSG_SCREEN_ON_UNBLOCKED = 2;
+@@ -442,6 +447,8 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
+ 
+     // Animators.
+     private ObjectAnimator mColorFadeOffAnimator;
++    // The step of the screen on fade, or -1 if it isn't running.
++    private int mColorFadeOnStep = -1;
+     private DualRampAnimator<DisplayPowerState> mScreenBrightnessRampAnimator;
+ 
+     // True if this DisplayPowerController has been stopped and should no longer be running.
+@@ -2219,6 +2226,10 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
+ 
+     private void animateScreenStateChange(
+             int target, @Display.StateReason int reason, boolean performScreenOffTransition) {
++        if (target != Display.STATE_ON) {
++            mColorFadeOnStep = -1;
++        }
++
+         // If there is already an animation in progress, don't interfere with it.
+         if (mColorFadeEnabled && mColorFadeOffAnimator.isStarted()) {
+             if (target != Display.STATE_ON) {
+@@ -2272,6 +2283,24 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
+             if (!setScreenState(Display.STATE_ON, reason)) {
+                 return; // screen on blocked
+             }
++            // The content is drawn: fade the black layer out. A timed animation loses most
++            // of its frames here, since the display pipeline stalls for 100-300 ms at a
++            // time after the panel turns on, so step the fade frame by frame instead.
++            if (mColorFadeEnabled && mColorFadeFadesConfig
++                    && mPowerState.isColorFadePrepared()
++                    && mPowerState.getColorFadeLevel() < 1.0f) {
++                if (mColorFadeOnStep < 0) {
++                    if (!mPowerState.waitUntilClean(mCleanListener)) {
++                        return; // display still turning on
++                    }
++                    mColorFadeOnStep = 0;
++                    advanceColorFadeOn(0);
++                }
++                if (mColorFadeOnStep < COLOR_FADE_ON_STEPS) {
++                    return;
++                }
++            }
++            mColorFadeOnStep = -1;
+             mPowerState.setColorFadeLevel(1.0f);
+             mPowerState.dismissColorFade();
+         } else if (target == Display.STATE_DOZE) {
+@@ -2364,6 +2393,32 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
+ 
+     private final Runnable mCleanListener = this::sendUpdatePowerState;
+ 
++    private void advanceColorFadeOn(int fromStep) {
++        if (mColorFadeOnStep != fromStep) {
++            return; // the screen state changed, or the other trigger already advanced
++        }
++        final int step = fromStep + 1;
++        mColorFadeOnStep = step;
++        if (step >= COLOR_FADE_ON_STEPS) {
++            sendUpdatePowerState();
++            return;
++        }
++        // Advance once the step is on the display, but not faster than the minimum step
++        // time: at full frame rate the fade would otherwise be over too quickly to see.
++        final long stepTime = SystemClock.uptimeMillis();
++        mPowerState.runAfterNextColorFadeFrame(mHandler::post, () -> {
++            final long remaining = stepTime + COLOR_FADE_ON_STEP_MIN_MILLIS
++                    - SystemClock.uptimeMillis();
++            if (remaining > 0) {
++                mHandler.postDelayed(() -> advanceColorFadeOn(step), remaining);
++            } else {
++                advanceColorFadeOn(step);
++            }
++        });
++        mHandler.postDelayed(() -> advanceColorFadeOn(step), COLOR_FADE_ON_STEP_TIMEOUT_MILLIS);
++        mPowerState.setColorFadeLevel((float) step / COLOR_FADE_ON_STEPS);
++    }
++
+     private void sendOnStateChangedWithWakelock() {
+         boolean wakeLockAcquired = mWakelockController.acquireWakelock(
+                 WakelockController.WAKE_LOCK_STATE_CHANGED);
+@@ -2650,6 +2705,7 @@ final class DisplayPowerController implements AutomaticBrightnessController.Call
+             pw.println("  mColorFadeOffAnimator.isStarted()="
+                     + mColorFadeOffAnimator.isStarted());
+         }
++        pw.println("  mColorFadeOnStep=" + mColorFadeOnStep);
+ 
+         pw.println();
+         if (mPowerState != null) {
+diff --git a/services/core/java/com/android/server/display/DisplayPowerState.java b/services/core/java/com/android/server/display/DisplayPowerState.java
+index 12afee2066c3..89baf3c857a0 100644
+--- a/services/core/java/com/android/server/display/DisplayPowerState.java
++++ b/services/core/java/com/android/server/display/DisplayPowerState.java
+@@ -265,6 +265,24 @@ final class DisplayPowerState {
+         mColorFadeReady = true;
+     }
+ 
++    /**
++     * Runs the callback once the next change to the color fade surface is on the display,
++     * or right away if there is no color fade surface.
++     */
++    public void runAfterNextColorFadeFrame(Executor executor, Runnable callback) {
++        if (mColorFade == null || !mColorFadePrepared
++                || !mColorFade.runAfterNextFrame(executor, callback)) {
++            executor.execute(callback);
++        }
++    }
++
++    /**
++     * Returns true if the color fade surface is prepared.
++     */
++    public boolean isColorFadePrepared() {
++        return mColorFadePrepared;
++    }
++
+    /**
+      * Dismisses the color fade resources.
+      */
+-- 
+2.51.0
+

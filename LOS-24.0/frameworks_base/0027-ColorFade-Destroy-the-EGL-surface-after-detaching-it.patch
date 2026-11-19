@@ -1,0 +1,59 @@
+From 3fa57b3222f73ef34fd21b21212aaf5705cddc11 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 19 Nov 2026 09:05:47 +0100
+Subject: [PATCH] ColorFade: Destroy the EGL surface after detaching it
+
+dismissResources() and destroy() destroyed the EGL surface while it
+was still current. EGL then only marks the surface for deletion, but
+libEGL disconnects its window as soon as eglDestroySurface() returns.
+The Mali-400 driver still holds a dequeued buffer at that point and
+cancels it only when the surface is released at eglMakeCurrent(), so
+BufferQueue freed a buffer that was still dequeued
+("clearBuffersForDisconnectLocked: 1 buffers were freed while being
+dequeued!", "Surface::cancelBuffer given a leaked buffer!"). On older
+releases this crashed system_server when the screen turned off.
+
+Destroy the surface after the context is detached.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G5iyKS6HLKv7fpZZf1pvxH
+Change-Id: I8399753b4ffe18e4bef59fa110b53d1e159ad685
+---
+ .../core/java/com/android/server/display/ColorFade.java   | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/services/core/java/com/android/server/display/ColorFade.java b/services/core/java/com/android/server/display/ColorFade.java
+index 49e18b75276e..fa0a0b9714d2 100644
+--- a/services/core/java/com/android/server/display/ColorFade.java
++++ b/services/core/java/com/android/server/display/ColorFade.java
+@@ -380,10 +380,14 @@ final class ColorFade {
+                 destroyScreenshotTexture();
+                 destroyGLShaders();
+                 destroyGLBuffers();
+-                destroyEglSurface();
+             } finally {
+                 detachEglContext();
+             }
++            // Destroy the surface only once it is no longer current. A current
++            // surface is only marked for deletion, but libEGL disconnects its
++            // window right away, while the driver may still hold a dequeued
++            // buffer that it cancels when the surface is finally released.
++            destroyEglSurface();
+             // This is being called with no active context so shouldn't be
+             // needed but is safer to not change for now.
+             GLES20.glFlush();
+@@ -427,10 +431,10 @@ final class ColorFade {
+                     destroyScreenshotTexture();
+                     destroyGLShaders();
+                     destroyGLBuffers();
+-                    destroyEglSurface();
+                 } finally {
+                     detachEglContext();
+                 }
++                destroyEglSurface();
+             }
+             destroyEglContext();
+             destroySurface();
+-- 
+2.51.0
+

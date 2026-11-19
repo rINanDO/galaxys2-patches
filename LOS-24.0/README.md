@@ -219,9 +219,9 @@ on.
   Replaced by settings that 23.2 already has, to be set in the device
   tree:
   - 0017 (brightness slider curve): `sys.brightness.disable_gamma_conversion=true`;
-  - 0021 (`ro.displaypower.colorfade`): the `config_displayColorFadeDisabled`
-    overlay. 0020 (ColorFade EGL crash) isn't needed while ColorFade is
-    off.
+  - 0021 (`ro.displaypower.colorfade`): `config_forceColorFade`, which
+    turns ColorFade on despite `ro.config.low_ram`. 0020 (ColorFade EGL
+    crash) is replaced by 0027, which fixes the cause.
 
   Not ported: 0013 (this device has no fingerprint or face sensor), 0014
   (ignore a `SensorPrivacyService` permission error, a hack with an unknown
@@ -669,6 +669,15 @@ Android 17 changes that needed fixes on top of the 23.2 port:
   video playback. 0026 keeps the dialog while the configuration is
   unchanged and reads the setting once. With a video playing, the panel
   still takes about 0.5-1 s to appear; the rest is CPU contention.
+- **Screen fade** (`frameworks_base` 0027-0028): ColorFade used to be off,
+  since it crashed when the screen turned off. It destroyed its EGL surface
+  while the surface was still current, so libEGL disconnected the window
+  while the Mali driver still held a dequeued buffer. 0027 destroys the
+  surface after the context is detached. The screen now fades out with a
+  black layer (`config_animateScreenLights`) and, with 0028, fades in
+  again: the fade steps wait until each step is on the display, since the
+  display pipeline stalls for 100-300 ms after the panel turns on and a
+  timed animation lost most of its frames.
 - **Video playing too fast without sound**: once a pcm write failed, every
   later write failed too and returned at once, so players that follow the
   audio clock raced through the video. `galaxys2-common`'s audio HAL now
