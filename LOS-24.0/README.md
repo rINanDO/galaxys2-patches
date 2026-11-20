@@ -88,12 +88,9 @@ aborts that and resets the patched repos with `repo sync`.
 - Device, kernel, hardware and vendor repos are forks listed in
   `galaxys2-24.0.xml`. `galaxys2-common`, `i9100` and the kernel use
   `lineage-24.0`, branched from `lineage-23.2`. `hardware/samsung` uses
-  `lineage-24.0-exynos4`,
-  branched from `lineage-23.2-exynos4`, the only branch with the exynos4
-  HALs. The GCC 4.9
-  toolchain and `vendor/samsung` stay on `lineage-20.0` (the only branch with
-  the i9100 blobs).
-
+  `lineage-24.0-exynos4`, branched from `lineage-23.2-exynos4`, the only
+  branch with the exynos4 HALs. The GCC 4.9 toolchain and `vendor/samsung`
+  stay on `lineage-20.0` (the only branch with the i9100 blobs).
 
 ## What the patches address
 
@@ -221,7 +218,7 @@ on.
   - 0017 (brightness slider curve): `sys.brightness.disable_gamma_conversion=true`;
   - 0021 (`ro.displaypower.colorfade`): `config_forceColorFade`, which
     turns ColorFade on despite `ro.config.low_ram`. 0020 (ColorFade EGL
-    crash) is replaced by 0027, which fixes the cause.
+    crash) is replaced by this repo's 0027, which fixes the cause.
 
   Not ported: 0013 (this device has no fingerprint or face sensor), 0014
   (ignore a `SensorPrivacyService` permission error, a hack with an unknown
@@ -386,6 +383,17 @@ in patches. The main ones:
   capture path selects the camera input when it starts, so recording works
   after a video was played through FIMC. When the camera app is killed
   while recording, FIMC2 is still stopped, so later recordings don't fail.
+  When another user of the same FIMC (the decoder's colour conversion)
+  closes it, the capture keeps running; only the file that set the capture
+  up, or the last user, stops it and unloads the sensor.
+- **720p60 video after a quality switch or seek**: on Exynos4210 the bus
+  level also sets the FIMC clock, and 720p decoding only locked the bus at
+  L1 (FIMC at 133 MHz), where converting a frame takes 9-11 ms instead of
+  7.3 ms. A bus lock could also lower the bus below the level the monitor
+  had set, and the monitor, which only runs on cpufreq changes, never raised
+  it again while the CPU stayed at 1.2 GHz. The player showed about 9 fps
+  for 20-30 s while it caught up. Locks now only raise the bus, and MFC
+  locks L0 from 720p up; the catch-up takes 3-5 s.
 - **Memory layout**: FIMC0 has enough memory for 720p preview, the ION
   contiguous heap is 52 MB for the hardware encoder and the composer, and
   the FIMD, JPEG and FIMC3 reservations are trimmed to what is used
@@ -473,15 +481,21 @@ in patches. The main ones:
   - a kernel panic (the phone rebooted) when the camera opened while FIMC2
     rotated a layer: once the camera had set FIMC2 up for capture, the
     kernel sent the composer's interrupt to the capture handler.
-- **gralloc**: reading past the end of cloned buffer handles, which crashed
-  apps that rotate while a video plays.
+- **gralloc**:
+  - reading past the end of cloned buffer handles, which crashed apps that
+    rotate while a video plays;
+  - a cloned handle registered after the original was freed: the UMP
+    secure ID is gone by then, and `media.swcodec` aborted in libUMP. The
+    buffer is imported from the clone's ION fd again.
 - **Video encoder**: BGRA surface input is converted to NV12 on FIMC
   instead of NEON, and camera HAL frames are encoded in place, which makes
   zero-copy 720p and 1080p recording possible.
-- **Video decoder**: the NV12T output of the decoders is converted on FIMC0
+- **Video decoder**: the NV12T output of the decoders is converted on FIMC1
   straight into the display buffer (`BOARD_USE_CSC_FIMC`) instead of NEON,
   which cut media.codec from 30-43% to about 14% of the CPU during 720p
-  playback, and portrait video drops fewer frames. The OSAL now looks up
+  playback, and portrait video drops fewer frames. FIMC1 is the one FIMC
+  nothing else uses: the rear camera captures on FIMC0, and the front
+  camera and the composer use FIMC2. The OSAL now looks up
   the plane addresses of gralloc buffers, and libfimc passes the
   destination with `V4L2_CID_DST_INFO` and knows the tiled formats.
 - **GNSS wakelocks**: the GNSS service used `/dev/vndbinder` as its default
@@ -515,7 +529,12 @@ in patches. The main ones:
   are passed as native handles for zero-copy recording up to 1080p; a
   1080p recording deadlock is fixed; preview stalls are recovered from
   instead of leaving the camera "in use" until a reboot. Open Camera
-  replaces Aperture.
+  replaces Aperture. Preview frames are copied to the window before the
+  buffer goes back to FIMC0, so the preview no longer tears. Recording
+  frames are dequeued in their own thread with their own timestamp, so a
+  slow preview frame no longer makes the frame spacing uneven, and only
+  metadata slots cameraserver has given back are used (cameraserver crashed
+  in `writeNativeHandle()`).
 - **Sensors**: the sensors HAL can control the input sensors, and waits
   for the compass input node, which could appear late and leave
   auto-rotate dead until a reboot.
@@ -589,9 +608,10 @@ in patches. The main ones:
 
 Work in progress. The ROM builds and boots to the home screen on 24.0
 (SELinux enforcing). Tested working: display, Wi-Fi, camera preview, video
-recording with sound, GPS (first fix in about 150 s cold, 30 s warm,
-without assisted GPS), phone calls with call volume, SMS, mobile data
-(GSM/EDGE), `adb reboot recovery`.
+recording with sound, hardware video playback (720p60 in NewPipe at about
+50-58 fps, limited by the CPU), GPS (first fix in about 150 s cold, 30 s
+warm, without assisted GPS), phone calls with call volume, SMS, mobile data
+(GSM/EDGE), `adb install`, `adb reboot recovery`, Magisk root.
 
 Android 17 changes that needed fixes on top of the 23.2 port:
 
@@ -732,6 +752,6 @@ Notes:
   needs root, and the ADB shell, in the Superuser tab first. Old root apps
   may also crash or hang when refused instead of reporting it.
 
-The sections above describe what the patches and forks did on 23.2, where the
-ROM was in daily use. See `../LOS-23.2/README.md` for its working features and
-known limitations.
+The 24.0 port started from the 23.2 one, where the ROM was in daily use;
+several sections above still describe that bring-up. See
+`../LOS-23.2/README.md` for 23.2's working features and known limitations.
