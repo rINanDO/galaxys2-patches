@@ -376,6 +376,9 @@ in patches. The main ones:
   it, and zram sets it, so swapoff spun forever however little was in
   swap. `SWP_FAST` now uses a lower bit. Swapping back in is still slow on
   this kernel (about 1 MB/s), so shutdown keeps skipping it.
+- **Second 1080p decoder**: MFC exposes its free memory per port
+  (`IOCTL_MFC_GET_FREE_MEM`) for the decoder's check below, and logs the
+  frame buffers each decoder gets.
 - **Battery values in sysfs**: `voltage_now` and `capacity` read stack
   garbage (often negative), because the fuel gauge driver reads the
   property value as an input selector and sysfs passed it uninitialised.
@@ -527,6 +530,15 @@ in patches. The main ones:
   camera and the composer use FIMC2. The OSAL now looks up
   the plane addresses of gralloc buffers, and libfimc passes the
   destination with `V4L2_CID_DST_INFO` and knows the tiled formats.
+- **Two apps playing 1080p video**: a 1080p H.264 decoder takes 7 frame
+  buffers, about 17.7 MB of MFC's 34 MB port B, so a second one doesn't
+  fit. The MFC only allocated them at the first frame, after `start()`,
+  and the app showed a playback error (for example Glimpse while a paused
+  NewPipe player held the decoder). The H.264 decoder now checks the free
+  MFC memory when the app configures it and reports `NO_MEMORY`; Android
+  then reclaims the decoder from a background app and retries, or the app
+  falls back to the software decoder. A web page whose decoder is
+  reclaimed stops its video until it is reloaded.
 - **GNSS wakelocks**: the GNSS service used `/dev/vndbinder` as its default
   binder, so libpower couldn't find `ISystemSuspend` and the HAL got no
   wakelocks during a fix (`Failed to get SystemSuspend service`). It stays
