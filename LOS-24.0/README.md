@@ -615,6 +615,11 @@ in patches. The main ones:
   `/data/data` aren't logged. With Magisk's Zygisk, zygote's attempt to
   open the property areas read-write (Magisk's property code tries that
   before read-only) isn't logged either; zygote stays read-only.
+  `/sys/kernel/wakeup_reasons` is labelled in `file_contexts` (genfscon
+  doesn't label sysfs on this kernel; ueventd's restorecon does), so
+  system_suspend may read the wakeup reason after a resume. The lookups
+  for an AIDL graphics allocator (mediacodec, camera HAL) and WebView's
+  lookup of the content capture service aren't logged; both fall back.
 - **GPS shim**: no positions, cell IDs or movement details in logcat. The
   jitter filter, which repeats the last position while the phone doesn't
   move, compares the horizontal distance in metres with its thresholds; it
