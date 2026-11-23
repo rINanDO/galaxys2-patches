@@ -508,7 +508,14 @@ in patches. The main ones:
     rotate while a video plays;
   - a cloned handle registered after the original was freed: the UMP
     secure ID is gone by then, and `media.swcodec` aborted in libUMP. The
-    buffer is imported from the clone's ION fd again.
+    buffer is imported from the clone's ION fd again;
+  - no video thumbnails (MediaMetadataRetriever frame extraction failed
+    with FrameDecoder error -110) while another app played a 1080p video:
+    with MFC busy, the frame comes from the software decoder, whose
+    buffers gralloc fell back to UMP-only memory for once the contiguous
+    ION heap was full, and `media.swcodec` can't import a buffer without
+    an ION fd. gralloc now takes non-contiguous ION memory first; it has
+    no physical address, so FIMC and the composer leave it to the GPU.
 - **Video encoder**: BGRA surface input is converted to NV12 on FIMC
   instead of NEON, and camera HAL frames are encoded in place, which makes
   zero-copy 720p and 1080p recording possible.
