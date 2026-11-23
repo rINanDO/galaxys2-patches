@@ -725,6 +725,28 @@ Known issues:
   registration or right after dialing: the cell voltage sags below about
   3.3 V under the transmit load. Such a battery read 3.33 V at 80 % charge
   as a call started; with a healthy battery calls work.
+- A board leak drains the battery while the phone sleeps. Two of three
+  test phones lost about 4-4.5 % per hour with the screen off, in airplane
+  mode, while a third lost about 1 % per hour on the same build. Suspend
+  itself was normal on all of them: awake under a minute per hour, no wake
+  locks, and the same sleep register and regulator states as on LOS 14.1.
+  Swapping batteries didn't move the drain, because the leak is in the
+  phone: across the battery connector the two draining phones measured
+  89.6 Ω and 109.4 Ω, the good one 64.6 kΩ. At about 3.9 V, 90-110 Ω
+  draws 35-45 mA, about 2-3 % per hour of a 1650 mAh battery, whatever
+  the software does.
+
+  To check a phone that drains too fast:
+
+  1. Switch the phone off, unplug USB and take the battery out.
+  2. Set a multimeter to resistance.
+  3. Put the red probe on pin 2 (+) and the black probe on pin 4 (-) of
+     the phone's battery connector.
+  4. Read the value once it has settled; capacitors on the board make it
+     climb for a moment.
+
+  A healthy board reads tens of kΩ. A reading of a few hundred Ω or less
+  is a leak in the phone; a new battery or another ROM won't fix it.
 
 ## Root with Magisk
 
