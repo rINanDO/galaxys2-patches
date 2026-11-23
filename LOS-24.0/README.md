@@ -358,6 +358,16 @@ in patches. The main ones:
 - **Hang on reboot or shutdown**: removing a per-app memory cgroup could
   loop forever in `mem_cgroup_force_empty` when a charge was stuck, which
   hung init. The loop now gives up after 1 s.
+- **swapoff on zram never returns**: `sys_swapoff()` waits for swap
+  allocators with `while (flags >= SWP_SCANNING)`, which only works while
+  `SWP_SCANNING` is the highest swap flag. `SWP_FAST` had been added above
+  it, and zram sets it, so swapoff spun forever however little was in
+  swap. `SWP_FAST` now uses a lower bit. Swapping back in is still slow on
+  this kernel (about 1 MB/s), so shutdown keeps skipping it.
+- **Battery values in sysfs**: `voltage_now` and `capacity` read stack
+  garbage (often negative), because the fuel gauge driver reads the
+  property value as an input selector and sysfs passed it uninitialised.
+  The value is zeroed first.
 - **Kernel panic when apps change cgroup**: a thread that exited while
   system_server moved its process to another cgroup hit
   `BUG_ON(!newcg)`. Such threads are skipped now.
@@ -513,7 +523,7 @@ in patches. The main ones:
   GNSS, dhd, sysfs nodes).
 - **Watchdog kills of system_server**: a VINTF interface without a service
   (`ISunlightEnhancement`) is no longer declared.
-- **Slow shutdown**: the zram swapoff at shutdown, which took minutes on
+- **Slow shutdown**: the zram swapoff at shutdown, which takes minutes on
   this kernel, is skipped.
 - **Memory**: zram is 512 MB on both cores, the Dalvik heap overrides and
   userspace lmkd tunables are gone, the low memory killer levels are
@@ -635,7 +645,9 @@ Android 17 changes that needed fixes on top of the 23.2 port:
   Without a vendor partition, vendor executables load the system libbinder,
   whose binder stats observer deadlocked `vndservicemanager`.
 - **Shutdown takes 5 minutes, `adb reboot recovery` boots Android**:
-  `system_core` 0008 skips the zram swapoff, which hangs on this kernel.
+  `system_core` 0008 skips the zram swapoff. It hung because of the swap
+  flag order in the kernel (fixed there); swapping back in is still too
+  slow for shutdown.
 - **Video recording fails** (Codec2 software codecs can't allocate):
   `libion,legacy_impl` in `galaxys2-common` and kernel ION ioctl layouts of
   3.4+ for alloc and import.
