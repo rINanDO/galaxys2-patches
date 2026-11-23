@@ -621,7 +621,8 @@ Work in progress. The ROM builds and boots to the home screen on 24.0
 recording with sound, hardware video playback (720p60 in NewPipe at about
 50-58 fps, limited by the CPU), GPS (first fix in about 150 s cold, 30 s
 warm, without assisted GPS), phone calls with call volume, SMS, mobile data
-(GSM/EDGE), `adb install`, `adb reboot recovery`, Magisk root.
+(GSM/EDGE), Bluetooth audio (A2DP), `adb install`, `adb reboot recovery`,
+Magisk root.
 
 Android 17 changes that needed fixes on top of the 23.2 port:
 
@@ -719,7 +720,6 @@ Android 17 changes that needed fixes on top of the 23.2 port:
 
 Known issues:
 
-- Bluetooth is untested.
 - A worn battery makes the modem reset itself (`PA EVENT : reset =1, pa=0`
   in the kernel log) when it starts transmitting, during network
   registration or right after dialing: the cell voltage sags below about
