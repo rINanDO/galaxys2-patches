@@ -264,6 +264,18 @@ on.
   buffers per frame. Both now keep freed memory for a second, as apps do.
   At 800 MHz during 480p playback, SurfaceFlinger's main thread drops from
   about 22% to 18% of one core.
+- **Recorded videos with a short audio track** (`frameworks_av` 0020-0021):
+  in 1080p recordings the audio could end several seconds before the
+  video (5-7 s of 40-50 s after NewPipe had played), and the sound ran
+  ahead of the picture. The HAL captured all audio, but camera recording
+  keeps both cores busy and the recorder's loopers ran at the default
+  priority. AudioSource's AudioRecord callback waited behind them for its
+  lock, AudioFlinger dropped the audio it couldn't deliver, and nothing
+  filled the gap, because `getInputFramesLost()` only counts what the HAL
+  lost. 0020 runs the recorder looper and the audio encoder's looper at
+  audio priority; 0021 fills the gap after an overrun with silence, so the
+  audio stays in sync. With two busy loops during a 45 s recording, the
+  audio track lost 17 s before and nothing after.
 - **adb over USB** (`packages_modules_adb`): adbd only does asynchronous
   USB I/O, which this kernel's FunctionFS doesn't support. adbd now falls
   back to the old blocking FunctionFS code when the first asynchronous read

@@ -1,0 +1,88 @@
+From dc88583733c1eb4ea8f1e6a78029b7e37ca39cc9 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 23 Nov 2026 13:31:08 +0100
+Subject: [PATCH] stagefright: Run the recorder loopers at audio priority
+
+MediaCodecSource feeds its encoders on the recorder looper and the audio
+encoder's codec looper returns the AudioSource buffers; both take the
+AudioSource lock that its AudioRecord callback needs. They ran at the
+default priority, while camera recording keeps both cores of a dual-core
+device busy at higher priorities (camera, app, SurfaceFlinger). The
+callback then waited behind them for hundreds of milliseconds,
+AudioFlinger dropped audio (overruns) and the recorded audio track ended
+up seconds shorter than the video.
+
+Start the recorder looper and the codec looper of audio encoders at
+PRIORITY_AUDIO, like the puller looper already is.
+
+Tested on i9100 with two nice -10 busy loops during a 45 s 1080p
+recording: the audio track lost 17.1 s before and none afterwards.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G5iyKS6HLKv7fpZZf1pvxH
+Change-Id: I77c70320fda36d94cd52f0cc632417ac3dffcd1f
+---
+ .../StagefrightRecorder.cpp                     |  9 ++++++++-
+ media/libstagefright/MediaCodecSource.cpp       | 17 ++++++++++++-----
+ 2 files changed, 20 insertions(+), 6 deletions(-)
+
+diff --git a/media/libmediaplayerservice/StagefrightRecorder.cpp b/media/libmediaplayerservice/StagefrightRecorder.cpp
+index d91a726fca..a2afb4ff29 100644
+--- a/media/libmediaplayerservice/StagefrightRecorder.cpp
++++ b/media/libmediaplayerservice/StagefrightRecorder.cpp
+@@ -244,9 +244,16 @@ void StagefrightRecorder::flushAndResetMetrics(bool reinitialize) {
+ status_t StagefrightRecorder::init() {
+     ALOGV("init");
+ 
++    // MediaCodecSource feeds its encoders on this looper and releases the
++    // AudioSource buffers here, which takes the lock the AudioRecord callback
++    // needs; at the default priority camera recording can starve it long
++    // enough for AudioFlinger to drop audio.
+     mLooper = new ALooper;
+     mLooper->setName("recorder_looper");
+-    mLooper->start();
++    mLooper->start(
++            false /* runOnCallingThread */,
++            false /* canCallJava */,
++            PRIORITY_AUDIO);
+ 
+     return OK;
+ }
+diff --git a/media/libstagefright/MediaCodecSource.cpp b/media/libstagefright/MediaCodecSource.cpp
+index 53fc4372c4..526cfc6934 100644
+--- a/media/libstagefright/MediaCodecSource.cpp
++++ b/media/libstagefright/MediaCodecSource.cpp
+@@ -533,18 +533,25 @@ status_t MediaCodecSource::initEncoder() {
+     mReflector = new AHandlerReflector<MediaCodecSource>(this);
+     mLooper->registerHandler(mReflector);
+ 
++    AString outputMIME;
++    CHECK(mOutputFormat->findString("mime", &outputMIME));
++    mIsVideo = outputMIME.startsWithIgnoreCase("video/");
++
++    // The audio encoder's looper returns the AudioSource buffers, which takes
++    // the AudioSource lock that its AudioRecord callback also needs. At the
++    // default priority it gets starved while camera recording keeps the CPU
++    // busy, the callback waits behind it and AudioFlinger drops audio.
+     mCodecLooper = new ALooper;
+     mCodecLooper->setName("codec_looper");
+-    mCodecLooper->start();
++    mCodecLooper->start(
++            false /* runOnCallingThread */,
++            false /* canCallJava */,
++            mIsVideo ? PRIORITY_DEFAULT : PRIORITY_AUDIO);
+ 
+     if (mFlags & FLAG_USE_SURFACE_INPUT) {
+         mOutputFormat->setInt32(KEY_CREATE_INPUT_SURFACE_SUSPENDED, 1);
+     }
+ 
+-    AString outputMIME;
+-    CHECK(mOutputFormat->findString("mime", &outputMIME));
+-    mIsVideo = outputMIME.startsWithIgnoreCase("video/");
+-
+     AString name;
+     status_t err = NO_INIT;
+     if (mOutputFormat->findString("testing-name", &name)) {
+-- 
+2.51.0
+

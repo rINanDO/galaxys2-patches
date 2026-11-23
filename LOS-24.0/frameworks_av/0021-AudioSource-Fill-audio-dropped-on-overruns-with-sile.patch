@@ -1,0 +1,109 @@
+From 87d4c254ba11625e453a604aebd412fd83355662 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Mon, 23 Nov 2026 13:31:09 +0100
+Subject: [PATCH] AudioSource: Fill audio dropped on overruns with silence
+
+AudioSource only inserts silence for the frames AudioRecord's
+getInputFramesLost() reports, which come from the HAL. When this client
+doesn't read in time, AudioFlinger drops data instead (an overrun) and
+nobody counts it, so every overrun shortened the audio track and the
+sound ran ahead of the video for the rest of the recording.
+
+Remember when an overrun was reported and, for two seconds afterwards,
+compare each buffer's capture timestamp with the time its first frame
+should have. Fill a gap of 30 ms or more with silence. Outside that
+window timestamp jitter is left alone.
+
+Tested on i9100 under load: gaps of 31-78 ms were filled and the audio
+track matched the video; without load nothing is inserted.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G5iyKS6HLKv7fpZZf1pvxH
+Change-Id: I072c5aa291fc047cf3bcdb9f65675d1cf70579b5
+---
+ media/libstagefright/AudioSource.cpp          | 25 +++++++++++++++++++
+ .../include/media/stagefright/AudioSource.h   |  4 +++
+ 2 files changed, 29 insertions(+)
+
+diff --git a/media/libstagefright/AudioSource.cpp b/media/libstagefright/AudioSource.cpp
+index f658d846c4..9937c65b5c 100644
+--- a/media/libstagefright/AudioSource.cpp
++++ b/media/libstagefright/AudioSource.cpp
+@@ -39,6 +39,7 @@ using content::AttributionSourceState;
+ 
+ void AudioSource::onOverrun() {
+     ALOGW("AudioRecord reported overrun!");
++    mLastOverrunUs = systemTime() / 1000LL;
+ }
+ 
+ AudioSource::AudioSource(
+@@ -89,6 +90,7 @@ void AudioSource::set(
+    mNumFramesReceived = 0;
+    mNumFramesSkipped = 0;
+    mNumFramesLost = 0;
++   mLastOverrunUs = 0;
+    mNumClientOwnedBuffers = 0;
+    mNoMoreFramesToRead = false;
+   ALOGV("sampleRate: %u, outSampleRate: %u, channelCount: %u",
+@@ -162,6 +164,7 @@ status_t AudioSource::start(MetaData *params) {
+     mMaxAmplitude = 0;
+     mInitialReadTimeUs = 0;
+     mStartTimeUs = 0;
++    mLastOverrunUs = 0;
+     int64_t startTimeUs;
+     if (params && params->findInt64(kKeyTime, &startTimeUs)) {
+         mStartTimeUs = startTimeUs;
+@@ -411,6 +414,28 @@ size_t AudioSource::onMoreData(const AudioRecord::Buffer& audioBuffer) {
+         // getInputFramesLost() returns the number of lost frames.
+         // Convert number of frames lost to number of bytes lost.
+         numLostBytes = (uint64_t)mRecord->getInputFramesLost() * mRecord->frameSize();
++
++        // getInputFramesLost() only counts what the HAL lost. When this client
++        // doesn't read in time, AudioFlinger drops data (an overrun) and the
++        // audio would run ahead of the video for the rest of the recording.
++        // For a while after an overrun, compare the capture time of this
++        // buffer with the time its first frame should have and fill the gap
++        // with silence. Outside that window timestamp jitter is left alone.
++        const int64_t kOverrunWindowUs = 2000000;
++        const int64_t kMinGapUs = 30000;
++        const int64_t lastOverrunUs = mLastOverrunUs;
++        if (lastOverrunUs > 0 && systemTime() / 1000LL - lastOverrunUs < kOverrunWindowUs) {
++            const int64_t expectedUs = mInitialReadTimeUs +
++                    mNumFramesReceived * 1000000LL / mSampleRate +
++                    (int64_t)(numLostBytes / mRecord->frameSize()) * 1000000LL / mSampleRate;
++            const int64_t gapUs = timeUs - expectedUs;
++            if (gapUs >= kMinGapUs) {
++                const uint64_t gapFrames = (uint64_t)gapUs * mSampleRate / 1000000LL;
++                ALOGW("Overrun gap of %" PRId64 " us, inserting %" PRIu64 " frames of silence",
++                        gapUs, gapFrames);
++                numLostBytes += gapFrames * mRecord->frameSize();
++            }
++        }
+     }
+ 
+     CHECK_EQ(numLostBytes & 1, 0u);
+diff --git a/media/libstagefright/include/media/stagefright/AudioSource.h b/media/libstagefright/include/media/stagefright/AudioSource.h
+index 51f6ac45cc..ba0a64b880 100644
+--- a/media/libstagefright/include/media/stagefright/AudioSource.h
++++ b/media/libstagefright/include/media/stagefright/AudioSource.h
+@@ -26,6 +26,7 @@
+ 
+ #include <system/audio.h>
+ 
++#include <atomic>
+ #include <vector>
+ 
+ namespace android {
+@@ -124,6 +125,9 @@ private:
+     int64_t mNumFramesReceived;
+     int64_t mNumFramesSkipped;
+     int64_t mNumFramesLost;
++    // System time of the last overrun, when AudioFlinger dropped data because
++    // this client didn't read it in time.
++    std::atomic<int64_t> mLastOverrunUs;
+     int64_t mNumClientOwnedBuffers;
+     bool mNoMoreFramesToRead;
+ 
+-- 
+2.51.0
+
