@@ -1,0 +1,42 @@
+From be77ea1fc84648542c11ac653b0d68aa820c48e7 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 24 Nov 2026 20:53:23 +0100
+Subject: [PATCH] ActivityManager: Cancel the startup timeout when restarting a
+ process
+
+A persistent process that dies is restarted with the same
+ProcessRecord, but the restart path left the dead process's
+BIND_APPLICATION_TIMEOUT messages queued. They then fired against the
+new process before its own timeout, so on a slow device a phone
+process that was killed while still starting was declared not
+responding about 20 s into the next start, killed, and restarted again.
+On a first boot this took com.android.phone through five ANRs.
+
+Remove the messages when the process is restarted, as the path for a
+process that isn't restarted already does.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G5iyKS6HLKv7fpZZf1pvxH
+Change-Id: I5aeb2f2e146f53222bd4d876913b0934fe121bc4
+---
+ .../java/com/android/server/am/ActivityManagerService.java    | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/services/core/java/com/android/server/am/ActivityManagerService.java b/services/core/java/com/android/server/am/ActivityManagerService.java
+index e63c7c7b97b5..b2eb3e7fea79 100644
+--- a/services/core/java/com/android/server/am/ActivityManagerService.java
++++ b/services/core/java/com/android/server/am/ActivityManagerService.java
+@@ -14400,6 +14400,10 @@ public class ActivityManagerService extends IActivityManager.Stub
+             // Remove provider publish timeout because we will start a new timeout when the
+             // restarted process is attaching (if the process contains launching providers).
+             mHandler.removeMessages(CONTENT_PROVIDER_PUBLISH_TIMEOUT_MSG, app);
++            // The restarted process keeps this ProcessRecord, so a startup timeout of the
++            // process that died would fire against the new one before its own timeout.
++            mHandler.removeMessages(BIND_APPLICATION_TIMEOUT_SOFT_MSG, app);
++            mHandler.removeMessages(BIND_APPLICATION_TIMEOUT_HARD_MSG, app);
+ 
+             mProcessList.addProcessNameLocked(app);
+             app.setPendingStart(false);
+-- 
+2.51.0
+

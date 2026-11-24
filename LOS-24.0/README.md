@@ -246,6 +246,12 @@ on.
   After a reboot started with the screen off, SystemUI put the phone back
   to sleep during the boot animation. The state is now only restored
   within the same boot.
+- **Phone process ANR loop on the first boot** (`frameworks_base` 0029): a
+  persistent process that dies is restarted with the same process record,
+  but the startup timeout of the dead process stayed queued and fired
+  against the new one about 20 s into its start. The first boot is slow
+  enough that `com.android.phone` then went through five ANRs in a row.
+  The timeout is now cancelled when the process is restarted.
 - **frameworks/native** (`frameworks_native`):
   - `gpuservice` is disabled, because its GPU memory accounting needs BPF
     (replaces LOS-20.0 0001);
