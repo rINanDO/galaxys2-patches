@@ -1,0 +1,53 @@
+From b85e1e992c68c33f8c85d581afde4a24d38928d9 Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 24 Nov 2026 22:52:15 +0100
+Subject: [PATCH] BroadcastQueue: Restart the timeout of a receiver whose
+ process is starting
+
+The broadcast queue treats a process as warm as soon as it attached,
+so a broadcast sent while Application.onCreate() is still running is
+delivered at once and its timeout starts, although the receiver can't
+run before onCreate() returns. On a slow first boot com.android.phone
+spent about 45 s in onCreate(), and a SafetyCenter broadcast sent
+6.5 s into it was declared not responding.
+
+When the timeout of such a receiver expires while its process is still
+waiting for finishAttachApplication(), start the timeout again instead
+of declaring an ANR. The process start timeout already covers a
+process that doesn't finish starting.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G5iyKS6HLKv7fpZZf1pvxH
+Change-Id: I06320d49f4017ef0346ac69de3905ec92db6743c
+---
+ .../com/android/server/am/BroadcastQueueImpl.java  | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/services/core/java/com/android/server/am/BroadcastQueueImpl.java b/services/core/java/com/android/server/am/BroadcastQueueImpl.java
+index 9a270af73739..ed54804999a4 100644
+--- a/services/core/java/com/android/server/am/BroadcastQueueImpl.java
++++ b/services/core/java/com/android/server/am/BroadcastQueueImpl.java
+@@ -1453,6 +1453,20 @@ class BroadcastQueueImpl extends BroadcastQueue {
+ 
+     @GuardedBy("mService")
+     private void deliveryTimeoutLocked(@NonNull BroadcastProcessQueue queue) {
++        final ProcessRecord app = queue.app;
++        if (app != null && app.isPendingFinishAttach() && queue.isActive()) {
++            // A broadcast sent after the process attached is delivered before
++            // Application.onCreate() has returned, and the receiver can't run before it
++            // does. The process start timeout already covers a process that doesn't finish
++            // starting, so give the receiver its full timeout once the process is up.
++            final BroadcastRecord r = queue.getActive();
++            logw("Restarting the delivery timeout of " + r + " to " + queue
++                    + "; the process is still starting");
++            mAnrTimer.discard(queue);
++            startDeliveryTimeoutLocked(queue, (int) (r.isForeground() ? mFgConstants.TIMEOUT
++                    : mBgConstants.TIMEOUT));
++            return;
++        }
+         finishReceiverActiveLocked(queue, BroadcastRecord.DELIVERY_TIMEOUT,
+                 "deliveryTimeoutLocked");
+         demoteFromRunningLocked(queue);
+-- 
+2.51.0
+

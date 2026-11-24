@@ -259,6 +259,14 @@ on.
   came out as almost nothing, so on the first boot `com.android.phone`
   missed a broadcast timeout while it was still starting. The times are
   now read as 64-bit values.
+- **Broadcast timeouts during app startup** (`frameworks_base` 0031): a
+  broadcast sent after a process attached is delivered while
+  `Application.onCreate()` is still running, and its timeout runs although
+  the receiver can't run yet. On the first boot `com.android.phone` spends
+  about 45 s in `onCreate()`, and a SafetyCenter broadcast sent during it
+  was declared not responding. The timeout now starts again while the
+  process is still starting; the process start timeout covers a process
+  that never finishes.
 - **frameworks/native** (`frameworks_native`):
   - `gpuservice` is disabled, because its GPU memory accounting needs BPF
     (replaces LOS-20.0 0001);
