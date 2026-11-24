@@ -1,0 +1,45 @@
+From 0a21f40a1cc21118cd517ca8b2f78679bf67b78a Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Tue, 24 Nov 2026 22:07:01 +0100
+Subject: [PATCH] AnrTimer: Read the process CPU times as 64-bit values
+
+ProcessStats reads the run and wait times from /proc/<pid>/schedstat
+into unsigned long. They are nanoseconds, and on 32-bit devices
+unsigned long wraps after 4.3 s, so the wait time used to extend a
+timeout was wrong as soon as a process had waited that long in total.
+The extension came out as almost nothing, and broadcast, service and
+job timeouts were not extended for a process that was waiting for a
+CPU. On a first boot this made com.android.phone miss a broadcast
+timeout while it was still starting.
+
+Read the values as uint64_t.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G5iyKS6HLKv7fpZZf1pvxH
+Change-Id: I4adb0e5db451e6fc89b6591c1be287880d206205
+---
+ services/core/jni/com_android_server_utils_AnrTimer.cpp | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/services/core/jni/com_android_server_utils_AnrTimer.cpp b/services/core/jni/com_android_server_utils_AnrTimer.cpp
+index a20ad91d3cf5..deb740f00896 100644
+--- a/services/core/jni/com_android_server_utils_AnrTimer.cpp
++++ b/services/core/jni/com_android_server_utils_AnrTimer.cpp
+@@ -548,9 +548,11 @@ class AnrTimerService::ProcessStats {
+             return false;
+         }
+         buffer[len] = 0;
+-        unsigned long t1;
+-        unsigned long t2;
+-        if (sscanf(buffer, "%lu %lu", &t1, &t2) != 2) {
++        // The values are nanoseconds: unsigned long would overflow after 4.3 s
++        // on 32-bit devices.
++        uint64_t t1;
++        uint64_t t2;
++        if (sscanf(buffer, "%" SCNu64 " %" SCNu64, &t1, &t2) != 2) {
+             return false;
+         }
+         cpu_time = t1;
+-- 
+2.51.0
+

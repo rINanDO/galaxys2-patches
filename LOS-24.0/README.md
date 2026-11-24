@@ -252,6 +252,13 @@ on.
   against the new one about 20 s into its start. The first boot is slow
   enough that `com.android.phone` then went through five ANRs in a row.
   The timeout is now cancelled when the process is restarted.
+- **Timeouts not extended for a waiting process** (`frameworks_base`
+  0030): a broadcast, service or job timeout is extended by the time the
+  process waited for a CPU, but the native `AnrTimer` read that time from
+  `schedstat` as a 32-bit value, which wraps after 4.3 s. The extension
+  came out as almost nothing, so on the first boot `com.android.phone`
+  missed a broadcast timeout while it was still starting. The times are
+  now read as 64-bit values.
 - **frameworks/native** (`frameworks_native`):
   - `gpuservice` is disabled, because its GPU memory accounting needs BPF
     (replaces LOS-20.0 0001);
