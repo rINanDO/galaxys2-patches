@@ -267,6 +267,14 @@ on.
   was declared not responding. The timeout now starts again while the
   process is still starting; the process start timeout covers a process
   that never finishes.
+- **Process start timeout on the first boot** (`frameworks_base` 0032):
+  when a process hasn't finished starting after the start timeout, the
+  timeout is extended by the time the process waited for a CPU, but only
+  once. On the first boot `com.android.phone` was still starved when the
+  extension ran out and was declared not responding about 5 s before it
+  would have finished starting. The timeout is now extended again by the
+  time the process waited since the last extension, up to twice the
+  timeout in total; a process that is stuck gets no extension.
 - **frameworks/native** (`frameworks_native`):
   - `gpuservice` is disabled, because its GPU memory accounting needs BPF
     (replaces LOS-20.0 0001);
