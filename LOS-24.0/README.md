@@ -196,11 +196,11 @@ on.
   camera device it fixes no longer exists), and 0006-0008 (the Lineage power
   HAL 1.0 and the in-screen fingerprint HAL, which nothing in this device
   uses; the HIDL power HAL 1.0 is still in AOSP).
-- **Keyboard haptics** (`hardware_lineage_interfaces` 0011): the legacy
-  AIDL vibrator advertised an on-completion callback that it never called,
-  so every effect waited out the framework's 1 s callback timeout and the
-  next key presses were dropped. It now reports no capabilities, and every
-  key tap vibrates.
+- **Keyboard haptics**: the legacy AIDL vibrator advertised an
+  on-completion callback that it never called, so every effect waited out
+  the framework's 1 s callback timeout and the next key presses were
+  dropped. LineageOS has fixed this upstream (the vibrator no longer
+  advertises the callback), so it needs no patch here any more.
 - **Framework tweaks for this device** (`frameworks_base` 0008-0012, from
   LOS-20.0 `frameworks_base` 0013-0023):
   - no warning dialogs about a vendor mismatch or an app's old target SDK;
