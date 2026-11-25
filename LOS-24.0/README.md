@@ -529,9 +529,20 @@ in patches. The main ones:
   - sheared video shown at a width that isn't a multiple of 16 (e.g. a 4:3
     video in NewPipe), because FIMC wrote the picture with a narrower row
     pitch than the display scanned it out with;
+  - video shaking and flickering while the contiguous ION heap was full
+    (for example NewPipe switching from 480p to 720p while a paused app
+    held decoder buffers): gralloc then gives some of the decoder's
+    buffers memory without a physical address, and the composer showed
+    those frames on the GPU and the others on FIMC, which scale
+    differently. The video stays on the GPU while such buffers show up,
+    and for about 2 s after the last one. Tested with the heap filled by
+    a test tool, both full and with part of the decoder's buffers still
+    contiguous: the video stays on the GPU in every frame and plays
+    correctly;
   - a black screen while a video played as a small thumbnail (30 px wide):
     the kernel rejects windows narrower than 128 bytes and every frame
-    failed. Such layers are composed on the GPU now;
+    failed. Such layers are composed on the GPU now (tested with a video
+    shown 23 px wide in Glimpse);
   - a kernel panic (the phone rebooted) when the camera opened while FIMC2
     rotated a layer: once the camera had set FIMC2 up for capture, the
     kernel sent the composer's interrupt to the capture handler.
@@ -548,6 +559,8 @@ in patches. The main ones:
     ION heap was full, and `media.swcodec` can't import a buffer without
     an ION fd. gralloc now takes non-contiguous ION memory first; it has
     no physical address, so FIMC and the composer leave it to the GPU.
+    Video from the software decoder plays correctly from such buffers
+    (tested with the contiguous heap filled).
 - **Video encoder**: BGRA surface input is converted to NV12 on FIMC
   instead of NEON, and camera HAL frames are encoded in place, which makes
   zero-copy 720p and 1080p recording possible.
