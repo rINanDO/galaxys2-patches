@@ -1,0 +1,55 @@
+From d110fee804a48a2ff29212a9608b5372a2bf3fad Mon Sep 17 00:00:00 2001
+From: Dominggoes Isakh <drjisakh@gmail.com>
+Date: Thu, 26 Nov 2026 22:17:01 +0100
+Subject: [PATCH] libmediadrm: Report the security level of drm@1.0 plugins
+
+getSecurityLevel() failed with ERROR_DRM_CANNOT_HANDLE for plugins
+older than drm@1.1, which only have a device security level. ExoPlayer
+asks for a session's level to decide whether it needs a secure decoder,
+so every Widevine stream failed before playback (NPO Start: error 35000,
+"configuratiefout") on devices with the legacy Widevine plugin.
+
+For drm@1.0 plugins, use the device level from the "securityLevel"
+property that legacy Widevine reports: L1 is hardware secure, L2 is
+hardware secure crypto and L3 is software secure crypto. A session
+can't be more secure than the device. Other values still fail as before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G5iyKS6HLKv7fpZZf1pvxH
+Change-Id: Icf7c1d3178c5ad03764452baa9b03c3ff8c97171
+---
+ drm/libmediadrm/DrmHalHidl.cpp | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/drm/libmediadrm/DrmHalHidl.cpp b/drm/libmediadrm/DrmHalHidl.cpp
+index 7097781fe0..b2ee2db813 100644
+--- a/drm/libmediadrm/DrmHalHidl.cpp
++++ b/drm/libmediadrm/DrmHalHidl.cpp
+@@ -1107,7 +1107,23 @@ DrmStatus DrmHalHidl::getSecurityLevel(Vector<uint8_t> const& sessionId,
+     DrmStatus err = UNKNOWN_ERROR;
+ 
+     if (mPluginV1_1 == NULL) {
+-        return DrmStatus(ERROR_DRM_CANNOT_HANDLE);
++        // A drm@1.0 plugin has no session security level. Legacy Widevine
++        // reports the device level as the "securityLevel" property, and a
++        // session can't be more secure than the device, so use that.
++        String8 value;
++        if (getPropertyStringInternal(String8("securityLevel"), value) != OK) {
++            return DrmStatus(ERROR_DRM_CANNOT_HANDLE);
++        }
++        if (value == "L1") {
++            *level = DrmPlugin::kSecurityLevelHwSecureAll;
++        } else if (value == "L2") {
++            *level = DrmPlugin::kSecurityLevelHwSecureCrypto;
++        } else if (value == "L3") {
++            *level = DrmPlugin::kSecurityLevelSwSecureCrypto;
++        } else {
++            return DrmStatus(ERROR_DRM_CANNOT_HANDLE);
++        }
++        return DrmStatus(OK);
+     }
+ 
+     *level = DrmPlugin::kSecurityLevelUnknown;
+-- 
+2.51.0
+

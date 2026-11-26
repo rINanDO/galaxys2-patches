@@ -305,6 +305,14 @@ on.
   audio priority; 0021 fills the gap after an overrun with silence, so the
   audio stays in sync. With two busy loops during a 45 s recording, the
   audio track lost 17 s before and nothing after.
+- **Widevine playback in ExoPlayer apps** (`frameworks_av` 0022): the
+  legacy Widevine plugin is a drm@1.0 plugin, which has no session
+  security level, and `MediaDrm.getSecurityLevel()` failed with
+  `ERROR_DRM_CANNOT_HANDLE`. ExoPlayer asks for it to choose a decoder,
+  so NPO Start stopped after the ad with error 35000 ("configuratiefout").
+  For drm@1.0 plugins the framework now reports the device level from the
+  plugin's `securityLevel` property (L3 here). NPO Start plays its
+  episodes on the hardware H.264 decoder.
 - **adb over USB** (`packages_modules_adb`): adbd only does asynchronous
   USB I/O, which this kernel's FunctionFS doesn't support. adbd now falls
   back to the old blocking FunctionFS code when the first asynchronous read
