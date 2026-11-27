@@ -492,6 +492,23 @@ in patches. The main ones:
   the HSIC link code kept the AP awake until the link suspended again,
   which could take most of the time on battery; it now aborts the suspend
   with a 500 ms wakeup event instead.
+- **Stalls from swapping instead of killing cached apps**: the
+  lowmemorykiller counted mapped file pages, the code of running apps, as
+  free cache, so the cache never fell below the minfree levels while a
+  dozen cached apps sat in zram. The phone froze for seconds at a time
+  and several processes hit input ANRs at once. For cached apps (adj 900
+  and up) mapped pages no longer count; the other levels are unchanged, so
+  the keyboard and the previous app are kept as before.
+- **Stalls during video playback**: when the contiguous ION heap was full,
+  gralloc's fallback heap asked for 1 MB and 64 KB chunks with reclaim
+  allowed. Highmem, fragmented by zram, never has such blocks, so kswapd
+  kept evicting the whole zone and swapped out every app while hundreds of
+  MB were free (load up to 29, UI freezes up to 40 s). Those chunks are now
+  only taken when they are free already.
+- **SD cards not mounting**: vold mounts FAT cards with `time_offset=`,
+  which Linux 3.0 didn't know, so every card was "unmountable". The option
+  is backported from Linux 4.19, so cards mount and file times use the
+  device's time zone.
 
 ### Hardware (`hardware/samsung`)
 
@@ -699,6 +716,26 @@ in patches. The main ones:
   doesn't ship that HAL anymore.
 - **`packages_modules_Permission`** 0001-0002: the second patch reverts the
   first.
+
+## Changelog
+
+The changes and fixes in each build, newest first. Each build is named
+after its zip, `lineage-24.0-<date>-UNOFFICIAL-i9100.zip`.
+
+### 20261127 (27 November 2026)
+
+- Kernel: SD cards mount again. The FAT driver now accepts vold's
+  `time_offset=` option, and file times use the device's time zone.
+
+### 20261126 (26 November 2026)
+
+- Kernel: the lowmemorykiller kills cached apps instead of letting them
+  thrash in zram, which caused multi-second freezes and input ANRs.
+- Kernel: no more freezes and swapping during video playback when the
+  contiguous ION heap is full (gralloc's fallback no longer wakes kswapd
+  for 1 MB and 64 KB chunks).
+- `frameworks_av` 0022: Widevine content plays in ExoPlayer apps; NPO
+  Start no longer stops after the ad with error 35000.
 
 ## Status
 
