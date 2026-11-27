@@ -879,26 +879,33 @@ ramdisk from a slot on the HIDDEN partition when the slot holds a valid
 copy of its own ramdisk, and a TWRP zip writes the Magisk-patched copy
 there. The KERNEL partition isn't touched.
 
-1. Build the zips from a Magisk release APK:
+1. Build the zips once; they hold only the install script and work with
+   any Magisk release:
 
    ```
-   device/samsung/galaxys2-common/magisk/make-magisk-zips.sh Magisk-v31.1.apk <output-dir>
+   device/samsung/galaxys2-common/magisk/make-magisk-zips.sh <output-dir>
    ```
 
-   This makes `i9100-magisk-v<version>-installer.zip` and
-   `i9100-magisk-uninstaller.zip`.
+   This makes `i9100-magisk-installer.zip` and
+   `i9100-magisk-uninstaller.zip`. Copy them to a folder on the phone
+   together with a Magisk release APK, for example `/sdcard1/ROMS/Magisk/`.
 2. Boot TWRP with a kernel that has the slot (it leaves the stock ramdisk at
-   `/.stock-boot.cpio`) and flash the installer zip. It runs Magisk's own
-   flash script on the stock ramdisk, without the addon.d step, and passes
-   the pre-init partition (`mmcblk0p10`), which Magisk only detects by
-   itself in Android.
+   `/.stock-boot.cpio`) and flash the installer zip. It installs the newest
+   `Magisk*.apk` in its own folder (by the APK's version code; a sideloaded
+   zip searches `/sdcard1/ROMS/Magisk`, `/sdcard/ROMS` and
+   `/sdcard/Download`), builds the boot image Magisk patches on the phone,
+   and runs Magisk's own flash script on the stock ramdisk, without the
+   addon.d step. It passes the pre-init partition (`mmcblk0p10`), which
+   Magisk only detects by itself in Android, and names FACTORYFS `system`
+   for Magisk, which TWRP 3.6 lists as `/system_root`.
 3. Boot Android and install `/sdcard/ROMS/Magisk.apk`, or use
    `adb install`.
 
 Notes:
 
 - Don't use Install or Reinstall for Magisk in the app: it would patch the
-  KERNEL partition. To update Magisk, build and flash new zips.
+  KERNEL partition. To update Magisk, download the new APK next to the
+  installer zip on the phone and flash the zip again; no PC is needed.
 - A ROM build with a different ramdisk turns the slot off by itself (it was
   made from another ramdisk) and boots without Magisk; flash the installer
   zip again. Builds with the same ramdisk keep Magisk.
