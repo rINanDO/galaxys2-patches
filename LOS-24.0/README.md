@@ -509,6 +509,12 @@ in patches. The main ones:
   which Linux 3.0 didn't know, so every card was "unmountable". The option
   is backported from Linux 4.19, so cards mount and file times use the
   device's time zone.
+- **Phone freezing completely (ashmem deadlock)**: ashmem copied a
+  buffer's name from or to the app while holding its global lock. When that
+  copy had to fault memory in while another thread of the same app was in
+  `mmap()`, both threads waited on each other forever, and system_server,
+  SystemUI and the watchdog then blocked on the lock too. The copies and
+  `read()` now happen outside the lock, as in later Linux versions.
 
 ### Hardware (`hardware/samsung`)
 
@@ -721,6 +727,11 @@ in patches. The main ones:
 
 The changes and fixes in each build, newest first. Each build is named
 after its zip, `lineage-24.0-<date>-UNOFFICIAL-i9100.zip`.
+
+### 20261128 (28 November 2026)
+
+- Kernel: no more complete freezes from an ashmem deadlock, seen while
+  starting playback in DS audio under memory pressure.
 
 ### 20261127 (27 November 2026)
 
